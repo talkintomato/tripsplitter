@@ -26,6 +26,7 @@ export const CURRENCIES = [
   { code: 'GBP', name: 'Pound sterling', decimals: 2 },
   { code: 'AUD', name: 'Australian dollar', decimals: 2 },
   { code: 'NZD', name: 'New Zealand dollar', decimals: 2 },
+  { code: 'EUR', name: 'Euro', decimals: 2 },
 ] as const satisfies ReadonlyArray<Currency>;
 
 /** Union of the supported codes: 'SGD' | 'MYR' | ... */

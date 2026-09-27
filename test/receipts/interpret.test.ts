@@ -108,8 +108,8 @@ describe('planDraft', () => {
     expect(plan({ currency: 'THB', currency_certain: true })).toMatchObject({ currency: 'THB', currencyNeedsReview: false, unsupportedCurrency: null });
     expect(plan({ currency: 'usd', currency_certain: false })).toMatchObject({ currency: 'USD', currencyNeedsReview: true, unsupportedCurrency: null });
     expect(plan({ currency: null, currency_certain: false })).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, unsupportedCurrency: null });
-    expect(plan({ currency: 'EUR', currency_certain: true })).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, unsupportedCurrency: 'EUR' });
-    expect(plan({ currency: 'EUR', currency_certain: true }, 'JPY')).toMatchObject({ currency: 'JPY', total: 85, unsupportedCurrency: 'EUR' });
+    expect(plan({ currency: 'CHF', currency_certain: true })).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, unsupportedCurrency: 'CHF' });
+    expect(plan({ currency: 'CHF', currency_certain: true }, 'JPY')).toMatchObject({ currency: 'JPY', total: 85, unsupportedCurrency: 'CHF' });
     expect(plan({ currency: 'euros, probably', currency_certain: false })).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, unsupportedCurrency: null });
   });
 

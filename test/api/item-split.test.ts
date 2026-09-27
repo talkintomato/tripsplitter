@@ -264,7 +264,7 @@ describe('the preview of an item split', () => {
 
   it('checks the figures as a save does', async () => {
     const h = harness();
-    for (const over of [{ tip: -1 }, { total: -5 }, { currency: 'EUR' }, { expenseDate: 'yesterday' }, { items: [{ label: 'Beer', amount: -450 }] }, { items: [{ label: 'Beer', amount: 450, quantity: 0 }] }]) {
+    for (const over of [{ tip: -1 }, { total: -5 }, { currency: 'CHF' }, { expenseDate: 'yesterday' }, { items: [{ label: 'Beer', amount: -450 }] }, { items: [{ label: 'Beer', amount: 450, quantity: 0 }] }]) {
       const preview = await unchanged(h, () => h.ana.post(PREVIEW, casaPepe(h, over)));
       const created = await unchanged(h, () => h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, { ...casaPepe(h, over), status: 'draft' }));
       expect(created.status).toBe(400);

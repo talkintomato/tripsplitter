@@ -16,7 +16,7 @@ import {
 
 describe('currencies', () => {
   it('lists the supported currencies with their decimals', () => {
-    expect(CURRENCIES.map((c) => c.code)).toEqual(['SGD', 'MYR', 'THB', 'IDR', 'JPY', 'KRW', 'CNY', 'USD', 'GBP', 'AUD', 'NZD']);
+    expect(CURRENCIES.map((c) => c.code)).toEqual(['SGD', 'MYR', 'THB', 'IDR', 'JPY', 'KRW', 'CNY', 'USD', 'GBP', 'AUD', 'NZD', 'EUR']);
     expect(CURRENCIES.filter((c) => c.decimals === 0).map((c) => c.code)).toEqual(['IDR', 'JPY', 'KRW']);
     expect(CURRENCIES.every((c) => c.decimals === 0 || c.decimals === 2)).toBe(true);
     expect(DEFAULT_HOME_CURRENCY).toBe('SGD');
@@ -24,13 +24,13 @@ describe('currencies', () => {
 
   it('an unsupported currency is refused', () => {
     expect(isSupportedCurrency('SGD')).toBe(true);
-    expect(isSupportedCurrency('EUR')).toBe(false);
+    expect(isSupportedCurrency('CHF')).toBe(false);
     expect(isSupportedCurrency('sgd')).toBe(false);
     expect(isSupportedCurrency(undefined)).toBe(false);
-    expect(() => toMinorUnits('1', 'EUR')).toThrow(UnsupportedCurrencyError);
-    expect(() => formatAmount(100, 'EUR')).toThrow(UnsupportedCurrencyError);
-    expect(() => currencyDecimals('EUR')).toThrow(UnsupportedCurrencyError);
-    expect(() => convertToHome(100, '1.5', 'EUR', 'SGD', 'down')).toThrow(UnsupportedCurrencyError);
+    expect(() => toMinorUnits('1', 'CHF')).toThrow(UnsupportedCurrencyError);
+    expect(() => formatAmount(100, 'CHF')).toThrow(UnsupportedCurrencyError);
+    expect(() => currencyDecimals('CHF')).toThrow(UnsupportedCurrencyError);
+    expect(() => convertToHome(100, '1.5', 'CHF', 'SGD', 'down')).toThrow(UnsupportedCurrencyError);
   });
 
   it('converts a decimal string to minor units', () => {

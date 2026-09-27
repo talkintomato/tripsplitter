@@ -187,14 +187,14 @@ describe('reuse', () => {
 
 describe('unsupported currencies', () => {
   it.each([
-    ['SGD', 'EUR'],
-    ['EUR', 'SGD'],
+    ['SGD', 'CHF'],
+    ['CHF', 'SGD'],
     ['SGD', 'jpy'],
     ['SGD', ''],
-    ['EUR', 'EUR'],
+    ['CHF', 'CHF'],
     ['SGD', 'JPY&symbols=USD'],
   ])('%s to %s gives null and makes no network call', async (from, to) => {
-    const { suggest, calls } = build([{ body: body('SGD', '"EUR":0.67') }]);
+    const { suggest, calls } = build([{ body: body('SGD', '"CHF":0.67') }]);
     expect(await suggest(from, to)).toBeNull();
     expect(calls).toEqual([]);
   });

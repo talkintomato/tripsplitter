@@ -417,12 +417,12 @@ describe('currency', () => {
   });
 
   it('not supported: home currency, to be reviewed, and the message names what was printed', async () => {
-    const h = harness({ db, reader: async () => reading({ currency: 'EUR', currency_certain: true }) });
+    const h = harness({ db, reader: async () => reading({ currency: 'CHF', currency_certain: true }) });
     await h.sendPhoto('@tripsplitter_test_bot');
     const draft = onlyExpense();
     expect(draft).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, total: 8450, fxRateSource: 'home' });
     expect(draft.items).toHaveLength(3);
-    expect(h.finalText().split('\n')).toContain("Check the currency before saving. The receipt shows EUR, which isn't supported.");
+    expect(h.finalText().split('\n')).toContain("Check the currency before saving. The receipt shows CHF, which isn't supported.");
   });
 
   it('not supported, with decimals, in a trip whose home currency has none', async () => {
@@ -431,7 +431,7 @@ describe('currency', () => {
       db,
       reader: async () =>
         reading({
-          currency: 'EUR',
+          currency: 'CHF',
           items: [
             { label: 'Paella', quantity: 1, amount: '60.00' },
             { label: 'Beer', quantity: 2, amount: '24.50' },
@@ -445,7 +445,7 @@ describe('currency', () => {
     expect(draft).toMatchObject({ currency: 'JPY', currencyNeedsReview: true, total: 85, fxRateSource: 'home' });
     expect(draft.items.map((i) => i.amount)).toEqual([60, 25]);
     expect(h.finalText()).toContain('Casa Pepe · 85 JPY · 2 items');
-    expect(h.finalText()).toContain('The receipt shows EUR');
+    expect(h.finalText()).toContain('The receipt shows CHF');
   });
 });
 

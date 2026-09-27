@@ -153,18 +153,18 @@ describe('schema rules', () => {
   it('refuses an unsupported currency in the database itself', () => {
     const { db, group, trip, ana } = seed();
     expect(() =>
-      db.prepare(`INSERT INTO trip (group_id, name, home_currency, status, created_at) VALUES (?, 'x', 'EUR', 'ended', 'now')`).run(group.id),
+      db.prepare(`INSERT INTO trip (group_id, name, home_currency, status, created_at) VALUES (?, 'x', 'CHF', 'ended', 'now')`).run(group.id),
     ).toThrow(/FOREIGN KEY/);
     expect(() =>
       db
         .prepare(
           `INSERT INTO expense (trip_id, created_by, payer_id, expense_date, total, currency, fx_rate, fx_rate_source, split_type, status, created_at, updated_at)
-           VALUES (?, ?, ?, '2026-09-27', 100, 'EUR', '1.5', 'expense', 'even', 'draft', 'now', 'now')`,
+           VALUES (?, ?, ?, '2026-09-27', 100, 'CHF', '1.5', 'expense', 'even', 'draft', 'now', 'now')`,
         )
         .run(trip.id, ana.id, ana.id),
     ).toThrow(/FOREIGN KEY/);
     expect(() =>
-      db.prepare(`INSERT INTO trip_fx_rate (trip_id, currency, rate, origin, set_by, updated_at) VALUES (?, 'EUR', '1.5', 'member', ?, 'now')`).run(trip.id, ana.id),
+      db.prepare(`INSERT INTO trip_fx_rate (trip_id, currency, rate, origin, set_by, updated_at) VALUES (?, 'CHF', '1.5', 'member', ?, 'now')`).run(trip.id, ana.id),
     ).toThrow(/FOREIGN KEY/);
   });
 

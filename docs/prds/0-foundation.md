@@ -132,6 +132,7 @@ The only place currencies are defined. Adding one is a one-line change.
 | GBP | Pound sterling | 2 |
 | AUD | Australian dollar | 2 |
 | NZD | New Zealand dollar | 2 |
+| EUR | Euro | 2 |
 
 IDR is handled with no decimals because receipts never show them, although the official standard gives it two.
 

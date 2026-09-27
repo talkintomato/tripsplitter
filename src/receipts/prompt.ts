@@ -29,8 +29,8 @@ Date
 
 Currency
 - currency is the ISO 4217 code of the currency the amounts are in. The app supports these: ${currencies}.
-- When the receipt prints a code or an unambiguous name or symbol, such as "SGD", "S$", "RM", "THB", "Rp" or "₩", return that currency and set currency_certain to true.
+- When the receipt prints a code or an unambiguous name or symbol, such as "SGD", "S$", "RM", "THB", "Rp", "€" or "₩", return that currency and set currency_certain to true.
 - Several currencies share a symbol: "$" is used for SGD, USD, AUD and NZD among others, and "¥" for JPY and CNY. When only such a symbol is printed, or no currency is shown at all, work out the currency from the merchant's address, phone number, tax name and the language of the receipt, return your best answer, and set currency_certain to false, because that is a guess.
 - When you cannot work it out, return null with currency_certain false.
-- When the receipt is in a currency that is not in the list, still return its real ISO code, for example "EUR". Do not replace it with a supported one and do not convert the amounts.`;
+- When the receipt is in a currency that is not in the list, still return its real ISO code, for example "CHF". Do not replace it with a supported one and do not convert the amounts.`;
 }

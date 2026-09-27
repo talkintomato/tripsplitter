@@ -124,7 +124,7 @@ Paid by Ana
 
 Extra lines when they apply:
 
-- "Check the currency before saving. The receipt shows EUR, which isn't supported." or "Check the currency before saving."
+- "Check the currency before saving. The receipt shows CHF, which isn't supported." or "Check the currency before saving."
 - "Couldn't look up an exchange rate. Open to set it."
 - The duplicate warning below.
 

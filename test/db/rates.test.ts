@@ -103,13 +103,13 @@ describe('the rate of an expense', () => {
   it('an unsupported currency is refused', () => {
     const s = seed();
     const before = fingerprint(s.db);
-    expect(code(() => createExpense(s.db, s.asAna, dinner(s, { currency: 'EUR', rateOverride: '0.68' })))).toBe('unsupported_currency');
+    expect(code(() => createExpense(s.db, s.asAna, dinner(s, { currency: 'CHF', rateOverride: '0.68' })))).toBe('unsupported_currency');
     expect(code(() => createExpense(s.db, s.asAna, dinner(s, { currency: 'sgd' })))).toBe('unsupported_currency');
-    expect(code(() => setTripRate(s.db, s.asAna, s.trip.id, 'EUR', '0.68', 'member'))).toBe('unsupported_currency');
-    expect(code(() => previewTripRate(s.db, s.asAna, s.trip.id, 'EUR', '0.68'))).toBe('unsupported_currency');
-    expect(code(() => changeHomeCurrency(s.db, s.asAna, s.trip.id, 'EUR'))).toBe('unsupported_currency');
+    expect(code(() => setTripRate(s.db, s.asAna, s.trip.id, 'CHF', '0.68', 'member'))).toBe('unsupported_currency');
+    expect(code(() => previewTripRate(s.db, s.asAna, s.trip.id, 'CHF', '0.68'))).toBe('unsupported_currency');
+    expect(code(() => changeHomeCurrency(s.db, s.asAna, s.trip.id, 'CHF'))).toBe('unsupported_currency');
     const e = createExpense(s.db, s.asAna, dinner(s, { status: 'draft' }));
-    expect(code(() => saveExpense(s.db, s.asAna, e.id, 1, { ...sameAs(s, dinner(s)), currency: 'EUR' }))).toBe('unsupported_currency');
+    expect(code(() => saveExpense(s.db, s.asAna, e.id, 1, { ...sameAs(s, dinner(s)), currency: 'CHF' }))).toBe('unsupported_currency');
     expect(getExpense(s.db, s.asAna, e.id).version).toBe(1);
     expect(listTripRates(s.db, s.asAna, s.trip.id)).toEqual([]);
     expect(fingerprint(s.db)).not.toBe(before);

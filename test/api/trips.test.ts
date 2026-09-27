@@ -40,7 +40,7 @@ describe('trips', () => {
     const h = harness();
     const path = `/api/trips/${h.a.trip.id}`;
     const before = fingerprint(h.db);
-    const reply = await h.ana.patch(path, { name: 'Osaka', homeCurrency: 'EUR', setupDone: true });
+    const reply = await h.ana.patch(path, { name: 'Osaka', homeCurrency: 'CHF', setupDone: true });
     expect(reply.status).toBe(400);
     expect(reply.body.error.code).toBe('unsupported_currency');
     expect(fingerprint(h.db)).toBe(before);

@@ -81,7 +81,7 @@ Pure functions. No database, no floating point.
 
 | Export | Description |
 |---|---|
-| `const CURRENCIES` | The supported list, each `{ code, name, decimals }`: SGD, MYR, THB, CNY, USD, GBP, AUD, NZD with 2 decimals; IDR, JPY, KRW with 0. The only place currencies are defined. |
+| `const CURRENCIES` | The supported list, each `{ code, name, decimals }`: SGD, MYR, THB, CNY, USD, GBP, AUD, NZD, EUR with 2 decimals; IDR, JPY, KRW with 0. The only place currencies are defined. |
 | `interface Currency` | `{ code: string; name: string; decimals: number }` |
 | `type CurrencyCode` | Union of the supported codes. |
 | `const DEFAULT_HOME_CURRENCY: CurrencyCode` | `'SGD'` |

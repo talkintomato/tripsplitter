@@ -68,7 +68,7 @@ USE_LAUNCH='' check 'GET /api/my-groups without launch' 200 'v.groups.length===1
 
 check 'GET /api/trips' 200 'v.trips.length===1' GET /api/trips
 check 'PATCH /api/trips/:id' 200 'v.trip.name==="Smoke trip"' PATCH "/api/trips/$TRIP" '{"name":"Smoke trip"}'
-check 'PATCH with one bad field changes nothing' 400 'v.error.code==="unsupported_currency"' PATCH "/api/trips/$TRIP" '{"name":"Nope","homeCurrency":"EUR"}'
+check 'PATCH with one bad field changes nothing' 400 'v.error.code==="unsupported_currency"' PATCH "/api/trips/$TRIP" '{"name":"Nope","homeCurrency":"CHF"}'
 check 'GET /api/trips/:id' 200 'v.trip.name==="Smoke trip"' GET "/api/trips/$TRIP"
 
 EXPENSE="{\"payerId\":$ME,\"description\":\"Dinner\",\"expenseDate\":\"2026-09-27\",\"total\":1000,\"splitType\":\"even\",\"shares\":[{\"memberId\":$ME},{\"memberId\":$SAM},{\"memberId\":$PRIYA}]}"

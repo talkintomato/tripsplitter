@@ -233,7 +233,7 @@ describe('foreign currency', () => {
     const bad = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'JPY' }));
     expect(bad.body).toMatchObject({ keptAsDraft: true, expense: { fxRateSource: 'missing' } });
     expect(listTripRates(h.db, h.a.asAna, h.a.trip.id)).toEqual([]);
-    expect((await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'EUR' }))).body.error.code).toBe('unsupported_currency');
+    expect((await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'CHF' }))).body.error.code).toBe('unsupported_currency');
   });
 
   it('never reads the rate or its source from a request', async () => {

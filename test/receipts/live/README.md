@@ -40,7 +40,7 @@ test/receipts/live/
 |---|---|---|
 | `merchant` | The name as printed, or `null` when the receipt shows none | Ignoring case, spacing and punctuation |
 | `total` | The final total as printed, a decimal string without symbol or thousands separator | As a number: `"84.5"` equals `"84.50"` |
-| `currency` | The ISO 4217 code, or `null` when the receipt gives no way to tell | Exactly. Use the real code even when the app does not support it, such as `"EUR"` |
+| `currency` | The ISO 4217 code, or `null` when the receipt gives no way to tell | Exactly. Use the real code even when the app does not support it, such as `"CHF"` |
 | `items` | The number of printed item lines. Discount and voucher lines, subtotal, tax, service charge and total are not items | Exactly |
 
 Aim for 10 receipts, at least two in a foreign currency and one long restaurant bill.

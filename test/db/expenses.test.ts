@@ -136,7 +136,7 @@ describe('createExpense and getExpense', () => {
     expect(bad({ shares: [{ memberId: s.ana.id, weight: 0 }] })).toBe('invalid_input');
     expect(bad({ shares: [{ memberId: s.ana.id, weight: 1.5 }] })).toBe('invalid_input');
     expect(bad({ splitType: 'half' as never })).toBe('invalid_input');
-    expect(bad({ currency: 'EUR' })).toBe('unsupported_currency');
+    expect(bad({ currency: 'CHF' })).toBe('unsupported_currency');
     expect(bad({ items: [{ label: 'A', amount: -5 }] })).toBe('invalid_input');
     expect(bad({ rateOverride: '0', currency: 'JPY' })).toBe('invalid_input');
   });

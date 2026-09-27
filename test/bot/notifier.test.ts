@@ -177,7 +177,7 @@ describe('a notice that fails', () => {
   it('does not throw for a notice that cannot be built', async () => {
     const { h, group } = await ready();
     await expect(h.notifier.expenseSaved(expense(group, { groupId: 9999 }))).resolves.toBeUndefined();
-    await expect(h.notifier.expenseDeleted(expense(group, { currency: 'EUR' }))).resolves.toBeUndefined();
+    await expect(h.notifier.expenseDeleted(expense(group, { currency: 'CHF' }))).resolves.toBeUndefined();
     await expect(h.notifier.linkReset({ chatId: CHAT, groupId: 9999, actorName: 'Ana' })).resolves.toBeUndefined();
     expect(h.errors).toHaveLength(3);
     // The line about the reset is still posted; only the intro could not be.

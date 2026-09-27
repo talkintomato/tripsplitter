@@ -152,7 +152,7 @@ describe('each operation writes the activity entries documented for it', () => {
       expect(() => saveExpense(s.db, s.asAna, expense.id, 1, { ...sameAs(s, dinner(s)), shares: [] })).toThrow();
       expect(() => saveExpense(s.db, s.asAna, expense.id, 7, sameAs(s, dinner(s)))).toThrow();
       expect(() => confirmExpense(s.db, s.asAna, expense.id, 1)).toThrow();
-      expect(() => createExpense(s.db, s.asAna, dinner(s, { currency: 'EUR' }))).toThrow();
+      expect(() => createExpense(s.db, s.asAna, dinner(s, { currency: 'CHF' }))).toThrow();
       expect(() => createSettlement(s.db, s.asAna, { tripId: s.trip.id, fromMemberId: s.ana.id, toMemberId: s.ana.id, amount: 5 })).toThrow();
       expect(() => setTripRate(s.db, s.asAna, s.trip.id, 'JPY', '0', 'member')).toThrow();
     });
