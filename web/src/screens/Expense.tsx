@@ -334,7 +334,7 @@ export function Drafts() {
       ) : loaded.data === undefined ? (
         <Loading what="drafts" />
       ) : loaded.data.expenses.length === 0 ? (
-        <Empty>No drafts. Send a receipt photo to the group to start one.</Empty>
+        <Empty>No drafts. Drafts come from receipt photos or from “Save draft for later”.</Empty>
       ) : (
         <ul className="list">
           {loaded.data.expenses.map((expense) => (

@@ -1,4 +1,4 @@
-import { currencyDecimals, fromMinorUnits, toMinorUnits } from '../../../src/core/currencies';
+import { currencyDecimals, toMinorUnits } from '../../../src/core/currencies';
 import type { ExpenseInput, ExpenseItemInput, ExpenseView, Member, ShareInput, SplitType } from '../api/types';
 import { amountText, today } from '../format';
 
@@ -164,7 +164,7 @@ export function changeCurrency(state: ExpenseFormState, currency: string): Expen
     currencyChecked: true,
     currencyNeedsReview: false,
     ...(currency !== state.currency && state.rateOverride !== undefined ? { rateOverride: null } : {}),
-    amountText: state.amountText === '' ? '' : oldScale === newScale ? state.amountText : fromMinorUnits(rescale(total), currency),
+    amountText: state.amountText === '' ? '' : amountText(rescale(total), currency),
     items: state.items.map((item) => ({ ...item, amount: rescale(item.amount) })),
     tax: rescale(state.tax),
     tip: rescale(state.tip),

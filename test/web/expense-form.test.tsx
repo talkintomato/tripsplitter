@@ -263,7 +263,7 @@ describe('a draft', () => {
     expect(screen.getByText('JPY')).toBeInTheDocument();
     expect(await screen.findByText('Rate: 1 SGD = 112.4 JPY')).toBeInTheDocument();
     expect(screen.getByText('100.00 SGD')).toBeInTheDocument();
-    expect(await within(row('Sam')).findByText('3746 JPY')).toBeInTheDocument();
+    expect(await within(row('Sam')).findByText('3,746 JPY')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /currency/i })).toHaveValue('JPY');
 
     await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
@@ -281,7 +281,8 @@ describe('a draft', () => {
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
     expect(screen.getByText(notice)).toBeInTheDocument();
-    expect(await screen.findByText('The latest rate will be looked up when saving.')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Trip rate: 1 SGD = ___ JPY')).toBeInTheDocument();
+    expect(screen.queryByText('The latest rate will be looked up when saving.')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save draft for later' }));
     expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('confirm');
   });
@@ -411,14 +412,14 @@ describe('expense currency and own rate', () => {
     client.saveExpense.mockResolvedValue(written(expense));
     await screen.findByText('Trip rate');
     await user.click(screen.getByRole('button', { name: 'Use a different rate for this expense' }));
-    const input = screen.getByLabelText('Rate for this expense: 1 SGD in JPY');
+    const input = screen.getByLabelText("This expense's rate: 1 SGD = ___ JPY");
     await user.clear(input);
     await user.type(input, '100');
     await screen.findByText("This expense's own rate");
     expect(screen.getByText('112.40 SGD')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ rateOverride: '100' });
-    await user.click(screen.getByRole('button', { name: 'Use the trip rate' }));
+    await user.click(screen.getByRole('button', { name: 'Use the trip rate instead' }));
     await screen.findByText('Trip rate');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ rateOverride: null });
@@ -439,6 +440,7 @@ describe('expense currency and own rate', () => {
     await user.type(screen.getByLabelText('Amount'), '84.50');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Expense currency' }), 'JPY');
     expect(screen.getByLabelText('Amount')).toHaveValue('85');
+    expect(screen.getByText('JPY has no cents, so 84.50 becomes 85.')).toBeInTheDocument();
     await screen.findByText('The latest rate will be looked up when saving.');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(client.createExpense.mock.calls[0]![1]).toMatchObject({ currency: 'JPY', total: 85 });
@@ -468,13 +470,13 @@ describe('a rate that is still being typed', () => {
     const expense = expenseView({ status: 'draft', currency: 'JPY', total: 11240, fxRate: null, fxRateSource: 'missing', homeTotal: null, homeAmounts: null });
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
-    await screen.findByText('The latest rate will be looked up when saving.');
+    await screen.findByLabelText('Trip rate: 1 SGD = ___ JPY');
     await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     client.previewExpense.mockClear();
 
     // The field opens empty, because there is no rate to start from.
     await user.click(screen.getByRole('button', { name: 'Use a different rate for this expense' }));
-    const input = screen.getByLabelText('Rate for this expense: 1 SGD in JPY');
+    const input = screen.getByLabelText("This expense's rate: 1 SGD = ___ JPY");
     expect(input).toHaveValue('');
     await user.type(input, '0');
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -499,4 +501,84 @@ describe('a rate that is still being typed', () => {
     await user.click(screen.getByRole('button', { name: 'Finish and save' }));
     expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ rateOverride: '112.4', confirm: true });
   });
+});
+
+
+describe('recovering from a failed rate lookup', () => {
+  const missing = () => expenseView({ status: 'draft', currency: 'JPY', fxRate: null, fxRateSource: 'missing', notice: "Couldn't look up an exchange rate. Enter one to save this." });
+
+  it('sets the trip rate through preview and apply, then confirms with the updated version', async () => {
+    const expense = missing();
+    const { client, user, onSaved } = setup({ expense });
+    client.request.mockResolvedValueOnce({ snapshot: 'snapshot' }).mockResolvedValueOnce({ updatedExpenses: [{ id: expense.id, version: 4 }] });
+    const saved = written({ ...expense, status: 'confirmed', version: 6, fxRate: '112.4', fxRateSource: 'trip' });
+    client.saveExpense.mockResolvedValue(saved);
+    await user.type(await screen.findByLabelText('Trip rate: 1 SGD = ___ JPY'), '112.4');
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
+    expect(client.request.mock.calls).toEqual([
+      ['POST', '/api/trips/1/rates/JPY/preview', { rate: '112.4' }],
+      ['PUT', '/api/trips/1/rates/JPY', { rate: '112.4', snapshot: 'snapshot' }],
+    ]);
+    expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ version: 4, confirm: true });
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
+  });
+
+  it('keeps a new expense on screen after lookup failure and retries the resulting draft', async () => {
+    const { client, user, onSaved } = setup({ tripId: 'active' });
+    client.createExpense.mockResolvedValue({ ...written(missing()), keptAsDraft: true });
+    await user.type(screen.getByLabelText('Amount'), '30');
+    await user.selectOptions(screen.getByLabelText('Expense currency'), 'JPY');
+    await screen.findByText('The latest rate will be looked up when saving.');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByLabelText('Trip rate: 1 SGD = ___ JPY')).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.queryByText('The latest rate will be looked up when saving.')).not.toBeInTheDocument();
+    client.request.mockRejectedValue(new ApiError(400, 'trip_ended', 'This trip has ended.'));
+    await user.type(screen.getByLabelText('Trip rate: 1 SGD = ___ JPY'), '100');
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    expect(await screen.findByText('This trip has ended.')).toBeInTheDocument();
+    expect(client.createExpense).toHaveBeenCalledTimes(1);
+    expect(client.saveExpense).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('shows a refused confirmation on the same form', async () => {
+    const { client, user, onSaved } = setup({ expense: expenseView({ status: 'draft' }) });
+    client.saveExpense.mockRejectedValue(new ApiError(400, 'invalid_status', 'This draft has already been saved.'));
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    expect(await screen.findByText('This draft has already been saved.')).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+});
+
+
+it('shows a rate snapshot conflict without treating it as an expense conflict', async () => {
+  const expense = expenseView({ status: 'draft', currency: 'JPY', fxRate: null, fxRateSource: 'missing' });
+  const { client, user, onSaved } = setup({ expense });
+  client.request.mockResolvedValueOnce({ snapshot: 'old' }).mockRejectedValueOnce(new ApiError(409, 'stale', 'Changed.', { current: { snapshot: 'new' } }));
+  await user.type(await screen.findByLabelText('Trip rate: 1 SGD = ___ JPY'), '100');
+  await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+  await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+  expect(await screen.findByText('The trip changed. Check the rate and try saving again.')).toBeInTheDocument();
+  expect(client.saveExpense).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+});
+
+it('saves a second new expense using the trip rate without asking for one', async () => {
+  const { client, user, onSaved } = setup();
+  const saved = written(expenseView({ currency: 'JPY', fxRate: '100', fxRateSource: 'trip' }));
+  client.previewExpense.mockImplementation(async (body) => previewAnswer(body, saved.expense));
+  client.createExpense.mockResolvedValue(saved);
+  await user.type(screen.getByLabelText('Amount'), '30');
+  await user.selectOptions(screen.getByLabelText('Expense currency'), 'JPY');
+  await screen.findByText('Trip rate');
+  expect(screen.queryByLabelText('Trip rate: 1 SGD = ___ JPY')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
+  expect(client.request).not.toHaveBeenCalled();
+  expect(client.createExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
 });

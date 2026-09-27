@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
 import { isValidRate } from '../../../src/core/rates';
 import { ApiError, messageOf, type ApiClient } from '../api/client';
+import { ratesApi } from '../api/rates';
 import type { ExpenseView, ExpenseWriteResponse, Member } from '../api/types';
 import { Banner } from '../components/ui';
 import { amountText, dayText, expenseTitle, money, nameOf } from '../format';
@@ -86,7 +87,10 @@ function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, lat
 
 /** Create, edit, and finish a draft. The body under the switch comes from the split type registry. */
 export function ExpenseForm(props: ExpenseFormProps) {
-  const { client, members, expense } = props;
+  const { client, members } = props;
+  const [expense, setExpense] = useState(props.expense);
+  const [tripRate, setTripRate] = useState('');
+  const [roundingNote, setRoundingNote] = useState('');
   const [state, setState] = useState<ExpenseFormState>(() =>
     expense ? stateFromExpense(expense) : newExpenseState({ members, meId: props.meId, currency: props.homeCurrency }),
   );
@@ -117,6 +121,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
     ...(expense ? { expenseId: expense.id } : {}),
   } : null), [asksServer, state, total, rateProblem, currency, props.tripId, expense]);
   const server = useServerPreview(client, asked);
+  const fx = server.status === 'ready' ? server.result?.fx : undefined;
+  const needsTripRate = foreign && expense?.currency === currency && expense.fxRateSource === 'missing' && state.rateOverride == null && (!fx || fx.fxRateSource === 'missing');
   const shown = { amounts: server.status === 'ready' ? server.result?.amounts ?? null : null, problems: server.status === 'ready' ? server.result?.problems ?? [] : [] };
 
   const amountProblem =
@@ -151,16 +157,43 @@ export function ExpenseForm(props: ExpenseFormProps) {
     setError(undefined);
     // A draft may be incomplete, but what is typed must still be readable.
     if (kind === 'draft' ? total === null : firstProblem !== null) return;
+    if (kind === 'save' && needsTripRate && !isValidRate(tripRate)) {
+      setError(new ApiError(400, 'rate_missing', 'Enter the trip rate above zero, with up to 6 decimal places.'));
+      return;
+    }
     const input = toExpenseInput(state, total ?? 0);
     // A draft may be incomplete: a rate that cannot be read yet is left out, not sent.
     if (rateProblem !== null) delete input.rateOverride;
     setBusy(kind);
     try {
+      if (kind === 'save' && needsTripRate && expense) {
+        const api = ratesApi(client);
+        const preview = await api.preview(expense.tripId, currency, tripRate);
+        const applied = await api.apply(expense.tripId, currency, tripRate, preview.snapshot).catch((problem: unknown) => {
+          if (problem instanceof ApiError && problem.stale) throw new ApiError(400, 'invalid_input', 'The trip changed. Check the rate and try saving again.');
+          throw problem;
+        });
+        const changed = applied.updatedExpenses.find((item) => item.id === expense.id);
+        // Advance only over our own rate change, never over someone else's edit.
+        if (changed && changed.version === useVersion + 1) {
+          useVersion = changed.version;
+          setVersion(useVersion);
+        }
+        setExpense({ ...expense, fxRate: tripRate, fxRateSource: 'trip', notice: null });
+        server.retry();
+      }
       let result: ExpenseWriteResponse;
       if (expense === undefined) {
         result = await client.createExpense(props.tripId, { ...input, status: kind === 'draft' ? 'draft' : 'confirmed' });
       } else {
         result = await client.saveExpense(expense.id, { ...input, version: useVersion, ...(isDraft && kind === 'save' ? { confirm: true } : {}) });
+      }
+      if (kind === 'save' && (result.keptAsDraft || result.expense.status !== 'confirmed')) {
+        setExpense(result.expense);
+        setVersion(result.expense.version);
+        setError(new ApiError(400, 'invalid_input', result.expense.notice ?? 'This expense is still a draft. Check the details and try again.'));
+        server.retry();
+        return;
       }
       props.onSaved(result);
     } catch (problem) {
@@ -179,7 +212,6 @@ export function ExpenseForm(props: ExpenseFormProps) {
     void submit('save');
   }
 
-  const fx = server.status === 'ready' ? server.result?.fx : undefined;
   const rate = fx?.fxRate ? `1 ${fx.homeCurrency} = ${fx.fxRate} ${currency}` : null;
   const rows = latest ? differences(members, state, latest) : [];
   const gone = latest !== null && latest.status !== 'draft' && latest.status !== 'confirmed';
@@ -260,7 +292,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
         </Banner>
       ) : null}
 
-      {expense?.notice ? <Banner kind="warn">{expense.notice}</Banner> : null}
+      {expense?.notice && (error === undefined || messageOf(error) !== expense.notice) ? <Banner kind="warn">{expense.notice}</Banner> : null}
 
       <label className="field">
         <span>What was it for?</span>
@@ -288,13 +320,22 @@ export function ExpenseForm(props: ExpenseFormProps) {
           />
           <select aria-label="Expense currency" className="currency-picker" value={currency} disabled={busy !== null}
             onChange={(event) => {
-              try { setState(changeCurrency(state, event.target.value)); setError(undefined); }
+              try {
+                const next = changeCurrency(state, event.target.value);
+                const before = [state.amountText, ...state.items.map((item) => amountText(item.amount, currency)), ...[state.tax, state.tip, state.serviceCharge, state.discount].map((value) => amountText(value, currency))];
+                const after = [next.amountText, ...next.items.map((item) => amountText(item.amount, next.currency)), ...[next.tax, next.tip, next.serviceCharge, next.discount].map((value) => amountText(value, next.currency))];
+                const rounded = decimalsOf(next.currency) === 0 ? before.findIndex((value) => /\.\d*[1-9]/.test(value)) : -1;
+                setRoundingNote(rounded < 0 ? '' : `${next.currency} has no cents, so ${before[rounded]} becomes ${after[rounded]}.`);
+                setState(next); setTripRate(''); setError(undefined);
+              }
               catch (problem) { setError(new ApiError(400, 'invalid_input', problem instanceof Error ? problem.message : 'Check the amounts before changing currency.')); }
             }}>
             {CURRENCIES.map((option) => <option key={option.code} value={option.code}>{option.code}</option>)}
           </select>
         </span>
       </div>
+
+      {roundingNote ? <p className="hint small" role="status">{roundingNote}</p> : null}
 
       {state.currencyNeedsReview ? (
         <div className="fx">
@@ -309,16 +350,21 @@ export function ExpenseForm(props: ExpenseFormProps) {
         <div className="fx" aria-label="Exchange rate">
           {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <p>Converted amount: <strong>{money(fx.homeTotal, fx.homeCurrency)}</strong></p> : null}
           {rate ? <><p className="hint small">Rate: {rate}</p><p className="hint small">{fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</p></>
-            : <p className="hint small">{server.status === 'loading' ? 'Checking the rate…' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
+            : <p className="hint small">{server.status === 'loading' ? 'Checking the rate…' : needsTripRate ? 'Enter a trip rate to save this expense.' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
+          {needsTripRate ? <label className="field">
+            <span id="trip-rate-label">Trip rate: 1 {props.homeCurrency} = ___ {currency}</span>
+            <input aria-labelledby="trip-rate-label" type="text" inputMode="decimal" value={tripRate} disabled={busy !== null} onChange={(event) => setTripRate(event.target.value.replace(',', '.'))} />
+            <span className="hint small">Used for this and future expenses in {currency}. Use up to 6 decimal places.</span>
+          </label> : null}
           {state.rateOverride !== undefined && state.rateOverride !== null ? (
             <div className="field">
-              <label htmlFor="expense-rate">Rate for this expense: 1 {props.homeCurrency} in {currency}</label>
+              <label htmlFor="expense-rate">This expense's rate: 1 {props.homeCurrency} = ___ {currency}</label>
               <input id="expense-rate" aria-describedby="expense-rate-hint" aria-invalid={rateProblem !== null && state.rateOverride !== ''} type="text" inputMode="decimal" value={state.rateOverride} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
               <span id="expense-rate-hint" className={rateProblem !== null && state.rateOverride !== '' ? 'problem small' : 'hint small'}>Enter a rate above zero, with up to 6 decimal places.</span>
             </div>
-          ) : <button type="button" className="link" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>Use a different rate for this expense</button>}
+          ) : <button type="button" className="link" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>{fx?.fxRateSource === 'expense' ? "Change this expense's rate" : 'Use a different rate for this expense'}</button>}
           {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
-            <button type="button" className="button button-small button-quiet" onClick={() => update({ rateOverride: null })}>Use the trip rate</button>
+            <button type="button" className="button button-small button-quiet" onClick={() => update({ rateOverride: null })}>Use the trip rate instead</button>
           ) : null}
         </div>
       ) : null}
@@ -381,7 +427,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
         />
       ) : null}
 
-      {(touched || unreadable !== null) && firstProblem !== null && (state.splitType !== 'items' || currencyProblem !== null || unreadable !== null) ? (
+      {(touched || unreadable !== null) && firstProblem !== null ? (
         <p className="problem" role="alert">{firstProblem}</p>
       ) : null}
       {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link" onClick={server.retry}>Try preview again</button> : null}

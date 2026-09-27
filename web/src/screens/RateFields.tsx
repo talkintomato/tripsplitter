@@ -23,7 +23,7 @@ export function RateComparison({ preview, home }: { preview: RatePreview; home: 
   const { group } = useApp();
   const ids = new Set([...group.members.map((m) => m.id), ...Object.keys(preview.balancesBefore).map(Number), ...Object.keys(preview.balancesAfter).map(Number)]);
   return <section className="section" aria-label="Rate preview">
-    <p>{preview.expensesChanged} saved {preview.expensesChanged === 1 ? 'expense will' : 'expenses will'} change. {preview.confirmedExpensesChanged} count toward balances.</p>
+    <p>{preview.expensesChanged} saved {preview.expensesChanged === 1 ? 'expense will' : 'expenses will'} change. {preview.confirmedExpensesChanged} {preview.confirmedExpensesChanged === 1 ? 'counts' : 'count'} toward balances.</p>
     <p className="hint small">Expenses with their own rate stay the same. Drafts only count once confirmed.</p>
     <table className="compare"><caption>Balances in {home}</caption>
       <thead><tr><th scope="col">Person</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>

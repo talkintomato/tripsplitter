@@ -56,6 +56,6 @@ export function registerRateRoutes(app: Hono<ApiEnv>, { db, deps }: Services): v
         expensesChanged: result.changedExpenses.length,
       }));
     }
-    return c.json({ tripRate: result.tripRate, expensesChanged: result.changedExpenses.length });
+    return c.json({ tripRate: result.tripRate, expensesChanged: result.changedExpenses.length, updatedExpenses: result.changedExpenses.map(({ id, version }) => ({ id, version })) });
   });
 }

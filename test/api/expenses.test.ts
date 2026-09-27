@@ -373,3 +373,27 @@ describe('expense currency and rate preview', () => {
     } finally { h.db.close(); }
   });
 });
+
+
+it('recovers a failed lookup with a member trip rate and saves the next expense without lookup', async () => {
+  const h = harness();
+  try {
+  const path = `/api/trips/${h.a.trip.id}/expenses`;
+  const body = dinnerBody(h.a, { currency: 'JPY', total: 11240 });
+  const first = await h.ana.post(path, body);
+  expect(first.body.keptAsDraft).toBe(true);
+  const draft = first.body.expense;
+  const rates = `/api/trips/${h.a.trip.id}/rates/JPY`;
+  const preview = await h.ana.post(`${rates}/preview`, { rate: '112.4' });
+  const applied = await h.ana.put(rates, { rate: '112.4', snapshot: preview.body.snapshot });
+  expect(applied.body.tripRate.origin).toBe('member');
+  expect(applied.body.updatedExpenses).toEqual([{ id: draft.id, version: draft.version + 1 }]);
+  const saved = await h.ana.put(`/api/expenses/${draft.id}`, { ...body, version: applied.body.updatedExpenses[0].version, confirm: true });
+  expect(saved.status).toBe(200);
+  expect(saved.body.expense).toMatchObject({ status: 'confirmed', fxRateSource: 'trip', fxRate: '112.4' });
+  const second = await h.ana.post(path, body);
+  expect(second.status).toBe(201);
+  expect(second.body.expense).toMatchObject({ status: 'confirmed', fxRateSource: 'trip', notice: null });
+  expect(h.rateLookups).toHaveLength(1);
+  } finally { h.db.close(); }
+});

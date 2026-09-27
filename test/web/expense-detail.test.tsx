@@ -24,7 +24,7 @@ it('shows API amounts, the rate source, and explicit and shared item diners', as
   client.getTrip.mockResolvedValue({ trip });
   const group: GroupResponse = { group: { id: 1, title: 'Friends', linkVersion: 1 }, me: SAM, members: MEMBERS, access: 'write', activeTrip: trip, newTripCurrency: 'SGD', destination: { view: 'home' }, link: '' };
   render(<AppProvider value={{ client, group, refresh: vi.fn(), setGroup: vi.fn() }}><MemoryRouter initialEntries={['/expenses/7']}><Routes><Route path="/expenses/:id" element={<ExpenseDetail />} /></Routes></MemoryRouter></AppProvider>);
-  expect(await screen.findByText('11240 JPY')).toBeInTheDocument();
+  expect(await screen.findByText('11,240 JPY')).toBeInTheDocument();
   expect(screen.getByText('= 100.00 SGD')).toBeInTheDocument();
   expect(screen.getByText('Rate: 1 SGD = 112.4 JPY')).toBeInTheDocument();
   expect(screen.getByText("This expense's own rate")).toBeInTheDocument();

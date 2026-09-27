@@ -87,12 +87,13 @@
   overflow-x: auto;
   margin: 0 -12px;
   padding: 2px 12px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 18px), transparent);
   -webkit-overflow-scrolling: touch;
 }
 
 .paint-people::-webkit-scrollbar {
-  display: none;
+  height: 4px;
 }
 
 .paint-person {

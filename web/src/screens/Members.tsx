@@ -26,6 +26,7 @@ export function Members() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
+  const [claimName, setClaimName] = useState('');
   const [claiming, setClaiming] = useState<Member | null>(null);
   const [resetting, setResetting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function Members() {
       {refusedClaim ? (
         <Banner kind="error" onClose={() => setError(undefined)}>
           <p>{messageOf(refusedClaim)}</p>
-          <p>Open each of these and remove one of the two people from it. Then tap "That's me" again.</p>
+          <p>Remove {claimName} or {group.me.displayName} from these expenses first. Then tap "That's me" again.</p>
           <ul className="plain-list">
             {refusedClaim.expenses.map((expense) => (
               <li key={expense.id}>
@@ -157,6 +158,7 @@ export function Members() {
           onCancel={() => setClaiming(null)}
           onConfirm={() =>
             void run(async () => {
+              setClaimName(claiming.displayName);
               const result = await client.claimMember(claiming.id);
               setGroup((current) => ({ ...current, me: result.me, members: result.members }));
               setDone(`Everything recorded for ${claiming.displayName} is now yours.`);

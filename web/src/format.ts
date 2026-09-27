@@ -1,10 +1,10 @@
-import { formatAmount, fromMinorUnits } from '../../src/core/currencies';
+import { currencyDecimals, formatAmount, fromMinorUnits } from '../../src/core/currencies';
 import type { ExpenseView, Member } from './api/types';
 
 /** "84.50 SGD". Falls back to the bare number for a currency this version does not know. */
 export function money(minor: number, currency: string): string {
   try {
-    return formatAmount(minor, currency);
+    return formatAmount(minor, currency).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   } catch {
     return `${minor} ${currency}`;
   }
@@ -25,7 +25,10 @@ export function myBalanceText(minor: number, currency: string): string {
 
 export function amountText(minor: number, currency: string): string {
   try {
-    return fromMinorUnits(minor, currency);
+    const text = fromMinorUnits(minor, currency);
+    const decimals = currencyDecimals(currency);
+    const [whole, fraction = ''] = text.split('.');
+    return decimals === 0 ? text : `${whole}.${fraction.padEnd(decimals, '0')}`;
   } catch {
     return String(minor);
   }

@@ -19,7 +19,7 @@ export function ChangeRate() {
     const data = await ratesApi(client).list(tripId);
     return { ...data, value: data.rates.find((r) => r.currency === currency)?.rate ?? '' };
   }, `rate-${tripId}-${currency}`);
-  return <Screen title="Change rate" back={`/trips/${tripId}/currencies`}>
+  return <Screen title={loaded.data?.value === '' ? 'Add currency' : 'Change rate'} back={`/trips/${tripId}/currencies`}>
     {loaded.error !== undefined ? <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} /> : !loaded.data ? <Loading /> :
       !isSupportedCurrency(currency) || currency === loaded.data.trip.homeCurrency ? <p>Choose a foreign currency from trip settings.</p> :
       <RateEditor key={`${tripId}-${currency}`} trip={loaded.data.trip} currency={currency} initial={loaded.data.value} />}
