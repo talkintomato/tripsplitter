@@ -1,6 +1,24 @@
 // The only file that talks to Telegram. Everything here also works in a normal browser,
 // where there is no sign-in data and the start parameter comes from the address.
-import WebApp from '@twa-dev/sdk';
+import sdk from '@twa-dev/sdk';
+
+type TelegramWebApp = typeof sdk;
+
+/**
+ * Telegram's object, read from the page. Importing the library above runs Telegram's script, which
+ * puts the object on `window`. The library's own default export is not used directly: depending on
+ * how the bundler wraps it, it can arrive without its fields, which left the sign-in data empty.
+ */
+function telegram(): TelegramWebApp {
+  const fromPage = (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+  if (fromPage) return fromPage;
+  const wrapped = sdk as unknown as { default?: TelegramWebApp };
+  return wrapped.default ?? sdk;
+}
+
+const WebApp = new Proxy({} as TelegramWebApp, {
+  get: (_target, property) => Reflect.get(telegram() as object, property),
+});
 
 /** The raw sign-in data to send with every request. Empty outside Telegram. */
 export function getInitData(): string {
