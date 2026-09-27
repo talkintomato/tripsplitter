@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { ApiClient } from '../../web/src/api/client';
-import type { ExpenseView, ExpenseWriteResponse, Member } from '../../web/src/api/types';
+import { computeShares, validateExpense } from '../../src/core/split';
+import type { CreateExpenseBody, ExpensePreviewResponse, ExpenseView, ExpenseWriteResponse, Member } from '../../web/src/api/types';
 
 export function member(id: number, displayName: string, over: Partial<Member> = {}): Member {
   return {
@@ -75,11 +76,41 @@ export function written(expense: ExpenseView): ExpenseWriteResponse {
 export function fakeClient(): { [K in keyof ApiClient]: ReturnType<typeof vi.fn> } & ApiClient {
   const names: Array<keyof ApiClient> = [
     'request', 'setLaunch', 'getGroup', 'resetLink', 'addMember', 'claimMember', 'listActivity', 'listTrips', 'createTrip', 'getTrip',
-    'patchTrip', 'endTrip', 'reopenTrip', 'listExpenses', 'createExpense', 'getExpense', 'saveExpense', 'confirmExpense',
+    'patchTrip', 'endTrip', 'reopenTrip', 'listExpenses', 'createExpense', 'previewExpense', 'getExpense', 'saveExpense', 'confirmExpense',
     'discardExpense', 'deleteExpense', 'restoreExpense', 'getBalances', 'createSettlement', 'undoSettlement', 'restoreSettlement',
   ];
   const client = Object.fromEntries(
     names.map((name) => [name, vi.fn(() => Promise.reject(new Error(`The test did not expect a call to ${name}`)))]),
   );
   return client as unknown as { [K in keyof ApiClient]: ReturnType<typeof vi.fn> } & ApiClient;
+}
+
+/**
+ * What the server answers to a preview, for a client that has no server: the same two functions of the
+ * foundation that the route calls.
+ */
+export function previewAnswer(body: CreateExpenseBody): ExpensePreviewResponse {
+  const expense = {
+    payerId: body.payerId,
+    total: body.total,
+    tax: body.tax ?? 0,
+    taxIncluded: body.taxIncluded ?? false,
+    tip: body.tip ?? 0,
+    serviceCharge: body.serviceCharge ?? 0,
+    discount: body.discount ?? 0,
+    splitType: body.splitType,
+  };
+  const items = (body.items ?? []).map((item, index) => ({ id: index, amount: item.amount }));
+  const shares = [
+    ...body.shares.map((s) => ({ memberId: s.memberId, weight: s.weight ?? 1, itemId: null })),
+    ...(body.items ?? []).flatMap((item, index) => (item.shares ?? []).map((s) => ({ memberId: s.memberId, weight: s.weight ?? 1, itemId: index }))),
+  ];
+  const problems = validateExpense(expense, items, shares);
+  const amounts: Record<number, number> = {};
+  if (problems.length === 0) for (const [id, amount] of computeShares(expense, items, shares)) amounts[id] = Number(amount);
+  return {
+    amounts: problems.length === 0 ? amounts : null,
+    problems,
+    difference: problems.find((p) => p.code === 'total_mismatch')?.difference ?? null,
+  };
 }

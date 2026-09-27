@@ -16,6 +16,7 @@ import {
   type FormPatch,
 } from './formState';
 import { splitType, splitTypes } from './registry';
+import { useServerPreview } from './useServerPreview';
 
 export interface ExpenseFormProps {
   client: ApiClient;
@@ -63,6 +64,20 @@ function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, lat
   add('Split', SPLIT_WORDS[mine.splitType], SPLIT_WORDS[theirs.splitType]);
   const sorted = (state: ExpenseFormState) => includedShares(state).sort((a, b) => a.memberId - b.memberId);
   add('People', peopleText(members, sorted(mine), mine.splitType === 'portions'), peopleText(members, sorted(theirs), theirs.splitType === 'portions'));
+  if (mine.splitType === 'items' || theirs.splitType === 'items') {
+    const figure = (state: ExpenseFormState, value: number): string => (value === 0 ? '' : money(value, state.currency));
+    add('Tax', `${figure(mine, mine.tax)}${mine.tax > 0 && mine.taxIncluded ? ', in the prices' : ''}`, `${figure(theirs, theirs.tax)}${theirs.tax > 0 && theirs.taxIncluded ? ', in the prices' : ''}`);
+    add('Tip', figure(mine, mine.tip), figure(theirs, theirs.tip));
+    add('Service charge', figure(mine, mine.serviceCharge), figure(theirs, theirs.serviceCharge));
+    add('Discount', figure(mine, mine.discount), figure(theirs, theirs.discount));
+    const itemText = (state: ExpenseFormState, index: number): string => {
+      const item = state.items[index];
+      if (!item) return '';
+      const who = (item.shares ?? []).filter((s) => state.included.includes(s.memberId)).sort((a, b) => a.memberId - b.memberId);
+      return `${item.label}${(item.quantity ?? 1) !== 1 ? ` ×${item.quantity}` : ''}, ${money(item.amount, state.currency)}, ${who.length === 0 ? 'everyone' : peopleText(members, who, false)}`;
+    };
+    for (let i = 0; i < Math.max(mine.items.length, theirs.items.length); i++) add(`Item ${i + 1}`, itemText(mine, i), itemText(theirs, i));
+  }
   return rows;
 }
 
@@ -87,9 +102,15 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const foreign = currency !== props.homeCurrency;
   const total = parseAmount(state.amountText, currency);
   const people = useMemo(() => formMembers(members, state), [members, state]);
-  const shown = useMemo(() => preview(state, total), [state, total]);
   const entry = splitType(state.splitType);
   const Body = entry.Body;
+  // Where the amounts come from. For a split type with `serverPreview` the server's answer is the only
+  // source: nothing is worked out here, so what is shown is what a save stores.
+  const asksServer = Body !== null && entry.serverPreview === true;
+  const local = useMemo(() => (asksServer ? { amounts: null, problems: [] } : preview(state, total)), [asksServer, state, total]);
+  const asked = useMemo(() => (asksServer && total !== null ? toExpenseInput(state, total) : null), [asksServer, state, total]);
+  const server = useServerPreview(client, asked);
+  const shown = asksServer ? { amounts: server.result?.amounts ?? null, problems: server.result?.problems ?? [] } : local;
 
   const amountProblem =
     total === null
@@ -102,7 +123,19 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const peopleProblem = includedShares(state).length === 0 ? 'Choose at least one person.' : null;
   const typeProblem = Body === null ? 'Choose how to split: evenly or by portions.' : null;
   const currencyProblem = state.currencyNeedsReview && !state.currencyChecked ? `Check the currency first: is this in ${currency}?` : null;
-  const firstProblem = amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? shown.problems[0]?.message ?? null;
+  const unreadable = total === null ? amountProblem : null;
+  // With the server's answer: Save is off while the answer is missing or reports a problem.
+  const serverProblem = !asksServer
+    ? null
+    : server.status === 'failed'
+      ? messageOf(server.error)
+      : server.status !== 'ready'
+        ? 'Working out what each person pays…'
+        : (server.result?.problems[0]?.message ?? null);
+  const blocked = asksServer && (unreadable !== null || serverProblem !== null);
+  const firstProblem = asksServer
+    ? (unreadable ?? currencyProblem ?? serverProblem)
+    : (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? shown.problems[0]?.message ?? null);
 
   async function submit(kind: 'save' | 'draft', useVersion = version): Promise<void> {
     setTouched(true);
@@ -316,17 +349,27 @@ export function ExpenseForm(props: ExpenseFormProps) {
           problems={shown.problems}
           disabled={busy !== null}
           client={client}
+          {...(asksServer
+            ? { pending: server.status === 'loading', previewError: server.status === 'failed' ? server.error : undefined, retryPreview: server.retry }
+            : {})}
         />
       ) : null}
 
-      {touched && firstProblem !== null ? (
+      {asksServer ? (
+        // The body shows what the server reported next to the field it concerns.
+        unreadable !== null || (touched && currencyProblem !== null) ? (
+          <p className="problem" role="alert">
+            {unreadable ?? currencyProblem}
+          </p>
+        ) : null
+      ) : touched && firstProblem !== null ? (
         <p className="problem" role="alert">
           {firstProblem}
         </p>
       ) : null}
 
       <div className="form-actions">
-        <button type="submit" className="button" disabled={busy !== null}>
+        <button type="submit" className="button" disabled={busy !== null || blocked}>
           {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Finish and save' : 'Save changes'}
         </button>
         {isNew || isDraft ? (

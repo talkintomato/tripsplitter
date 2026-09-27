@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { DEFAULT_HOME_CURRENCY, isValidRate } from '../../core/index.js';
+import { amountsToRecord, computeShares, DEFAULT_HOME_CURRENCY, isValidRate, validateExpense } from '../../core/index.js';
 import {
   confirmExpense,
   createExpense,
@@ -24,10 +24,20 @@ import {
 import { idParam, type ApiContext, type ApiEnv, type Caller, type Services } from '../context.js';
 import { describeChanges, expenseNotice, notify } from '../notices.js';
 import { createExpenseBody, readBody, saveExpenseBody, versionBody } from '../schemas.js';
-import type { ExpenseResponse, ExpensesResponse, ExpenseWriteResponse } from '../types.js';
+import type { ExpensePreviewResponse, ExpenseResponse, ExpensesResponse, ExpenseWriteResponse } from '../types.js';
 import { toExpenseView } from '../views.js';
 
 const STATUSES: readonly ExpenseStatus[] = ['draft', 'confirmed', 'discarded', 'deleted'];
+
+/** Thrown inside the transaction of a preview, so that everything it wrote is rolled back. */
+class PreviewDone extends Error {
+  readonly response: ExpensePreviewResponse;
+
+  constructor(response: ExpensePreviewResponse) {
+    super('preview');
+    this.response = response;
+  }
+}
 
 /** One create or save, described so that it can be run again once a rate has been found. */
 interface ExpenseWrite {
@@ -169,6 +179,31 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
       await notify('expenseSaved', () => deps.notifier.expenseSaved(expenseNotice(db, caller, result.expense)));
     }
     return c.json(writeResponse(caller, result), 201);
+  });
+
+  // What each person would pay for an expense that is not saved. The expense goes through the very
+  // operation that a save uses, as a draft in a transaction that is always rolled back, so members, items
+  // and figures are checked exactly as a save checks them, and nothing is written.
+  app.post('/api/expenses/preview', async (c) => {
+    const { scope } = c.get('caller');
+    const { status: _status, ...input } = await readBody(c, createExpenseBody);
+    try {
+      inTransaction(db, () => {
+        const { trip } = getOrCreateActiveTrip(db, scope);
+        const draft = createExpense(db, scope, { ...input, tripId: trip.id, status: 'draft' });
+        const problems = validateExpense(draft, draft.items, draft.shares);
+        const mismatch = problems.find((p) => p.code === 'total_mismatch');
+        throw new PreviewDone({
+          amounts: problems.length === 0 ? amountsToRecord(computeShares(draft, draft.items, draft.shares)) : null,
+          problems,
+          difference: mismatch?.difference ?? null,
+        });
+      });
+    } catch (error) {
+      if (error instanceof PreviewDone) return c.json(error.response);
+      throw error;
+    }
+    throw new Error('A preview must end by rolling back.');
   });
 
   app.get('/api/expenses/:id', (c) => {

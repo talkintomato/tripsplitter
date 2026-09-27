@@ -85,6 +85,20 @@ check 'POST confirm' 200 'v.expense.status==="confirmed"' POST "/api/expenses/$D
 check 'POST delete' 200 'v.expense.status==="deleted"' POST "/api/expenses/$DRAFT/delete" "{\"version\":$(last 'v.expense.version')}"
 check 'POST restore' 200 'v.expense.status==="confirmed"' POST "/api/expenses/$DRAFT/restore" "{\"version\":$(last 'v.expense.version')}"
 
+# By item: Paella x2 32.00 for Dev and Sam, Beer 4.50 for Sam, Bread 3.00 for everyone, tax 3.95 on top, tip 5.00.
+# By hand: items 17.00, 21.50 and 1.00; tax and tip 8.95 in proportion give 3.85, 4.87 and 0.22; the cent left goes to Dev, who paid.
+ITEMS="{\"payerId\":$ME,\"description\":\"Casa Pepe\",\"expenseDate\":\"2026-09-27\",\"total\":4845,\"tax\":395,\"taxIncluded\":false,\"tip\":500,\"splitType\":\"items\",\"shares\":[{\"memberId\":$ME},{\"memberId\":$SAM},{\"memberId\":$PRIYA}],\"items\":[{\"label\":\"Paella\",\"quantity\":2,\"amount\":3200,\"shares\":[{\"memberId\":$ME},{\"memberId\":$SAM}]},{\"label\":\"Beer\",\"amount\":450,\"shares\":[{\"memberId\":$SAM}]},{\"label\":\"Bread\",\"amount\":300}]}"
+ITEM_AMOUNTS="v.amounts[$ME]===2086 && v.amounts[$SAM]===2637 && v.amounts[$PRIYA]===122"
+check 'POST preview of an item split' 200 "v.problems.length===0 && v.difference===null && ${ITEM_AMOUNTS}" POST /api/expenses/preview "$ITEMS"
+check 'POST preview with a total that is too high' 200 'v.amounts===null && v.difference===155 && v.problems[0].code==="total_mismatch"' POST /api/expenses/preview "${ITEMS/\"total\":4845/\"total\":5000}"
+check 'POST preview with a member of no group' 400 'v.error.code==="member_not_in_group"' POST /api/expenses/preview "${ITEMS/\"payerId\":$ME/\"payerId\":999999}"
+check 'a preview saves nothing' 200 'v.expenses.length===2' GET "/api/trips/$TRIP/expenses"
+check 'POST an item split' 201 "v.expense.status===\"confirmed\" && v.expense.splitType===\"items\" && v.expense.items.length===3 && ${ITEM_AMOUNTS//v.amounts/v.expense.amounts}" POST "/api/trips/$TRIP/expenses" "$ITEMS"
+ITEM_ID="$(last 'v.expense.id')"
+# Saved again with the tip raised to 6.00: 9.95 in proportion gives 4.28, 5.41 and 0.25, and the cent left goes to Dev.
+check 'PUT an item split' 200 "v.expense.version===2 && v.expense.tip===600 && v.expense.amounts[$ME]===2129 && v.expense.amounts[$SAM]===2691 && v.expense.amounts[$PRIYA]===125" PUT "/api/expenses/$ITEM_ID" "$(printf '%s' "${ITEMS%\}}" | sed 's/"total":4845/"total":4945/; s/"tip":500/"tip":600/'),\"version\":1}"
+check 'GET the item split' 200 'v.expense.shares.filter(s=>s.itemId!==null).length===3 && v.expense.items[0].quantity===2 && v.expense.items[0].amount===3200' GET "/api/expenses/$ITEM_ID"
+
 check 'GET balances' 200 "v.balances[$ME]>0 && v.payments.length>0 && v.settlements.length===0" GET "/api/trips/$TRIP/balances"
 check 'POST settlement' 201 "v.settlement.status===\"active\" && v.settlement.createdBy===$ME" POST "/api/trips/$TRIP/settlements" "{\"fromMemberId\":$SAM,\"toMemberId\":$ME,\"amount\":400}"
 SETTLEMENT="$(last 'v.settlement.id')"

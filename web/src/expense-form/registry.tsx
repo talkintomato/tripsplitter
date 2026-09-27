@@ -4,6 +4,7 @@ import type { ExpenseProblem, Member, SplitType } from '../api/types';
 import { EvenSplit } from './EvenSplit';
 import type { ExpenseFormState, FormPatch } from './formState';
 import { PortionsSplit } from './PortionsSplit';
+import { ItemsSplit } from '../split-items/ItemsSplit';
 
 /** What the form hands to the body of a split type. */
 export interface SplitBodyProps {
@@ -15,11 +16,20 @@ export interface SplitBodyProps {
   /** The typed amount in minor units. Null when it cannot be read. */
   total: number | null;
   currency: string;
-  /** Each person's amount in the expense currency, or null while there is a problem. */
+  /**
+   * Each person's amount in the expense currency, or null while there is a problem.
+   * While `pending` is true these are the amounts and problems of a moment ago.
+   */
   amounts: Record<number, number> | null;
   problems: ExpenseProblem[];
   disabled: boolean;
   client: ApiClient;
+  /** Only with `serverPreview`: the answer for what is on the screen has not arrived yet. */
+  pending?: boolean;
+  /** Only with `serverPreview`: why the amounts could not be worked out. Undefined when they could. */
+  previewError?: unknown;
+  /** Only with `serverPreview`: asks again after `previewError`. */
+  retryPreview?(): void;
 }
 
 export interface SplitTypeEntry {
@@ -30,6 +40,11 @@ export interface SplitTypeEntry {
   Body: ComponentType<SplitBodyProps> | null;
   /** Shown under the switch when the type is not available. */
   unavailable?: string;
+  /**
+   * True: the amounts and problems come from `POST /api/expenses/preview`, and Save is off until that
+   * answer says there is no problem. Left out: they are worked out in the form itself.
+   */
+  serverPreview?: boolean;
 }
 
 /** The order of the switch. */
@@ -38,8 +53,7 @@ export const SPLIT_ORDER: readonly SplitType[] = ['even', 'portions', 'items'];
 const registry: Record<SplitType, SplitTypeEntry> = {
   even: { type: 'even', label: 'Evenly', Body: EvenSplit },
   portions: { type: 'portions', label: 'Portions', Body: PortionsSplit },
-  // PRD 4 replaces this entry with its own component.
-  items: { type: 'items', label: 'By item', Body: null, unavailable: 'Splitting by item is coming soon.' },
+  items: { type: 'items', label: 'By item', Body: ItemsSplit, serverPreview: true },
 };
 
 export function splitType(type: SplitType): SplitTypeEntry {

@@ -8,6 +8,7 @@ import type {
   CreateExpenseBody,
   CreateSettlementBody,
   CreateTripBody,
+  ExpensePreviewResponse,
   ExpenseProblem,
   ExpenseRef,
   ExpenseResponse,
@@ -78,6 +79,8 @@ export interface ApiClient {
   listExpenses(tripId: number, status?: ExpenseStatus[]): Promise<ExpensesResponse>;
   /** `tripId` "active": the group's active trip, started first when there is none. */
   createExpense(tripId: number | 'active', body: CreateExpenseBody): Promise<ExpenseWriteResponse>;
+  /** What each person would pay for an expense that is not saved yet. Changes nothing. */
+  previewExpense(body: CreateExpenseBody): Promise<ExpensePreviewResponse>;
   getExpense(id: number): Promise<ExpenseResponse>;
   saveExpense(id: number, body: SaveExpenseBody): Promise<ExpenseWriteResponse>;
   confirmExpense(id: number, version: number): Promise<ExpenseResponse>;
@@ -164,6 +167,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
     listExpenses: (tripId, status) => request('GET', `/api/trips/${tripId}/expenses${query({ status: status?.join(',') })}`),
     createExpense: (tripId, body) => request('POST', `/api/trips/${tripId}/expenses`, body),
+    previewExpense: (body) => request('POST', '/api/expenses/preview', body),
     getExpense: (id) => request('GET', `/api/expenses/${id}`),
     saveExpense: (id, body) => request('PUT', `/api/expenses/${id}`, body),
     confirmExpense: (id, version) => request('POST', `/api/expenses/${id}/confirm`, { version }),

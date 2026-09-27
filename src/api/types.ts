@@ -115,6 +115,16 @@ export interface ExpenseWriteResponse extends ExpenseResponse {
   keptAsDraft: boolean;
 }
 
+/** Answer of `POST /api/expenses/preview`, whose body is a `CreateExpenseBody`. Nothing is saved. */
+export interface ExpensePreviewResponse {
+  /** Each included member's amount in the expense currency. Null while there is a problem. */
+  amounts: Record<number, number> | null;
+  /** Everything about the split that stops the expense from being saved. Empty when nothing does. */
+  problems: ExpenseProblem[];
+  /** Total minus expected total, when the figures of an item split do not add up. Null when they do. */
+  difference: number | null;
+}
+
 export interface ExpensesResponse {
   expenses: ExpenseView[];
 }

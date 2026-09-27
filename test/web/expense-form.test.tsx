@@ -184,15 +184,22 @@ describe('a split by portions', () => {
 });
 
 describe('the split type registry', () => {
-  it('shows the items split, disabled, until a body is registered for it', async () => {
+  it('shows a split type without a body on the switch, disabled', async () => {
     const original = splitType('items');
-    const { user, view } = setup();
-    const option = screen.getByRole('radio', { name: /By item/ });
-    expect(option).toBeDisabled();
-    await user.click(option);
-    expect(screen.getByRole('radio', { name: 'Evenly' })).toBeChecked();
-    view.unmount();
+    registerSplitType({ type: 'items', label: 'By item', Body: null, unavailable: 'Splitting by item is coming soon.' });
+    try {
+      const { user } = setup();
+      const option = screen.getByRole('radio', { name: /By item/ });
+      expect(option).toBeDisabled();
+      await user.click(option);
+      expect(screen.getByRole('radio', { name: 'Evenly' })).toBeChecked();
+    } finally {
+      registerSplitType(original);
+    }
+  });
 
+  it('hands the whole expense to the body registered for a split type', async () => {
+    const original = splitType('items');
     const seen: SplitBodyProps[] = [];
     registerSplitType({
       type: 'items',

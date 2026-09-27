@@ -1,0 +1,311 @@
+/* The by-item split. Colours and sizes follow styles.css. */
+.items-split {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.items-head {
+  align-items: center;
+  min-height: 30px;
+}
+
+.items-head .link {
+  padding: 4px;
+}
+
+.items-label {
+  font-size: 0.85rem;
+  color: var(--hint);
+}
+
+.items-there {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.items-empty {
+  margin: 0;
+  padding: 14px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+/* Pick a person, then tap their items. Stays in view while the list scrolls. */
+.paint {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 -12px;
+  padding: 8px 12px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.paint-how {
+  margin: 0;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+  min-height: 24px;
+}
+
+.paint-on .paint-how {
+  color: var(--link);
+}
+
+.paint-stop {
+  flex: none;
+  padding: 2px 4px;
+  font-weight: 600;
+}
+
+.paint-people {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -12px;
+  padding: 2px 12px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.paint-people::-webkit-scrollbar {
+  display: none;
+}
+
+.paint-person {
+  flex: 1 0 auto;
+  min-width: 66px;
+  max-width: 120px;
+  min-height: 48px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.paint-person.on {
+  background: var(--button);
+  color: var(--button-text);
+  box-shadow: none;
+}
+
+.paint-name {
+  max-width: 100%;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.paint-amount {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.paint-amount.stale,
+.shares.stale {
+  opacity: 0.45;
+}
+
+/* The lines of the receipt */
+.items-list .item {
+  display: flex;
+  align-items: stretch;
+}
+
+.item-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-label {
+  font-weight: 500;
+}
+
+.item-who {
+  color: var(--link);
+}
+
+.item-who.hint {
+  color: var(--hint);
+}
+
+.item-mine {
+  background: var(--info-bg);
+}
+
+.item-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.item-mine .item-mark {
+  background: var(--button);
+  color: var(--button-text);
+  box-shadow: none;
+}
+
+.item-edit {
+  flex: none;
+  width: 44px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: none;
+  color: var(--hint);
+  font-size: 1.2rem;
+}
+
+/* Tax, tip, service charge, discount */
+.figures {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.figures .figure,
+.figures .figure-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 4px 12px;
+}
+
+.figure-block,
+.figures .figure-check {
+  border-top: 1px solid var(--line);
+}
+
+.figure label {
+  flex: 1;
+  min-width: 0;
+}
+
+.figure input {
+  flex: none;
+  width: 112px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: right;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.figure-check {
+  border-top: 0 !important;
+  padding-top: 0 !important;
+  min-height: 44px !important;
+  color: var(--hint);
+  font-size: 0.9rem;
+}
+
+.figure-check input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--button);
+}
+
+.figures .problem {
+  padding: 0 12px 8px;
+}
+
+/* When the figures do not add up */
+.difference p {
+  margin-bottom: 0;
+}
+
+.difference-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.difference-choices .button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.shares .row {
+  min-height: 46px;
+  padding: 8px 12px;
+}
+
+/* One line of the receipt, over the page */
+.item-figures {
+  flex-wrap: nowrap;
+}
+
+.item-figures .field {
+  flex: 1 1 auto;
+}
+
+.item-figures .item-quantity {
+  flex: 0 0 84px;
+}
+
+.item-sheet .people .person {
+  background: var(--bg);
+}
