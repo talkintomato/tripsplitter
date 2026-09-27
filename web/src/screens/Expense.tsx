@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import type { ExpenseView } from '../api/types';
-import { ActionError, Banner, Confirm, Empty, ErrorState, Loading, Screen, Section } from '../components/ui';
+import { ActionError, Avatar, Badge, Banner, Confirm, Empty, ErrorState, IconButton, Loading, Screen, Section } from '../components/ui';
+import { expenseIcon } from '../components/ExpenseRow';
+import { Pencil, Receipt, Trash } from '../components/icons';
 import { ExpenseForm } from '../expense-form/ExpenseForm';
-import { dayText, expenseTitle, money, nameOf, rateText } from '../format';
+import { dayText, expenseTitle, localDay, longDayText, money, nameOf, rateText } from '../format';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
 
 const STATUS_TEXT = { draft: 'Draft', confirmed: '', discarded: 'Discarded draft', deleted: 'Deleted' } as const;
-const SPLIT_TEXT = { even: 'Split evenly', portions: 'Split by portions', items: 'Split by item' } as const;
+const SPLIT_TEXT = { even: 'Split equally', portions: 'Split by portions', items: 'Split by item' } as const;
 
 function useExpense(id: number) {
   const { client } = useApp();
@@ -137,6 +139,10 @@ export function ExpenseDetail() {
   const open = trip.status === 'active';
   const foreign = expense.currency !== expense.homeCurrency;
   const included = expense.shares.filter((s) => s.itemId === null);
+  const title = expenseTitle(expense);
+  const Icon = expenseIcon(title);
+  const name = (memberId: number): string => (memberId === group.me.id ? 'You' : nameOf(group.members, memberId));
+  const needsRate = expense.problems.some((p) => p.code === 'rate_missing');
 
   async function change(run: (version: number) => Promise<{ expense: ExpenseView }>): Promise<void> {
     setBusy(true);
@@ -153,99 +159,110 @@ export function ExpenseDetail() {
     }
   }
 
+  const actions = open ? (
+    expense.status === 'confirmed' ? (
+      <>
+        <IconButton label="Edit" icon={Pencil} disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)} />
+        <IconButton label="Delete" icon={Trash} tone="danger" disabled={busy} onClick={() => setAsking('delete')} />
+      </>
+    ) : expense.status === 'draft' ? (
+      <IconButton label="Discard" icon={Trash} tone="danger" disabled={busy} onClick={() => setAsking('discard')} />
+    ) : null
+  ) : null;
+
+  const figures = (
+    [
+      ['Tax', expense.tax, expense.taxIncluded ? ' (already in the prices)' : ''],
+      ['Tip', expense.tip, ''],
+      ['Service charge', expense.serviceCharge, ''],
+      ['Discount', expense.discount, ''],
+    ] as const
+  ).filter(([, amount]) => amount > 0);
+
   return (
-    <Screen title={expenseTitle(expense)} subtitle={trip.name}>
+    <Screen title="Expense" subtitle={trip.name} actions={actions}>
       <ActionError error={error} onClose={() => setError(undefined)} />
       {STATUS_TEXT[expense.status] ? <Banner kind={expense.status === 'draft' ? 'info' : 'warn'}>{STATUS_TEXT[expense.status]}. It does not count toward balances.</Banner> : null}
       {expense.notice ? <Banner kind="warn">{expense.notice}</Banner> : null}
       {expense.status === 'draft' && expense.currencyNeedsReview ? <Banner kind="warn">The currency was read from the receipt. Check it when you finish this draft.</Banner> : null}
 
-      <div className="total-card">
-        <span className="total">{money(expense.total, expense.currency)}</span>
-        {foreign && expense.homeTotal !== null ? <span className="hint">= {money(expense.homeTotal, expense.homeCurrency)}</span> : null}
-        {foreign ? <><span className="hint small">{rateText(expense) ? `Rate: ${rateText(expense)}` : 'No exchange rate yet'}</span>{expense.fxRate ? <span className="hint small">{expense.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span> : null}</> : null}
-      </div>
-
-      <dl className="facts">
-        <div>
-          <dt>Date</dt>
-          <dd>{dayText(expense.expenseDate)}</dd>
-        </div>
-        <div>
-          <dt>Paid by</dt>
-          <dd>{nameOf(group.members, expense.payerId)}</dd>
-        </div>
-        {expense.merchant ? (
-          <div>
-            <dt>Place</dt>
-            <dd>{expense.merchant}</dd>
+      <div className="detail-head">
+        {expense.status !== 'confirmed' || needsRate || expense.currencyNeedsReview ? (
+          <div className="badges">
+            {expense.status === 'draft' ? <Badge tone="draft">Draft</Badge> : null}
+            {expense.status === 'deleted' ? <Badge tone="neg">Deleted</Badge> : null}
+            {expense.status === 'discarded' ? <Badge tone="neutral">Discarded</Badge> : null}
+            {needsRate ? <Badge tone="warn">Needs rate</Badge> : null}
+            {expense.currencyNeedsReview ? <Badge tone="warn">Check currency</Badge> : null}
           </div>
         ) : null}
-        <div>
-          <dt>Split</dt>
-          <dd>{SPLIT_TEXT[expense.splitType]}</dd>
+        <div className="detail-title">
+          <span className="tile" aria-hidden="true"><Icon /></span>
+          <h2>{title}</h2>
         </div>
-        {(
-          [
-            ['Tax', expense.tax, expense.taxIncluded ? ' (already in the prices)' : ''],
-            ['Tip', expense.tip, ''],
-            ['Service charge', expense.serviceCharge, ''],
-            ['Discount', expense.discount, ''],
-          ] as const
-        )
-          .filter(([, amount]) => amount > 0)
-          .map(([label, amount, note]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>
-                {money(amount, expense.currency)}
-                {note}
-              </dd>
-            </div>
-          ))}
-        <div>
-          <dt>Added by</dt>
-          <dd>{nameOf(group.members, expense.createdBy)}</dd>
-        </div>
-      </dl>
+        <p className="detail-amount">{money(expense.total, expense.currency)}</p>
+        {foreign && expense.homeTotal !== null ? <p className="detail-converted">= {money(expense.homeTotal, expense.homeCurrency)}</p> : null}
+        {foreign ? (
+          <p className="detail-meta fx-lines">
+            <span>{rateText(expense) ? `Rate: ${rateText(expense)}` : 'No exchange rate yet'}</span>
+            {expense.fxRate ? <span>{expense.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span> : null}
+          </p>
+        ) : null}
+        <p className="detail-meta">
+          Added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)} on {dayText(localDay(expense.createdAt))}
+        </p>
+      </div>
 
-      <Section title="Each person's share">
+      <section className="card tree" aria-label="Who paid and who owes">
+        <p className="tree-root">
+          <Avatar name={nameOf(group.members, expense.payerId)} />
+          <span>
+            <strong>{name(expense.payerId)}</strong> paid {money(expense.total, expense.currency)}
+          </span>
+        </p>
+        <p className="tree-caption">
+          {SPLIT_TEXT[expense.splitType]}
+          {included.length > 0 ? ` between ${included.length} ${included.length === 1 ? 'person' : 'people'}` : ''}
+        </p>
         {included.length === 0 ? (
-          <Empty>Nobody is included yet.</Empty>
+          <p className="field-hint">Nobody is included yet.</p>
         ) : (
-          <ul className="list">
+          <ul className="tree-branches">
             {included.map((share) => {
               const amount = expense.amounts?.[share.memberId];
               const home = expense.homeAmounts?.[share.memberId];
+              const payer = share.memberId === expense.payerId;
+              const portions = expense.splitType === 'portions' ? `${share.weight} ${share.weight === 1 ? 'portion' : 'portions'}` : null;
               return (
-                <li key={share.memberId} className="row">
+                <li key={share.memberId}>
+                  <Avatar name={nameOf(group.members, share.memberId)} size="sm" />
                   <span className="row-main">
-                    <span className="row-title">{nameOf(group.members, share.memberId)}</span>
-                    {expense.splitType === 'portions' ? <span className="hint small">{share.weight} {share.weight === 1 ? 'portion' : 'portions'}</span> : null}
+                    <span className="row-title">{name(share.memberId)}</span>
+                    <span className="row-sub">{[portions, payer ? 'own share' : share.memberId === group.me.id ? 'owe' : 'owes'].filter(Boolean).join(' · ')}</span>
                   </span>
-                  <span className="row-side">
-                    <span className="row-amount">{amount !== undefined ? money(amount, expense.currency) : '—'}</span>
-                    {foreign && home !== undefined ? <span className="hint small">{money(home, expense.homeCurrency)}</span> : null}
+                  <span className="tree-amount">
+                    <span>{amount !== undefined ? money(amount, expense.currency) : '—'}</span>
+                    {foreign && home !== undefined ? <span className="row-sub">{money(home, expense.homeCurrency)}</span> : null}
                   </span>
                 </li>
               );
             })}
           </ul>
         )}
-        {expense.amounts === null && expense.problems.length > 0 ? <p className="hint small">{expense.problems.find((p) => p.field !== 'fxRate' && p.field !== 'currency')?.message}</p> : null}
-      </Section>
+        {expense.amounts === null && expense.problems.length > 0 ? <p className="problem">{expense.problems.find((p) => p.field !== 'fxRate' && p.field !== 'currency')?.message}</p> : null}
+      </section>
 
       {expense.items.length > 0 ? (
         <Section title="Items on the receipt">
-          <ul className="list">
+          <ul className="list-card">
             {expense.items.map((item) => (
-              <li key={item.id} className="row">
+              <li key={item.id} className="item">
                 <span className="row-main">
-                  <span className="row-title">
+                  <span className="row-title wrap">
                     {item.label}
                     {item.quantity !== 1 ? ` ×${item.quantity}` : ''}
                   </span>
-                  <span className="hint small">{(() => {
+                  <span className="row-sub wrap">{(() => {
                     const assigned = expense.shares.filter((share) => share.itemId === item.id);
                     return (assigned.length > 0 ? assigned : included).map((share) => nameOf(group.members, share.memberId)).join(', ') || 'Nobody yet';
                   })()}</span>
@@ -257,34 +274,42 @@ export function ExpenseDetail() {
         </Section>
       ) : null}
 
+      <dl className="card facts">
+        <div>
+          <dt>Date</dt>
+          <dd>{longDayText(expense.expenseDate)}</dd>
+        </div>
+        {expense.merchant ? (
+          <div>
+            <dt>Place</dt>
+            <dd>{expense.merchant}</dd>
+          </div>
+        ) : null}
+        {figures.map(([label, amount, note]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>
+              {money(amount, expense.currency)}
+              {note}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
       {open ? (
-        <div className="actions">
-          {expense.status === 'confirmed' ? (
-            <>
-              <button type="button" className="button" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
-                Edit
-              </button>
-              <button type="button" className="button button-quiet danger" disabled={busy} onClick={() => setAsking('delete')}>
-                Delete
-              </button>
-            </>
-          ) : null}
-          {expense.status === 'draft' ? (
-            <>
-              <button type="button" className="button" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
-                Finish
-              </button>
-              <button type="button" className="button button-quiet danger" disabled={busy} onClick={() => setAsking('discard')}>
-                Discard
-              </button>
-            </>
-          ) : null}
-          {expense.status === 'deleted' || expense.status === 'discarded' ? (
-            <button type="button" className="button" disabled={busy} onClick={() => void change((version) => client.restoreExpense(expense.id, version))}>
+        expense.status === 'draft' ? (
+          <div className="action-bar">
+            <button type="button" className="btn btn-primary btn-block btn-lg" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
+              Finish
+            </button>
+          </div>
+        ) : expense.status === 'deleted' || expense.status === 'discarded' ? (
+          <div className="action-bar">
+            <button type="button" className="btn btn-primary btn-block btn-lg" disabled={busy} onClick={() => void change((version) => client.restoreExpense(expense.id, version))}>
               {busy ? 'Restoring…' : 'Restore'}
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null
       ) : (
         <p className="hint small center">This trip has ended, so its expenses cannot be changed.</p>
       )}
@@ -334,34 +359,47 @@ export function Drafts() {
       ) : loaded.data === undefined ? (
         <Loading what="drafts" />
       ) : loaded.data.expenses.length === 0 ? (
-        <Empty>No drafts. Drafts come from receipt photos or from “Save draft for later”.</Empty>
+        <Empty icon={Receipt}>No drafts. Drafts come from receipt photos or from “Save draft for later”.</Empty>
       ) : (
-        <ul className="list">
-          {loaded.data.expenses.map((expense) => (
-            <li key={expense.id} className="card">
-              <button type="button" className="row plain" onClick={() => navigate(`/expenses/${expense.id}`)}>
-                <span className="row-main">
-                  <span className="row-title">{expenseTitle(expense)}</span>
-                  <span className="hint small">{dayText(expense.expenseDate)}</span>
-                </span>
-                <span className="row-side">
-                  <span className="row-amount">{money(expense.total, expense.currency)}</span>
-                  {expense.currency !== expense.homeCurrency ? (
-                    <span className="hint small">{expense.homeTotal !== null ? money(expense.homeTotal, expense.homeCurrency) : 'no rate yet'}</span>
-                  ) : null}
-                </span>
-              </button>
-              {expense.notice ? <p className="hint small">{expense.notice}</p> : null}
-              <div className="card-actions">
-                <button type="button" className="button button-small" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
-                  Finish
+        <ul className="cards">
+          {loaded.data.expenses.map((expense) => {
+            const Icon = expenseIcon(expenseTitle(expense));
+            const needsRate = expense.problems.some((p) => p.code === 'rate_missing');
+            return (
+              <li key={expense.id} className="card draft-card">
+                <button type="button" className="item" onClick={() => navigate(`/expenses/${expense.id}`)}>
+                  <span className="tile" aria-hidden="true"><Icon /></span>
+                  <span className="row-main">
+                    <span className="row-title">{expenseTitle(expense)}</span>
+                    <span className="row-sub">{longDayText(expense.expenseDate)}</span>
+                  </span>
+                  <span className="row-end">
+                    <span className="row-amount">{money(expense.total, expense.currency)}</span>
+                    {expense.currency !== expense.homeCurrency ? (
+                      <span className="row-sub">{expense.homeTotal !== null ? money(expense.homeTotal, expense.homeCurrency) : 'no rate yet'}</span>
+                    ) : null}
+                  </span>
                 </button>
-                <button type="button" className="button button-small button-quiet danger" disabled={busy} onClick={() => setAsking(expense)}>
-                  Discard
-                </button>
-              </div>
-            </li>
-          ))}
+                {needsRate || expense.currencyNeedsReview || expense.notice ? (
+                  <div className="draft-notes">
+                    <span className="badges">
+                      {needsRate ? <Badge tone="warn">Needs rate</Badge> : null}
+                      {expense.currencyNeedsReview ? <Badge tone="warn">Check currency</Badge> : null}
+                    </span>
+                    {expense.notice ? <p className="field-hint">{expense.notice}</p> : null}
+                  </div>
+                ) : null}
+                <div className="draft-actions">
+                  <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
+                    Finish
+                  </button>
+                  <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => setAsking(expense)}>
+                    Discard
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
       {asking ? (

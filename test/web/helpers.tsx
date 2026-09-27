@@ -65,6 +65,7 @@ export function expenseView(over: Partial<ExpenseView> = {}): ExpenseView {
     homeAmounts: { 1: 1000, 2: 1000, 3: 1000 },
     problems: [],
     notice: null,
+    myStake: { kind: 'lent', amount: 2000, currency: 'SGD' },
     ...over,
   };
 }

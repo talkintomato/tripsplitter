@@ -1,35 +1,38 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { ExpenseView, Trip } from '../api/types';
-import { ExpenseRow } from '../components/ExpenseRow';
-import { ActionError, Confirm, Empty, ErrorState, Loading, Screen, Section } from '../components/ui';
-import { dayText, myBalanceText } from '../format';
+import type { Trip } from '../api/types';
+import { ExpenseList } from '../components/ExpenseRow';
+import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Grid, LinkIcon, More, Pencil, People, Plus, Restore } from '../components/icons';
+import { ResetLinkConfirm } from '../components/ResetLink';
+import { ActionError, Badge, Banner, Confirm, Empty, ErrorState, GroupsBack, IconButton, Loading, MenuItem, Screen, Section, Segmented, Sheet } from '../components/ui';
+import { dayText, money, myBalanceText } from '../format';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
+import { BalancesPanel } from './Balances';
+
+type Tab = 'expenses' | 'balances';
 
 /** The first screen: the active trip, or the way to start one. */
 export function Home() {
   const { group } = useApp();
-  return <>
-    <AllGroups />
-    {group.activeTrip ? <TripHome tripId={group.activeTrip.id} root /> : <NoTrip />}
-  </>;
+  return group.activeTrip ? <TripHome tripId={group.activeTrip.id} root /> : <NoTrip />;
 }
 
-function AllGroups() {
-  const { allGroups } = useApp();
-  return allGroups ? <div className="screen all-groups"><button type="button" className="link small" onClick={allGroups}>All my groups</button></div> : null;
-}
-
-/** A trip opened from the list of past trips. */
-export function TripScreen() {
+/** A trip opened from the list of past trips, or its balances opened from a link. */
+export function TripScreen(props: { tab?: Tab }) {
   const tripId = Number(useParams().tripId);
-  return <TripHome tripId={tripId} root={false} />;
+  return <TripHome key={`${tripId}-${props.tab ?? 'expenses'}`} tripId={tripId} root={false} tab={props.tab ?? 'expenses'} />;
+}
+
+function useGroupsBack() {
+  const { allGroups } = useApp();
+  return allGroups ? <GroupsBack onClick={allGroups} /> : undefined;
 }
 
 function NoTrip() {
   const { client, group, refresh } = useApp();
   const navigate = useNavigate();
+  const leading = useGroupsBack();
   const trips = useLoad(() => client.listTrips(), 'trips');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
@@ -51,17 +54,20 @@ function NoTrip() {
 
   const past = trips.data?.trips.filter((t) => t.status === 'ended') ?? [];
   return (
-    <Screen title={group.group.title} subtitle="No trip is going on right now." back={false}>
+    <Screen title={group.group.title} subtitle="No trip is going on right now." back={false} leading={leading} largeTitle>
       <ActionError error={error} onClose={() => setError(undefined)} />
-      <div className="actions">
-        <button type="button" className="button" disabled={busy} onClick={() => void start()}>
+      <div className="card card-pad center">
+        <p className="muted-2">Start a trip to add expenses and see who owes whom.</p>
+        <button type="button" className="btn btn-primary btn-block btn-lg" disabled={busy} onClick={() => void start()}>
           {busy ? 'Starting…' : 'Start new trip'}
         </button>
-        <button type="button" className="button button-quiet" onClick={() => navigate('/members')}>
-          Members
+      </div>
+      <div className="actions-row">
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/members')}>
+          <People /> Members
         </button>
-        <button type="button" className="button button-quiet" onClick={() => navigate('/activity')}>
-          Activity
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/activity')}>
+          <Clock /> Activity
         </button>
       </div>
       <Section title="Past trips">
@@ -70,7 +76,7 @@ function NoTrip() {
         ) : trips.data === undefined ? (
           <Loading what="trips" />
         ) : past.length === 0 ? (
-          <Empty>No past trips yet.</Empty>
+          <p className="list-empty">No past trips yet.</p>
         ) : (
           <TripList trips={past} />
         )}
@@ -81,17 +87,18 @@ function NoTrip() {
 
 export function TripList(props: { trips: Trip[] }) {
   return (
-    <ul className="list">
+    <ul className="cards">
       {props.trips.map((trip) => (
         <li key={trip.id}>
-          <Link className="row" to={`/trips/${trip.id}`}>
+          <Link className="card-row" to={`/trips/${trip.id}`}>
+            <span className="tile" aria-hidden="true"><Archive /></span>
             <span className="row-main">
               <span className="row-title">{trip.name}</span>
-              <span className="hint small">
+              <span className="row-sub">
                 {trip.endedAt ? `Ended ${dayText(trip.endedAt.slice(0, 10))}` : 'Going on now'} · {trip.homeCurrency}
               </span>
             </span>
-            <span className="chevron">›</span>
+            <span className="chevron" aria-hidden="true"><ChevronRight /></span>
           </Link>
         </li>
       ))}
@@ -99,28 +106,36 @@ export function TripList(props: { trips: Trip[] }) {
   );
 }
 
-function TripHome(props: { tripId: number; root: boolean }) {
-  const { client, group, refresh } = useApp();
+function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
+  const { client, group, refresh, allGroups } = useApp();
   const navigate = useNavigate();
+  const groupsBack = useGroupsBack();
   const { tripId } = props;
   const loaded = useLoad(async () => {
     const [trip, expenses, balances] = await Promise.all([client.getTrip(tripId), client.listExpenses(tripId), client.getBalances(tripId)]);
     return { trip: trip.trip, expenses: expenses.expenses, balances };
   }, `trip-${tripId}`);
-  const [asking, setAsking] = useState<'end' | null>(null);
+  const [tab, setTab] = useState<Tab>(props.tab ?? 'expenses');
+  const [menu, setMenu] = useState(false);
+  const [asking, setAsking] = useState<'end' | 'reset' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
+  const [done, setDone] = useState<string | null>(null);
+
+  const leading = props.root ? groupsBack : undefined;
+  const back = props.root ? false : true;
+  const menuButton = <IconButton label="More" icon={More} onClick={() => setMenu(true)} />;
 
   if (loaded.error !== undefined && loaded.data === undefined) {
     return (
-      <Screen title="Trip" back={!props.root}>
+      <Screen title="Trip" back={back} leading={leading}>
         <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} />
       </Screen>
     );
   }
   if (loaded.data === undefined) {
     return (
-      <Screen title={group.activeTrip?.id === tripId ? group.activeTrip.name : 'Trip'} back={!props.root}>
+      <Screen title={group.activeTrip?.id === tripId ? group.activeTrip.name : 'Trip'} back={back} leading={leading} largeTitle>
         <Loading />
       </Screen>
     );
@@ -128,9 +143,12 @@ function TripHome(props: { tripId: number; root: boolean }) {
 
   const { trip, expenses, balances } = loaded.data;
   const ended = trip.status === 'ended';
+  const currency = trip.homeCurrency;
   const drafts = expenses.filter((e) => e.status === 'draft');
-  const recent: ExpenseView[] = expenses.filter((e) => e.status === 'confirmed').slice(0, 10);
-  const confirmedCount = expenses.filter((e) => e.status === 'confirmed').length;
+  const needRate = drafts.filter((e) => e.problems.some((p) => p.code === 'rate_missing')).length;
+  const checkCurrency = drafts.filter((e) => e.currencyNeedsReview).length;
+  const confirmed = expenses.filter((e) => e.status === 'confirmed');
+  const payments = balances.settlements.filter((s) => s.status === 'active');
   const mine = balances.balances[group.me.id] ?? 0;
 
   async function change(run: () => Promise<unknown>, after?: () => void): Promise<void> {
@@ -149,83 +167,116 @@ function TripHome(props: { tripId: number; root: boolean }) {
     }
   }
 
+  const go = (path: string) => () => {
+    setMenu(false);
+    navigate(path);
+  };
+
   return (
-    <Screen title={trip.name} subtitle={ended ? 'This trip has ended. Payments can still be recorded.' : group.group.title} back={!props.root}>
-      <ActionError error={error} onClose={() => setError(undefined)} />
+    <Screen
+      title={trip.name}
+      subtitle={group.group.title}
+      back={back}
+      leading={leading}
+      actions={menuButton}
+      largeTitle
+      titleExtra={ended ? <Badge tone="neutral">Ended</Badge> : null}
+      className={tab === 'expenses' && !ended ? 'with-fab' : ''}
+    >
+      <Segmented<Tab>
+        label="Show"
+        role="tablist"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'expenses', label: 'Expenses', controls: 'panel-expenses' },
+          { value: 'balances', label: 'Balances', controls: 'panel-balances' },
+        ]}
+      />
 
-      <button type="button" className={`balance-card ${mine < 0 ? 'owes' : mine > 0 ? 'owed' : ''}`} onClick={() => navigate(`/trips/${trip.id}/balances`)}>
-        <span className="balance-text">{myBalanceText(mine, trip.homeCurrency)}</span>
-        <span className="hint small">See balances and settle up ›</span>
-      </button>
-
-      <div className="actions">
-        {ended ? null : (
-          <button type="button" className="button" onClick={() => navigate(`/trips/${trip.id}/add`)}>
-            Add expense
-          </button>
-        )}
-        <div className="actions-grid">
-          <button type="button" className="button button-quiet" onClick={() => navigate(`/trips/${trip.id}/balances`)}>
-            Balances
-          </button>
-          <button type="button" className="button button-quiet" onClick={() => navigate('/members')}>
-            Members
-          </button>
-          <button type="button" className="button button-quiet" onClick={() => navigate('/activity')}>
-            Activity
-          </button>
+      <div className="card summary">
+        <p className={`summary-balance ${mine > 0 ? 'owed' : mine < 0 ? 'owes' : ''}`}>{myBalanceText(mine, currency)}</p>
+        <div className="stats">
+          <div className="stat">
+            <span className="stat-label">My expenses</span>
+            <span className="stat-value">{money(balances.summary.myExpenses, currency)}</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">Total expenses</span>
+            <span className="stat-value">{money(balances.summary.totalExpenses, currency)}</span>
+          </div>
         </div>
       </div>
 
-      <Link className="button button-quiet" to={`/trips/${trip.id}/currencies`}>Trip settings · Currencies and name</Link>
+      {ended ? <p className="hint small center">This trip has ended. Payments can still be recorded.</p> : null}
+      {done ? <Banner kind="success" onClose={() => setDone(null)}>{done}</Banner> : null}
+      <ActionError error={error} onClose={() => setError(undefined)} />
 
       {drafts.length > 0 ? (
-        <Link className="row row-card" to={`/trips/${trip.id}/drafts`}>
+        <Link className="notice-row" to={`/trips/${trip.id}/drafts`}>
+          <span className="banner-icon" aria-hidden="true"><Alert size={18} /></span>
           <span className="row-main">
             <span className="row-title">
               {drafts.length} {drafts.length === 1 ? 'draft' : 'drafts'} to finish
             </span>
-            <span className="hint small">Drafts do not count until they are finished.</span>
+            {needRate > 0 || checkCurrency > 0 ? (
+              <span className="badges">
+                {needRate > 0 ? <Badge tone="warn">{needRate === 1 ? 'Needs rate' : `${needRate} need a rate`}</Badge> : null}
+                {checkCurrency > 0 ? <Badge tone="warn">{checkCurrency === 1 ? 'Check currency' : `${checkCurrency} to check currency`}</Badge> : null}
+              </span>
+            ) : (
+              <span className="row-sub wrap">Drafts do not count until they are finished.</span>
+            )}
           </span>
-          <span className="chevron">›</span>
+          <span className="chevron" aria-hidden="true"><ChevronRight /></span>
         </Link>
       ) : null}
 
-      <Section title={ended ? 'Expenses' : 'Recent expenses'}>
-        {recent.length === 0 ? (
-          <Empty>{ended ? 'This trip has no expenses.' : 'No expenses yet. Add the first one.'}</Empty>
-        ) : (
-          <ul className="list">
-            {(ended ? expenses.filter((e) => e.status === 'confirmed') : recent).map((expense) => (
-              <li key={expense.id}>
-                <ExpenseRow expense={expense} />
-              </li>
-            ))}
-          </ul>
-        )}
-        {!ended && confirmedCount > recent.length ? <p className="hint small center">Showing the latest {recent.length} of {confirmedCount}.</p> : null}
-      </Section>
+      {tab === 'expenses' ? (
+        <div className="panel" id="panel-expenses" role="tabpanel" aria-label="Expenses">
+          <ExpenseList
+            expenses={confirmed}
+            settlements={payments}
+            currency={currency}
+            empty={ended ? 'This trip has no expenses.' : 'No expenses yet. Add the first one.'}
+          />
+        </div>
+      ) : (
+        <BalancesPanel tripId={trip.id} data={balances} onChanged={() => loaded.reload()} />
+      )}
 
-      <div className="actions quiet-actions">
-        {props.root ? (
-          <button type="button" className="link" onClick={() => navigate('/past-trips')}>
-            Past trips
-          </button>
-        ) : null}
-        {ended ? (
-          group.activeTrip === null ? (
-            <button type="button" className="link" disabled={busy} onClick={() => void change(() => client.reopenTrip(trip.id), () => navigate('/', { replace: true }))}>
-              Reopen this trip
-            </button>
-          ) : (
-            <span className="hint small">This trip can be reopened once the current trip has ended.</span>
-          )
-        ) : (
-          <button type="button" className="link danger" onClick={() => setAsking('end')}>
-            End trip
-          </button>
-        )}
-      </div>
+      {tab === 'expenses' && !ended ? (
+        <button type="button" className="fab" onClick={() => navigate(`/trips/${trip.id}/add`)}>
+          <Plus size={20} /> Add expense
+        </button>
+      ) : null}
+
+      {menu ? (
+        <Sheet label="Trip menu" onClose={() => setMenu(false)}>
+          <h2 className="sheet-title">{trip.name}</h2>
+          <ul className="menu">
+            <MenuItem icon={People} label="Members" onClick={go('/members')} />
+            <MenuItem icon={Clock} label="Activity" hint="Changes, and restoring removed items" onClick={go('/activity')} />
+            <MenuItem icon={Coins} label="Currencies and rates" onClick={go(`/trips/${trip.id}/currencies`)} />
+            {ended ? null : <MenuItem icon={Pencil} label="Rename trip" onClick={go(`/trips/${trip.id}/currencies`)} />}
+            {props.root ? <MenuItem icon={Archive} label="Past trips" onClick={go('/past-trips')} /> : null}
+            {allGroups ? <MenuItem icon={Grid} label="All my groups" onClick={() => { setMenu(false); allGroups(); }} /> : null}
+          </ul>
+          <div className="menu-divider" />
+          <ul className="menu">
+            {ended ? (
+              group.activeTrip === null ? (
+                <MenuItem icon={Restore} label="Reopen this trip" disabled={busy} onClick={() => { setMenu(false); void change(() => client.reopenTrip(trip.id), () => navigate('/', { replace: true })); }} />
+              ) : (
+                <li className="hint small" style={{ padding: '8px' }}>This trip can be reopened once the current trip has ended.</li>
+              )
+            ) : (
+              <MenuItem icon={Flag} label="End trip" tone="danger" onClick={() => { setMenu(false); setAsking('end'); }} />
+            )}
+            <MenuItem icon={LinkIcon} label="Reset link" tone="danger" onClick={() => { setMenu(false); setAsking('reset'); }} />
+          </ul>
+        </Sheet>
+      ) : null}
 
       {asking === 'end' ? (
         <Confirm
@@ -239,6 +290,7 @@ function TripHome(props: { tripId: number; root: boolean }) {
           <p>No more expenses can be added or changed. Payments can still be recorded, and the trip can be reopened later.</p>
         </Confirm>
       ) : null}
+      {asking === 'reset' ? <ResetLinkConfirm onCancel={() => setAsking(null)} onDone={(message) => { setAsking(null); setDone(message); }} /> : null}
     </Screen>
   );
 }
@@ -254,7 +306,7 @@ export function PastTrips() {
       ) : trips.data === undefined ? (
         <Loading what="trips" />
       ) : past.length === 0 ? (
-        <Empty>No past trips yet.</Empty>
+        <Empty icon={Archive}>No past trips yet. A trip is listed here once it has ended.</Empty>
       ) : (
         <TripList trips={past} />
       )}

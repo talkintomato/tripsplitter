@@ -1,11 +1,12 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
 import { isValidRate } from '../../../src/core/rates';
 import { ApiError, messageOf, type ApiClient } from '../api/client';
 import { ratesApi } from '../api/rates';
 import type { ExpenseView, ExpenseWriteResponse, Member } from '../api/types';
 import { Banner } from '../components/ui';
-import { amountText, dayText, expenseTitle, money, nameOf } from '../format';
+import { ChevronDown } from '../components/icons';
+import { amountText, dayLabel, dayText, money, nameOf } from '../format';
 import {
   formMembers,
   includedShares,
@@ -36,7 +37,7 @@ export interface ExpenseFormProps {
   onCancel?(): void;
 }
 
-const SPLIT_WORDS = { even: 'Evenly', portions: 'By portions', items: 'By item' } as const;
+const SPLIT_WORDS = { even: 'Equally', portions: 'By portions', items: 'By item' } as const;
 
 function decimalsOf(currency: string): number {
   try {
@@ -100,6 +101,9 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const [busy, setBusy] = useState<'save' | 'draft' | null>(null);
   const [error, setError] = useState<unknown>(undefined);
   const [touched, setTouched] = useState(false);
+  const amountRef = useRef<HTMLInputElement>(null);
+  // Opened from the start when the expense is not the plain case: a draft, a split by item, its own rate.
+  const [moreOpen, setMoreOpen] = useState(() => expense?.status === 'draft' || expense?.splitType === 'items' || expense?.fxRateSource === 'expense');
 
   const update = (patch: FormPatch): void => setState((current) => ({ ...current, ...patch }));
 
@@ -216,8 +220,40 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const rows = latest ? differences(members, state, latest) : [];
   const gone = latest !== null && latest.status !== 'draft' && latest.status !== 'confirmed';
 
+  // More options: what is needed less often. Shown only when there is something in it.
+  const Extras = entry.Extras ?? null;
+  const ownRate = state.rateOverride !== undefined && state.rateOverride !== null;
+  const canDraft = isNew || isDraft;
+  const hasMore = Extras !== null || foreign || canDraft;
+  const moreParts = [
+    ...(Extras !== null ? ['Tax, tip, service charge, discount'] : []),
+    ...(foreign ? ['exchange rate for this expense only'] : []),
+    ...(canDraft ? ['save as draft'] : []),
+  ];
+  const moreSummary = moreParts.join(', ').replace(/^./, (c) => c.toUpperCase());
+  const showMore = hasMore && moreOpen;
+
+  // Why Save is off. A problem the split already shows next to its field is only pointed to here.
+  const bodyShowsProblems = state.splitType === 'items' && entry.serverPreview === true;
+  const saveReason = busy !== null
+    ? null
+    : firstProblem === null
+      ? null
+      : firstProblem === serverProblem && server.status === 'loading'
+        ? null
+        : bodyShowsProblems && firstProblem === serverProblem && rateProblem === null
+          ? 'Fix what is marked above to save.'
+          : firstProblem;
+
+  const dateFace = state.expenseDate ? dayLabel(state.expenseDate) : 'Choose a date';
+  const moveToAmount = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    amountRef.current?.focus();
+  };
+
   return (
-    <form className="form" onSubmit={onSubmit} noValidate>
+    <form className="form expense-form" onSubmit={onSubmit} noValidate>
       {latest ? (
         <Banner kind="warn">
           <strong>Someone else changed this expense while you were editing.</strong>
@@ -250,7 +286,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
             {gone ? null : (
               <button
                 type="button"
-                className="button button-small"
+                className="btn btn-primary btn-sm"
                 disabled={busy !== null}
                 onClick={() => {
                   const next = latest.version;
@@ -264,7 +300,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
             )}
             <button
               type="button"
-              className="button button-small button-quiet"
+              className="btn btn-secondary btn-sm"
               disabled={busy !== null}
               onClick={() => {
                 setState(stateFromExpense(latest));
@@ -294,31 +330,28 @@ export function ExpenseForm(props: ExpenseFormProps) {
 
       {expense?.notice && (error === undefined || messageOf(error) !== expense.notice) ? <Banner kind="warn">{expense.notice}</Banner> : null}
 
-      <label className="field">
-        <span>What was it for?</span>
+      <div className="field">
+        <label className="field-label" htmlFor="expense-title">What was it for?</label>
         <input
+          id="expense-title"
+          className="title-input"
           type="text"
           value={state.description}
           maxLength={500}
+          autoComplete="off"
+          enterKeyHint="next"
+          // A new expense starts here, with the keyboard up.
+          autoFocus={isNew}
           placeholder={state.merchant ?? 'Dinner, taxi, tickets…'}
+          onKeyDown={moveToAmount}
           onChange={(event) => update({ description: event.target.value })}
         />
-      </label>
+      </div>
 
       <div className="field">
-        <label htmlFor="expense-amount">Amount</label>
-        <span className="amount-row">
-          <input
-            id="expense-amount"
-            type="text"
-            inputMode={decimalsOf(currency) === 0 ? 'numeric' : 'decimal'}
-            autoComplete="off"
-            value={state.amountText}
-            placeholder={amountText(0, currency)}
-            aria-invalid={touched && amountProblem !== null}
-            onChange={(event) => update({ amountText: event.target.value.replace(',', '.') })}
-          />
-          <select aria-label="Expense currency" className="currency-picker" value={currency} disabled={busy !== null}
+        <label className="field-label" htmlFor="expense-amount">Amount</label>
+        <div className="amount-box" data-invalid={touched && amountProblem !== null}>
+          <select aria-label="Expense currency" className="currency-select" value={currency} disabled={busy !== null}
             onChange={(event) => {
               try {
                 const next = changeCurrency(state, event.target.value);
@@ -332,123 +365,183 @@ export function ExpenseForm(props: ExpenseFormProps) {
             }}>
             {CURRENCIES.map((option) => <option key={option.code} value={option.code}>{option.code}</option>)}
           </select>
-        </span>
+          <input
+            ref={amountRef}
+            id="expense-amount"
+            className="amount-input"
+            type="text"
+            inputMode={decimalsOf(currency) === 0 ? 'numeric' : 'decimal'}
+            enterKeyHint="done"
+            autoComplete="off"
+            value={state.amountText}
+            placeholder={amountText(0, currency)}
+            aria-invalid={touched && amountProblem !== null}
+            onChange={(event) => update({ amountText: event.target.value.replace(',', '.') })}
+          />
+        </div>
       </div>
 
-      {roundingNote ? <p className="hint small" role="status">{roundingNote}</p> : null}
+      {roundingNote ? <p className="field-hint" role="status">{roundingNote}</p> : null}
 
       {state.currencyNeedsReview ? (
-        <div className="fx">
-          <p className="hint small">Check the currency read from the receipt. Choose a currency above or confirm {currency}.</p>
-          <button type="button" className="button button-small button-quiet" onClick={() => update({ currencyChecked: true, currencyNeedsReview: false })}>
-            Confirm {currency}
-          </button>
+        <div className="banner banner-warn">
+          <div className="banner-body">
+            <p>Check the currency read from the receipt. Choose a currency above or confirm {currency}.</p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => update({ currencyChecked: true, currencyNeedsReview: false })}>
+              Confirm {currency}
+            </button>
+          </div>
         </div>
       ) : null}
 
       {foreign ? (
         <div className="fx" aria-label="Exchange rate">
-          {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <p>Converted amount: <strong>{money(fx.homeTotal, fx.homeCurrency)}</strong></p> : null}
-          {rate ? <><p className="hint small">Rate: {rate}</p><p className="hint small">{fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</p></>
-            : <p className="hint small">{server.status === 'loading' ? 'Checking the rate…' : needsTripRate ? 'Enter a trip rate to save this expense.' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
+          {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <p className="fx-converted"><span>Converted amount</span> <strong>{money(fx.homeTotal, fx.homeCurrency)}</strong></p> : null}
+          {rate ? <p className="fx-lines"><span>Rate: {rate}</span><span>{fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span></p>
+            : <p>{server.status === 'loading' ? 'Checking the rate…' : needsTripRate ? 'Enter a trip rate to save this expense.' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
           {needsTripRate ? <label className="field">
             <span id="trip-rate-label">Trip rate: 1 {props.homeCurrency} = ___ {currency}</span>
             <input aria-labelledby="trip-rate-label" type="text" inputMode="decimal" value={tripRate} disabled={busy !== null} onChange={(event) => setTripRate(event.target.value.replace(',', '.'))} />
-            <span className="hint small">Used for this and future expenses in {currency}. Use up to 6 decimal places.</span>
+            <span className="field-hint">Used for this and future expenses in {currency}. Use up to 6 decimal places.</span>
           </label> : null}
-          {state.rateOverride !== undefined && state.rateOverride !== null ? (
-            <div className="field">
-              <label htmlFor="expense-rate">This expense's rate: 1 {props.homeCurrency} = ___ {currency}</label>
-              <input id="expense-rate" aria-describedby="expense-rate-hint" aria-invalid={rateProblem !== null && state.rateOverride !== ''} type="text" inputMode="decimal" value={state.rateOverride} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
-              <span id="expense-rate-hint" className={rateProblem !== null && state.rateOverride !== '' ? 'problem small' : 'hint small'}>Enter a rate above zero, with up to 6 decimal places.</span>
+        </div>
+      ) : null}
+
+      <div className="pickers">
+        <div className="field">
+          <label className="field-label" htmlFor="expense-payer">Paid by</label>
+          <span className="picker">
+            <select id="expense-payer" value={state.payerId} onChange={(event) => update({ payerId: Number(event.target.value) })}>
+              {people.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.displayName}
+                  {member.id === props.meId ? ' (you)' : ''}
+                </option>
+              ))}
+            </select>
+          </span>
+        </div>
+        <div className="field">
+          <label className="field-label" htmlFor="expense-date">When</label>
+          <span className="picker">
+            <span className="picker-face" aria-hidden="true">{dateFace}</span>
+            <input id="expense-date" className="picker-overlay" type="date" value={state.expenseDate} onChange={(event) => update({ expenseDate: event.target.value })} />
+          </span>
+        </div>
+      </div>
+
+      <div className="section split">
+        <div className="split-head">
+          <span id="split-label" className="section-label">Split</span>
+          <div className="segmented segmented-sm" role="radiogroup" aria-labelledby="split-label">
+            {splitTypes().map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                role="radio"
+                aria-checked={state.splitType === option.type}
+                disabled={option.Body === null}
+                title={option.Body === null ? option.unavailable : undefined}
+                className={state.splitType === option.type ? 'on' : ''}
+                onClick={() => {
+                  update({ splitType: option.type });
+                  // A split by item uses tax, tip and discount, which live under More options.
+                  if (option.Extras) setMoreOpen(true);
+                }}
+              >
+                {option.label}
+                {option.Body === null ? <small> soon</small> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+        {Body === null ? <p className="field-hint">{entry.unavailable} Choose another way to split.</p> : null}
+
+        {Body !== null ? (
+          <Body
+            state={state}
+            update={update}
+            members={people}
+            total={total}
+            currency={currency}
+            corrections={server.status === 'ready' ? server.result?.corrections : undefined}
+            amounts={shown.amounts}
+            problems={shown.problems}
+            disabled={busy !== null}
+            client={client}
+            meId={props.meId}
+            {...(asksServer
+              ? { pending: server.status === 'loading', previewError: server.status === 'failed' ? server.error : undefined, retryPreview: server.retry }
+              : {})}
+          />
+        ) : null}
+        {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link-btn small" onClick={server.retry}>Try preview again</button> : null}
+      </div>
+
+      {hasMore ? (
+        <div className="disclosure">
+          <button type="button" className="disclosure-btn" aria-expanded={showMore} aria-controls="more-options" onClick={() => setMoreOpen((open) => !open)}>
+            <span className="row-main">
+              <span className="row-title">More options</span>
+              <span className="row-sub wrap">{moreSummary}</span>
+            </span>
+            <span className="disclosure-chevron" aria-hidden="true"><ChevronDown size={18} /></span>
+          </button>
+          {showMore ? (
+            <div className="disclosure-panel" id="more-options">
+              {Extras !== null && Body !== null ? (
+                <Extras
+                  state={state}
+                  update={update}
+                  members={people}
+                  total={total}
+                  currency={currency}
+                  amounts={shown.amounts}
+                  problems={shown.problems}
+                  disabled={busy !== null}
+                  client={client}
+                />
+              ) : null}
+              {foreign ? (
+                <div className="field">
+                  <span className="sub-head">Exchange rate for this expense</span>
+                  {ownRate ? (
+                    <div className="field">
+                      <label htmlFor="expense-rate">This expense's rate: 1 {props.homeCurrency} = ___ {currency}</label>
+                      <input id="expense-rate" aria-describedby="expense-rate-hint" aria-invalid={rateProblem !== null && state.rateOverride !== ''} type="text" inputMode="decimal" value={state.rateOverride ?? ''} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
+                      <span id="expense-rate-hint" className={rateProblem !== null && state.rateOverride !== '' ? 'problem' : 'field-hint'}>Enter a rate above zero, with up to 6 decimal places.</span>
+                    </div>
+                  ) : (
+                    <button type="button" className="btn btn-secondary btn-block" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>
+                      {fx?.fxRateSource === 'expense' ? "Change this expense's rate" : 'Use a different rate for this expense'}
+                    </button>
+                  )}
+                  {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
+                    <button type="button" className="btn btn-ghost" onClick={() => update({ rateOverride: null })}>Use the trip rate instead</button>
+                  ) : null}
+                </div>
+              ) : null}
+              {canDraft ? (
+                <div className="field">
+                  <span className="sub-head">Not finished?</span>
+                  <button type="button" className="btn btn-secondary btn-block" disabled={busy !== null} onClick={() => void submit('draft')}>
+                    {busy === 'draft' ? 'Saving…' : isNew ? 'Save as draft' : 'Save draft for later'}
+                  </button>
+                  <span className="field-hint">A draft does not count toward balances until it is finished.</span>
+                </div>
+              ) : null}
             </div>
-          ) : <button type="button" className="link" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>{fx?.fxRateSource === 'expense' ? "Change this expense's rate" : 'Use a different rate for this expense'}</button>}
-          {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
-            <button type="button" className="button button-small button-quiet" onClick={() => update({ rateOverride: null })}>Use the trip rate instead</button>
           ) : null}
         </div>
       ) : null}
 
-      <div className="field-pair">
-        <label className="field">
-          <span>Date</span>
-          <input type="date" value={state.expenseDate} onChange={(event) => update({ expenseDate: event.target.value })} />
-        </label>
-        <label className="field">
-          <span>Paid by</span>
-          <select value={state.payerId} onChange={(event) => update({ payerId: Number(event.target.value) })}>
-            {people.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.displayName}
-                {member.id === props.meId ? ' (you)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="field">
-        <span id="split-label">Split</span>
-        <div className="switch" role="radiogroup" aria-labelledby="split-label">
-          {splitTypes().map((option) => (
-            <button
-              key={option.type}
-              type="button"
-              role="radio"
-              aria-checked={state.splitType === option.type}
-              disabled={option.Body === null}
-              title={option.Body === null ? option.unavailable : undefined}
-              className={state.splitType === option.type ? 'on' : ''}
-              onClick={() => update({ splitType: option.type })}
-            >
-              {option.label}
-              {option.Body === null ? <small> soon</small> : null}
-            </button>
-          ))}
-        </div>
-        {Body === null ? <p className="hint small">{entry.unavailable} Choose another way to split.</p> : null}
-      </div>
-
-      {Body !== null ? (
-        <Body
-          state={state}
-          update={update}
-          members={people}
-          total={total}
-          currency={currency}
-          corrections={server.status === 'ready' ? server.result?.corrections : undefined}
-          amounts={shown.amounts}
-          problems={shown.problems}
-          disabled={busy !== null}
-          client={client}
-          {...(asksServer
-            ? { pending: server.status === 'loading', previewError: server.status === 'failed' ? server.error : undefined, retryPreview: server.retry }
-            : {})}
-        />
-      ) : null}
-
-      {(touched || unreadable !== null) && firstProblem !== null ? (
-        <p className="problem" role="alert">{firstProblem}</p>
-      ) : null}
-      {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link" onClick={server.retry}>Try preview again</button> : null}
-
-      {server.status === 'loading' ? <p role="status" className="hint small">Updating amounts…</p> : null}
-      <div className="form-actions">
-        <button type="submit" className="button" disabled={busy !== null || blocked}>
+      {server.status === 'loading' ? <p role="status" className="visually-hidden">Updating amounts…</p> : null}
+      <div className="action-bar">
+        {saveReason !== null ? <p className="save-reason" role="alert">{saveReason}</p> : null}
+        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy !== null || saveReason !== null || blocked || firstProblem !== null}>
           {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Finish and save' : 'Save changes'}
         </button>
-        {isNew || isDraft ? (
-          <button type="button" className="button button-quiet" disabled={busy !== null} onClick={() => void submit('draft')}>
-            {busy === 'draft' ? 'Saving…' : isNew ? 'Save as draft' : 'Save draft for later'}
-          </button>
-        ) : null}
-        {props.onCancel ? (
-          <button type="button" className="button button-quiet" disabled={busy !== null} onClick={props.onCancel}>
-            Cancel
-          </button>
-        ) : null}
       </div>
-      {expense ? <p className="hint small center">Editing {expenseTitle(expense)}</p> : null}
     </form>
   );
 }

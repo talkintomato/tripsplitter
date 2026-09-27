@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
-import { createPortal } from 'react-dom';
 import type { ExpenseItemInput, Member } from '../api/types';
 import { MoneyInput } from './MoneyInput';
+import { Avatar, Sheet } from '../components/ui';
 
 export interface ItemSheetProps {
   /** The item to change. Left out for a new item. */
@@ -53,23 +53,22 @@ export function ItemSheet(props: ItemSheetProps) {
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Enter' && (event.target as HTMLElement).tagName === 'INPUT') {
+    if (event.key === 'Enter' && (event.target as HTMLElement).tagName === 'INPUT' && (event.target as HTMLInputElement).type !== 'checkbox') {
       event.preventDefault();
       done(false);
     }
-    if (event.key === 'Escape') props.onCancel();
   };
 
   const title = isNew ? 'Add an item' : 'Change this item';
-  return createPortal(
-    <div className="sheet-backdrop" onClick={props.onCancel}>
-      <div className="sheet item-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()} onKeyDown={onKeyDown}>
-        <h2>{title}</h2>
+  return (
+    <Sheet label={title} onClose={props.onCancel} className="item-sheet">
+      <div onKeyDown={onKeyDown} className="item-sheet-body">
+        <h2 className="sheet-title">{title}</h2>
         <label className="field">
           <span>What was it?</span>
-          <input key={round} type="text" value={label} maxLength={200} placeholder="Beer, paella, dessert…" autoFocus={isNew} onChange={(event) => setLabel(event.target.value)} />
+          <input key={round} type="text" value={label} maxLength={200} placeholder="Beer, paella, dessert…" autoFocus={isNew} enterKeyHint="done" onChange={(event) => setLabel(event.target.value)} />
         </label>
-        <div className="field-pair item-figures">
+        <div className="item-figures">
           <label className="field item-quantity">
             <span>How many</span>
             <input
@@ -83,54 +82,56 @@ export function ItemSheet(props: ItemSheetProps) {
           </label>
           <div className="field">
             <label htmlFor="item-line-total">Line total</label>
-            <span className="amount-row">
+            <span className="amount-box amount-box-sm">
+              <span className="amount-currency" aria-hidden="true">{currency}</span>
               <MoneyInput key={round} id="item-line-total" value={amount} currency={currency} onChange={setAmount} aria-describedby="item-line-total-hint" />
-              <span className="currency">{currency}</span>
             </span>
           </div>
         </div>
-        <p className="hint small" id="item-line-total-hint">
+        <p className="field-hint" id="item-line-total-hint">
           The line total is the price of the whole line as printed on the receipt. “How many” does not change it.
         </p>
 
-        <fieldset className="people">
-          <legend>
-            <span>Who had this?</span>
+        <fieldset className="item-people">
+          <legend className="section-head">
+            <span className="section-label">Who had this?</span>
             {ticked.size > 0 ? (
-              <button type="button" className="link" onClick={() => setShares([])}>
+              <button type="button" className="link-btn small" onClick={() => setShares([])}>
                 Everyone
               </button>
             ) : null}
           </legend>
-          {people.map((member) => (
-            <label key={member.id} className="person">
-              <input type="checkbox" checked={ticked.has(member.id)} onChange={() => toggle(member.id)} />
-              <span className="person-name">{member.displayName}</span>
-            </label>
-          ))}
+          <div className="people-card">
+            {people.map((member) => (
+              <label key={member.id} className="person">
+                <input type="checkbox" className="tick" checked={ticked.has(member.id)} onChange={() => toggle(member.id)} />
+                <Avatar name={member.displayName} />
+                <span className="person-name">{member.displayName}</span>
+              </label>
+            ))}
+          </div>
         </fieldset>
-        <p className="hint small">{ticked.size === 0 ? 'Nobody ticked: everyone shares it.' : ticked.size === 1 ? 'One person pays for it.' : `${ticked.size} people share it equally.`}</p>
+        <p className="field-hint">{ticked.size === 0 ? 'Nobody ticked: everyone shares it.' : ticked.size === 1 ? 'One person pays for it.' : `${ticked.size} people share it equally.`}</p>
 
         <div className="sheet-actions">
-          <button type="button" className="button" onClick={() => done(false)}>
+          <button type="button" className="btn btn-primary btn-block" onClick={() => done(false)}>
             {isNew ? 'Add item' : 'Done'}
           </button>
           {isNew ? (
-            <button type="button" className="button button-quiet" onClick={() => done(true)}>
+            <button type="button" className="btn btn-secondary btn-block" onClick={() => done(true)}>
               Add and enter another
             </button>
           ) : null}
           {props.onRemove ? (
-            <button type="button" className="button button-quiet danger" onClick={props.onRemove}>
+            <button type="button" className="btn btn-danger btn-block" onClick={props.onRemove}>
               Remove this item
             </button>
           ) : null}
-          <button type="button" className="button button-quiet" onClick={props.onCancel}>
+          <button type="button" className="btn btn-ghost btn-block" onClick={props.onCancel}>
             Cancel
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }

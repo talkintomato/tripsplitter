@@ -4,7 +4,7 @@ import type { ExpensePreviewResponse, ExpenseProblem, Member, SplitType } from '
 import { EvenSplit } from './EvenSplit';
 import type { ExpenseFormState, FormPatch } from './formState';
 import { PortionsSplit } from './PortionsSplit';
-import { ItemsSplit } from '../split-items/ItemsSplit';
+import { ItemFigures, ItemsSplit } from '../split-items/ItemsSplit';
 
 /** What the form hands to the body of a split type. */
 export interface SplitBodyProps {
@@ -31,6 +31,8 @@ export interface SplitBodyProps {
   previewError?: unknown;
   /** Only with `serverPreview`: asks again after `previewError`. */
   retryPreview?(): void;
+  /** The person using the app, to mark as "you". */
+  meId?: number;
 }
 
 export interface SplitTypeEntry {
@@ -39,6 +41,8 @@ export interface SplitTypeEntry {
   label: string;
   /** The body of the form for this split type. Null: shown on the switch but not available yet. */
   Body: ComponentType<SplitBodyProps> | null;
+  /** Figures this split type uses that are needed less often, shown under More options. */
+  Extras?: ComponentType<SplitBodyProps>;
   /** Shown under the switch when the type is not available. */
   unavailable?: string;
   /**
@@ -52,9 +56,9 @@ export interface SplitTypeEntry {
 export const SPLIT_ORDER: readonly SplitType[] = ['even', 'portions', 'items'];
 
 const registry: Record<SplitType, SplitTypeEntry> = {
-  even: { type: 'even', label: 'Evenly', Body: EvenSplit },
+  even: { type: 'even', label: 'Equally', Body: EvenSplit },
   portions: { type: 'portions', label: 'Portions', Body: PortionsSplit },
-  items: { type: 'items', label: 'By item', Body: ItemsSplit, serverPreview: true },
+  items: { type: 'items', label: 'By item', Body: ItemsSplit, Extras: ItemFigures, serverPreview: true },
 };
 
 export function splitType(type: SplitType): SplitTypeEntry {

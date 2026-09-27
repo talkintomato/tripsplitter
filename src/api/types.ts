@@ -29,6 +29,29 @@ export interface ExpenseView extends ExpenseDetail {
   problems: ExpenseProblem[];
   /** A sentence to show with the expense, or null. Set when the exchange rate could not be looked up. */
   notice: string | null;
+  /** What this expense means for the caller, in the trip's home currency. */
+  myStake: MyStake;
+}
+
+/**
+ * The caller's side of one expense, in home currency minor units.
+ * `lent`: the caller paid, and this is the converted total less the caller's own converted share.
+ * `borrowed`: someone else paid, and this is the caller's converted share.
+ * `none`: the caller is not involved, the figure is zero, or there are no converted amounts yet.
+ */
+export interface MyStake {
+  kind: 'lent' | 'borrowed' | 'none';
+  amount: number;
+  currency: CurrencyCode;
+}
+
+/** Totals of a trip's confirmed expenses, in home currency minor units. Drafts and removed expenses do not count. */
+export interface TripSummary {
+  /** The caller's converted shares, added up. */
+  myExpenses: number;
+  /** The converted totals, added up. */
+  totalExpenses: number;
+  currency: CurrencyCode;
 }
 
 export const RATE_MISSING_NOTICE = "Couldn't look up an exchange rate. Enter one to save this.";
@@ -83,7 +106,10 @@ export interface PatchTripBody {
 
 /** Body of `POST /api/trips/:tripId/expenses`. */
 export interface CreateExpenseBody extends ExpenseInput {
-  /** Defaults to `confirmed`. */
+  /**
+   * Only `confirmed`, the default. `draft` is refused: drafts come from receipt photos, read by the bot.
+   * Kept in the type so that such a request gets a message fit to show rather than an unreadable-body error.
+   */
   status?: 'draft' | 'confirmed';
 }
 
@@ -111,7 +137,10 @@ export interface ExpenseResponse {
 export interface ExpenseWriteResponse extends ExpenseResponse {
   /** Set when this request looked up a rate and made it the trip's rate. */
   rateSet: RateSet | null;
-  /** True when the expense was asked to be confirmed and was kept as a draft, because no rate was found. */
+  /**
+   * True when a receipt draft was asked to be approved and was kept a draft, with its changes saved, because no
+   * rate was found. Always false for a new expense: that is refused instead, with `rate_missing`.
+   */
   keptAsDraft: boolean;
 }
 
@@ -144,6 +173,8 @@ export interface BalancesResponse {
   payments: Array<{ fromMemberId: number; toMemberId: number; amount: number }>;
   /** Active and undone, newest first. */
   settlements: Settlement[];
+  /** The caller's and the group's spending on the trip. */
+  summary: TripSummary;
 }
 
 export interface CreateSettlementBody {

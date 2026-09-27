@@ -1,312 +1,330 @@
-/* The by-item split. Colours and sizes follow styles.css. */
-.items-split {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* The split by item: who was there, paint mode, the receipt lines, and what each person pays. */
+
+.items-split > * + * {
+  margin-top: var(--s5);
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.items-head {
-  align-items: center;
-  min-height: 30px;
-}
-
-.items-head .link {
-  padding: 4px;
-}
-
-.items-label {
-  font-size: 0.85rem;
-  color: var(--hint);
+.items-split .section > * + * {
+  margin-top: var(--s2);
 }
 
 .items-there {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-card);
   background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-15);
+  overflow-wrap: anywhere;
 }
 
-.items-empty {
-  margin: 0;
-  padding: 14px 12px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  text-align: center;
-}
-
-/* Pick a person, then tap their items. Stays in view while the list scrolls. */
+/* Paint mode: pick a person, then tap what they had. */
 .paint {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 0 -12px;
-  padding: 8px 12px;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  border-radius: var(--r-card);
+  transition: background-color var(--slow) var(--ease);
 }
 
 .paint-how {
-  margin: 0;
-  padding: 0 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 0.9rem;
-  min-height: 24px;
+  gap: var(--s3);
+  min-height: 36px;
+  padding: 0 var(--s1);
+  font-size: var(--fs-15);
 }
 
-.paint-on .paint-how {
-  color: var(--link);
-}
-
-.paint-stop {
-  flex: none;
-  padding: 2px 4px;
+.paint-how strong {
   font-weight: 600;
+}
+
+.paint-on {
+  margin: 0 calc(-1 * var(--s2));
+  padding: var(--s2);
+  background: var(--accent-tint);
 }
 
 .paint-people {
   display: flex;
-  gap: 6px;
+  gap: var(--s2);
+  margin: var(--s2) calc(-1 * var(--gutter)) 0;
+  padding: 2px var(--gutter) var(--s1);
   overflow-x: auto;
-  margin: 0 -12px;
-  padding: 2px 12px;
-  scrollbar-width: thin;
-  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 18px), transparent);
-  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.paint-on .paint-people {
+  margin-left: calc(-1 * var(--gutter) + var(--s2));
+  margin-right: calc(-1 * var(--gutter) + var(--s2));
 }
 
 .paint-people::-webkit-scrollbar {
-  height: 4px;
+  display: none;
 }
 
 .paint-person {
-  flex: 1 0 auto;
-  min-width: 66px;
-  max-width: 120px;
-  min-height: 48px;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  line-height: 1.2;
+  align-items: flex-start;
+  flex: none;
+  max-width: 150px;
+  min-height: 52px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  text-align: left;
+  scroll-snap-align: start;
+  transition: background-color var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
 }
 
 .paint-person.on {
-  background: var(--button);
-  color: var(--button-text);
-  box-shadow: none;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .paint-name {
   max-width: 100%;
+  font-size: var(--fs-15);
   font-weight: 600;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .paint-amount {
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--muted);
   white-space: nowrap;
-  opacity: 0.75;
 }
 
-.paint-amount.stale,
-.shares.stale {
-  opacity: 0.45;
+.paint-person.on .paint-amount {
+  color: inherit;
+  opacity: 0.85;
 }
 
-/* The lines of the receipt */
-.items-list .item {
+.stale {
+  opacity: 0.55;
+  transition: opacity var(--fast) var(--ease);
+}
+
+/* The lines of the receipt. */
+.items-list .item-row {
   display: flex;
   align-items: stretch;
 }
 
+.items-list .item-row + .item-row {
+  border-top: 1px solid var(--line);
+}
+
 .item-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 54px;
-  padding: 8px 12px;
-  border: 0;
-  background: none;
-  text-align: left;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 60px;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.item-main:active {
+  background: var(--surface-2);
+}
+
+.item-mine .item-main {
+  background: var(--accent-tint);
 }
 
 .item-text {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
 }
 
 .item-label {
+  font-size: var(--fs-15);
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .item-who {
-  color: var(--link);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
 }
 
-.item-who.hint {
-  color: var(--hint);
-}
-
-.item-mine {
-  background: var(--info-bg);
+.item-who-all {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .item-mark {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--line);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 700;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--field-line);
+  border-radius: 50%;
+  background: var(--input-bg);
+  color: var(--on-accent);
 }
 
-.item-mine .item-mark {
-  background: var(--button);
-  color: var(--button-text);
-  box-shadow: none;
+.item-mark.on {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .item-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  width: 44px;
+  width: var(--tap);
   border: 0;
   border-left: 1px solid var(--line);
-  background: none;
-  color: var(--hint);
-  font-size: 1.2rem;
+  background: transparent;
+  color: var(--muted);
 }
 
-/* Tax, tip, service charge, discount */
-.figures {
-  background: var(--surface);
-  border-radius: var(--radius);
+/* When the figures do not add up. */
+.difference-choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s2);
+}
+
+.difference-choices .btn {
+  white-space: normal;
+  min-height: 40px;
+  padding-top: var(--s2);
+  padding-bottom: var(--s2);
+}
+
+/* Tax, tip, service charge and discount, under More options. */
+.figures > * + * {
+  margin-top: var(--s2);
+}
+
+.figure-list {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
 }
 
-.figures .figure,
-.figures .figure-check {
+.figure,
+.figure-check {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 4px 12px;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 52px;
+  padding: var(--s1) var(--s2) var(--s1) var(--s4);
 }
 
-.figure-block,
-.figures .figure-check {
+.figure-list > * + * {
   border-top: 1px solid var(--line);
 }
 
 .figure label {
-  flex: 1;
-  min-width: 0;
+  font-size: var(--fs-15);
+  color: var(--text);
 }
 
 .figure input {
-  flex: none;
-  width: 112px;
+  width: 128px;
   min-height: 40px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
+  padding: 0 var(--s3);
+  border: 1px solid var(--input-line);
+  border-radius: var(--r-sm);
+  background: var(--input-bg);
   text-align: right;
-  font-size: 16px;
+  font-size: var(--fs-16);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
-.figure input[aria-invalid='true'] {
-  border-color: var(--danger);
+.figure input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
 }
 
 .figure-check {
-  border-top: 0 !important;
-  padding-top: 0 !important;
-  min-height: 44px !important;
-  color: var(--hint);
-  font-size: 0.9rem;
+  justify-content: flex-start;
+  cursor: pointer;
+  font-size: var(--fs-15);
+  color: var(--text-2);
 }
 
-.figure-check input {
-  width: 22px;
-  height: 22px;
-  flex: none;
-  accent-color: var(--button);
+.figure-list .problem,
+.figure-block .problem {
+  padding: 0 var(--s4) var(--s2);
 }
 
-.figures .problem {
-  padding: 0 12px 8px;
+/* The item sheet. */
+.item-sheet-body > * + * {
+  margin-top: var(--s4);
 }
 
-/* When the figures do not add up */
-.difference p {
-  margin-bottom: 0;
-}
-
-.difference-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.difference-choices .button {
-  width: 100%;
-  min-height: 44px;
-}
-
-.shares .row {
-  min-height: 46px;
-  padding: 8px 12px;
-}
-
-/* One line of the receipt, over the page */
 .item-figures {
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--s3);
 }
 
-.item-figures .field {
+.amount-box-sm {
+  min-height: 48px;
+  border-radius: var(--r-md);
+}
+
+.amount-currency {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s3);
+  border-right: 1px solid var(--line);
+  background: var(--tile-bg);
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.amount-box-sm input {
   flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 var(--s3);
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-16);
+  font-weight: 600;
 }
 
-.item-figures .item-quantity {
-  flex: 0 0 84px;
+.amount-box-sm input:focus {
+  box-shadow: none;
 }
 
-.item-sheet .people .person {
-  background: var(--bg);
+.item-people > * + * {
+  margin-top: var(--s2);
+}
+
+.item-people legend {
+  width: 100%;
+  margin-bottom: var(--s2);
 }

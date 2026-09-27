@@ -21,7 +21,7 @@ export function ChangeRate() {
   }, `rate-${tripId}-${currency}`);
   return <Screen title={loaded.data?.value === '' ? 'Add currency' : 'Change rate'} back={`/trips/${tripId}/currencies`}>
     {loaded.error !== undefined ? <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} /> : !loaded.data ? <Loading /> :
-      !isSupportedCurrency(currency) || currency === loaded.data.trip.homeCurrency ? <p>Choose a foreign currency from trip settings.</p> :
+      !isSupportedCurrency(currency) || currency === loaded.data.trip.homeCurrency ? <p className="list-empty">Choose a foreign currency from trip settings.</p> :
       <RateEditor key={`${tripId}-${currency}`} trip={loaded.data.trip} currency={currency} initial={loaded.data.value} />}
   </Screen>;
 }
@@ -44,24 +44,28 @@ function RateEditor({ trip, currency, initial }: { trip: Trip; currency: string;
       } else { setError(e); setPreview(null); }
     } finally { setBusy(false); }
   }
-  if (trip.status === 'ended') return <p>This trip has ended. Its rates cannot be changed.</p>;
+  if (trip.status === 'ended') return <p className="list-empty">This trip has ended. Its rates cannot be changed.</p>;
   return <>
     <ActionError error={error} />
-    {note ? <Banner>{note}</Banner> : null}
-    <RateField home={trip.homeCurrency} currency={currency} value={rate} disabled={busy} onChange={(value) => { setRate(value); setPreview(null); setNote(''); }} />
-    <button className="button button-quiet" disabled={busy} onClick={() => void run(async () => {
-      const result = await api.suggest(trip.id, currency);
-      setPreview(null);
-      if (result.rate !== null && result.homeCurrency === trip.homeCurrency) setRate(result.rate);
-      else setNote('No suggestion is available. Enter a rate to continue.');
-    })}>Suggest a rate</button>
-    {!isValidRate(rate) && rate !== '' ? <p className="problem">Enter a number above zero with up to 6 decimal places.</p> : null}
-    <p className="hint small">This rate applies to past and future expenses in {currency}, unless an expense has its own rate.</p>
-    <button className="button" disabled={busy || !isValidRate(rate)} onClick={() => void run(async () => { setPreview(await api.preview(trip.id, currency, rate)); })}>{busy ? 'Working…' : 'Preview change'}</button>
-    {preview ? <><RateComparison preview={preview} home={trip.homeCurrency} />
-      <button className="button" disabled={busy} onClick={() => void run(async () => {
+    {note ? <Banner kind="warn">{note}</Banner> : null}
+    <div className="card card-pad">
+      <RateField home={trip.homeCurrency} currency={currency} value={rate} disabled={busy} onChange={(value) => { setRate(value); setPreview(null); setNote(''); }} />
+      {!isValidRate(rate) && rate !== '' ? <p className="problem">Enter a number above zero with up to 6 decimal places.</p> : null}
+      <button className="btn btn-ghost" disabled={busy} onClick={() => void run(async () => {
+        const result = await api.suggest(trip.id, currency);
+        setPreview(null);
+        if (result.rate !== null && result.homeCurrency === trip.homeCurrency) setRate(result.rate);
+        else setNote('No suggestion is available. Enter a rate to continue.');
+      })}>Suggest a rate</button>
+    </div>
+    <p className="field-hint">This rate applies to past and future expenses in {currency}, unless an expense has its own rate.</p>
+    {preview ? <div className="card card-pad"><RateComparison preview={preview} home={trip.homeCurrency} /></div> : null}
+    <div className="action-bar">
+      {preview ? <button className="btn btn-primary btn-block btn-lg" disabled={busy} onClick={() => void run(async () => {
         await api.apply(trip.id, currency, rate, preview.snapshot);
         navigate(`/trips/${trip.id}/currencies`, { replace: true });
-      })}>Confirm rate</button></> : null}
+      })}>Confirm rate</button>
+      : <button className="btn btn-primary btn-block btn-lg" disabled={busy || !isValidRate(rate)} onClick={() => void run(async () => { setPreview(await api.preview(trip.id, currency, rate)); })}>{busy ? 'Working…' : 'Preview change'}</button>}
+    </div>
   </>;
 }

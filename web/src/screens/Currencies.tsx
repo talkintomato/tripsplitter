@@ -4,6 +4,7 @@ import { CURRENCIES } from '../../../src/core/currencies';
 import { ratesApi } from '../api/rates';
 import type { Trip } from '../api/types';
 import { ActionError, Banner, Confirm, ErrorState, Loading, Screen, Section } from '../components/ui';
+import { Coins } from '../components/icons';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
 import { CurrencyField } from './RateFields';
@@ -16,13 +17,16 @@ export function Currencies() {
   return <Screen title="Trip settings" back="/">
     {loaded.error !== undefined ? <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} /> : !loaded.data ? <Loading /> : <>
       <TripSettings key={loaded.data.trip.id} trip={loaded.data.trip} onSaved={async () => { await refresh(); await loaded.reload(); }} />
-      <Section title="Currencies">
-        <p className="hint small">Rates stay fixed until someone changes them.</p>
-        {loaded.data.rates.length === 0 ? <p>No foreign currencies added yet.</p> : <ul className="list">{loaded.data.rates.map((r) => <li className="card" key={r.currency}>
-          <strong>1 {loaded.data!.trip.homeCurrency} = {r.rate} {r.currency}</strong>
-          <span className="hint small">{r.origin === 'member' ? 'Set by a member' : 'Suggested rate'}</span>
-          {loaded.data!.trip.status === 'active' ? <Link to={`/trips/${tripId}/rates/${r.currency}`}>Change rate</Link> : null}
+      <Section title="Currencies and rates">
+        {loaded.data.rates.length === 0 ? <p className="list-empty">No foreign currencies added yet.</p> : <ul className="list-card">{loaded.data.rates.map((r) => <li className="item" key={r.currency}>
+          <span className="tile" aria-hidden="true"><Coins /></span>
+          <span className="row-main">
+            <span className="row-title">1 {loaded.data!.trip.homeCurrency} = {r.rate} {r.currency}</span>
+            <span className="row-sub">{r.origin === 'member' ? 'Set by a member' : 'Suggested rate'}</span>
+          </span>
+          {loaded.data!.trip.status === 'active' ? <Link className="btn btn-secondary btn-sm" to={`/trips/${tripId}/rates/${r.currency}`}>Change rate</Link> : null}
         </li>)}</ul>}
+        <p className="field-hint">Rates stay fixed until someone changes them.</p>
         {loaded.data.trip.status === 'active' ? <AddCurrency tripId={tripId} taken={[loaded.data.trip.homeCurrency, ...loaded.data.rates.map((r) => r.currency)]} currency={currency} onChange={setCurrency} /> : null}
       </Section>
     </>}
@@ -35,10 +39,10 @@ function AddCurrency({ tripId, taken, currency, onChange }: { tripId: number; ta
   const first = open[0];
   if (first === undefined) return null;
   const chosen = open.some((c) => c.code === currency) ? currency : first.code;
-  return <>
+  return <div className="card card-pad">
     <CurrencyField label="Add currency" value={chosen} exclude={taken} onChange={onChange} />
-    <Link className="button button-quiet" to={`/trips/${tripId}/rates/${chosen}`}>Set rate</Link>
-  </>;
+    <Link className="btn btn-secondary btn-block" to={`/trips/${tripId}/rates/${chosen}`}>Set rate</Link>
+  </div>;
 }
 
 function TripSettings({ trip, onSaved }: { trip: Trip; onSaved(): Promise<void> }) {
@@ -57,19 +61,21 @@ function TripSettings({ trip, onSaved }: { trip: Trip; onSaved(): Promise<void> 
   }
   const ended = trip.status === 'ended';
   return <>
-    <ActionError error={error} />{done ? <Banner>Trip settings saved.</Banner> : null}
+    <ActionError error={error} />{done ? <Banner kind="success">Trip settings saved.</Banner> : null}
     <Section title="Trip name">
-      <form className="form" onSubmit={(e) => { e.preventDefault(); void save({ name: name.trim() }); }}>
-        <label className="field"><span>Name</span><input value={name} maxLength={100} disabled={busy || ended} onChange={(e) => setName(e.target.value)} /></label>
-        {!ended ? <button className="button button-quiet" disabled={busy || !name.trim() || name.trim() === trip.name}>Save name</button> : null}
+      <form className="card card-pad" onSubmit={(e) => { e.preventDefault(); void save({ name: name.trim() }); }}>
+        <label className="field"><span>Name</span><input value={name} maxLength={100} autoComplete="off" disabled={busy || ended} onChange={(e) => setName(e.target.value)} /></label>
+        {!ended ? <button className="btn btn-secondary btn-block" disabled={busy || !name.trim() || name.trim() === trip.name}>Save name</button> : null}
       </form>
     </Section>
     <Section title="Home currency">
-      <p>Balances and payments are in {trip.homeCurrency}.</p>
-      {trip.homeCurrencyLocked ? <p className="hint small">The home currency is locked because an expense or payment has been confirmed.</p> : !ended ? <>
-        <CurrencyField label="Home currency" value={home} onChange={setHome} disabled={busy} />
-        <button className="button button-quiet" disabled={busy || home === trip.homeCurrency} onClick={() => setConfirm(true)}>Change home currency</button>
-      </> : null}
+      <div className="card card-pad">
+        <p>Balances and payments are in <strong>{trip.homeCurrency}</strong>.</p>
+        {trip.homeCurrencyLocked ? <p className="field-hint">The home currency is locked because an expense or payment has been confirmed.</p> : !ended ? <>
+          <CurrencyField label="Home currency" value={home} onChange={setHome} disabled={busy} />
+          <button className="btn btn-secondary btn-block" disabled={busy || home === trip.homeCurrency} onClick={() => setConfirm(true)}>Change home currency</button>
+        </> : null}
+      </div>
     </Section>
     {confirm ? <Confirm title={`Change home currency to ${home}?`} confirmLabel="Change home currency" busy={busy} onCancel={() => { if (!busy) setConfirm(false); }} onConfirm={() => void save({ homeCurrency: home })}>
       <p>All trip rates and rates entered for individual expenses will be cleared. Foreign expenses will need new rates.</p>

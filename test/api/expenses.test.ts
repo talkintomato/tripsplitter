@@ -19,7 +19,10 @@ describe('expenses', () => {
 
     const read = await h.sam.get(`/api/expenses/${expense.id}`);
     expect(read.status).toBe(200);
-    expect(read.body.expense).toEqual(expense);
+    // The same expense, except for the stake, which is each caller's own: Ana paid, Sam owes his share.
+    expect({ ...read.body.expense, myStake: null }).toEqual({ ...expense, myStake: null });
+    expect(expense.myStake).toEqual({ kind: 'lent', amount: 666, currency: 'SGD' });
+    expect(read.body.expense.myStake).toEqual({ kind: 'borrowed', amount: 333, currency: 'SGD' });
     expect(read.body.expense.shares).toHaveLength(3);
   });
 

@@ -3,7 +3,6 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError, createApiClient, messageOf, type ApiClient } from './api/client';
 import type { GroupResponse } from './api/types';
 import { Activity } from './screens/Activity';
-import { Balances } from './screens/Balances';
 import { AddExpense, Drafts, EditExpense, ExpenseDetail } from './screens/Expense';
 import { YourGroups } from './screens/YourGroups';
 import { Home, PastTrips, TripScreen } from './screens/Home';
@@ -13,6 +12,8 @@ import { TripSetup } from './screens/TripSetup';
 import { Members } from './screens/Members';
 import { AppProvider, type AppState } from './state';
 import { getInitData, getStartParam, prepare } from './telegram';
+import { GroupsBack, Loading, PlainPage } from './components/ui';
+import { Alert, People } from './components/icons';
 
 /** Where the link asked to go. Home is always underneath, so that Back has somewhere to go. */
 export function initialEntries(group: GroupResponse): string[] {
@@ -23,24 +24,16 @@ export function initialEntries(group: GroupResponse): string[] {
   return ['/'];
 }
 
-function Page(props: { title: string; children: React.ReactNode }) {
-  return (
-    <main className="screen">
-      <header className="screen-head">
-        <h1>{props.title}</h1>
-      </header>
-      {props.children}
-    </main>
-  );
-}
-
 export function NoLink() {
   return (
-    <Page title="Open this from your group">
-      <p>TripSplitter works inside a Telegram group.</p>
-      <p>Go to the group chat and tap the button on the pinned TripSplitter message. That opens the trip of that group.</p>
-      <p className="hint">If there is no pinned message, add the bot to the group first.</p>
-    </Page>
+    <PlainPage title="Open this from your group">
+      <div className="state">
+        <span className="state-icon" aria-hidden="true"><People size={22} /></span>
+        <p className="muted-2">TripSplitter works inside a Telegram group.</p>
+        <p className="muted-2">Go to the group chat and tap the button on the pinned TripSplitter message. That opens the trip of that group.</p>
+        <p className="hint small">If there is no pinned message, add the bot to the group first.</p>
+      </div>
+    </PlainPage>
   );
 }
 
@@ -98,27 +91,27 @@ export function App(props: AppProps) {
   if (error !== undefined) {
     const refused = error instanceof ApiError && (error.status === 401 || error.status === 403);
     return (
-      <Page title={refused ? 'This link does not work' : 'Could not open the trip'}>
-        <p role="alert">{messageOf(error)}</p>
-        <button type="button" className="link" onClick={allGroups}>All my groups</button>
-        {refused ? (
-          <p className="hint">Go to the group chat and tap the button on the pinned TripSplitter message.</p>
-        ) : (
-          <button type="button" className="button" onClick={() => void open()}>
-            Try again
-          </button>
-        )}
-      </Page>
+      <PlainPage title={refused ? 'This link does not work' : 'Could not open the trip'} leading={<GroupsBack onClick={allGroups} />}>
+        <div className="state">
+          <span className="state-icon state-icon-error" aria-hidden="true"><Alert size={22} /></span>
+          <p role="alert">{messageOf(error)}</p>
+          {refused ? (
+            <p className="hint small">Go to the group chat and tap the button on the pinned TripSplitter message.</p>
+          ) : (
+            <button type="button" className="btn btn-primary" onClick={() => void open()}>
+              Try again
+            </button>
+          )}
+        </div>
+      </PlainPage>
     );
   }
 
   if (group === null || entries === null) {
     return (
-      <Page title="TripSplitter">
-        <p className="state" role="status">
-          Loading…
-        </p>
-      </Page>
+      <PlainPage title="TripSplitter">
+        <Loading />
+      </PlainPage>
     );
   }
 
@@ -133,7 +126,7 @@ export function App(props: AppProps) {
   return (
     <AppProvider value={state}>
       <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
-        {group.activeTrip && !group.activeTrip.setupDone ? <><div className="screen all-groups"><button type="button" className="link small" onClick={allGroups}>All my groups</button></div><TripSetup tripId={group.activeTrip.id} automatic /></> : <Routes>
+        {group.activeTrip && !group.activeTrip.setupDone ? <TripSetup tripId={group.activeTrip.id} automatic leading={<GroupsBack onClick={allGroups} />} /> : <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/trips/:tripId/setup" element={<TripSetup />} />
           <Route path="/trips/:tripId/currencies" element={<Currencies />} />
@@ -142,7 +135,7 @@ export function App(props: AppProps) {
           <Route path="/trips/:tripId" element={<TripScreen />} />
           <Route path="/trips/:tripId/add" element={<AddExpense />} />
           <Route path="/trips/:tripId/drafts" element={<Drafts />} />
-          <Route path="/trips/:tripId/balances" element={<Balances />} />
+          <Route path="/trips/:tripId/balances" element={<TripScreen tab="balances" />} />
           <Route path="/expenses/:id" element={<ExpenseDetail />} />
           <Route path="/expenses/:id/edit" element={<EditExpense />} />
           <Route path="/members" element={<Members />} />

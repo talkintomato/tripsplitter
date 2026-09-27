@@ -2,19 +2,21 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, messageOf } from '../api/client';
 import type { Member } from '../api/types';
-import { ActionError, Banner, Confirm, Empty, Screen, Section } from '../components/ui';
+import { ActionError, Avatar, Banner, Confirm, Screen, Section } from '../components/ui';
+import { ResetLinkConfirm } from '../components/ResetLink';
 import { dayText, expenseTitle, money } from '../format';
 import { useApp } from '../state';
 
 function MemberRow(props: { member: Member; me: boolean; note: string; action?: React.ReactNode }) {
   return (
-    <li className="row">
+    <li className="item">
+      <Avatar name={props.member.displayName} size="lg" />
       <span className="row-main">
         <span className="row-title">
           {props.member.displayName}
           {props.me ? ' (you)' : ''}
         </span>
-        <span className="hint small">{props.note}</span>
+        <span className="row-sub">{props.note}</span>
       </span>
       {props.action}
     </li>
@@ -66,7 +68,7 @@ export function Members() {
   return (
     <Screen title="Members" subtitle={group.group.title}>
       {done ? (
-        <Banner kind="info" onClose={() => setDone(null)}>
+        <Banner kind="success" onClose={() => setDone(null)}>
           {done}
         </Banner>
       ) : null}
@@ -91,9 +93,9 @@ export function Members() {
 
       <Section title="In the trip">
         {active.length === 0 ? (
-          <Empty>Nobody yet.</Empty>
+          <p className="list-empty">Nobody yet.</p>
         ) : (
-          <ul className="list">
+          <ul className="list-card">
             {active.map((member) => (
               <MemberRow key={member.id} member={member} me={member.id === group.me.id} note={member.joinedVia === 'link' ? 'Joined through the link' : 'In the group chat'} />
             ))}
@@ -103,9 +105,9 @@ export function Members() {
 
       <Section title="Added by name">
         {manual.length === 0 ? (
-          <Empty>Add someone who is not on Telegram.</Empty>
+          <p className="list-empty">Nobody added by name yet.</p>
         ) : (
-          <ul className="list">
+          <ul className="list-card">
             {manual.map((member) => (
               <MemberRow
                 key={member.id}
@@ -113,7 +115,7 @@ export function Members() {
                 me={false}
                 note="Not linked to a Telegram account"
                 action={
-                  <button type="button" className="button button-small button-quiet" disabled={busy} onClick={() => setClaiming(member)}>
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => setClaiming(member)}>
                     That's me
                   </button>
                 }
@@ -124,18 +126,19 @@ export function Members() {
         <form className="inline-form" onSubmit={add}>
           <label className="field">
             <span>Add a person</span>
-            <input type="text" value={name} maxLength={100} placeholder="Name" onChange={(event) => setName(event.target.value)} />
+            <input type="text" value={name} maxLength={100} placeholder="Name" autoComplete="off" enterKeyHint="done" onChange={(event) => setName(event.target.value)} />
           </label>
-          <button type="submit" className="button button-small" disabled={busy || name.trim() === ''}>
+          <button type="submit" className="btn btn-primary" disabled={busy || name.trim() === ''}>
             Add
           </button>
         </form>
+        <p className="field-hint">For someone who is not on Telegram. If that person joins later, they can tap “That's me”.</p>
       </Section>
 
       {inactive.length > 0 ? (
         <Section title="Left the chat">
-          <p className="hint small">They are left out of new expenses unless you tick them.</p>
-          <ul className="list">
+          <p className="field-hint">They are left out of new expenses unless you tick them.</p>
+          <ul className="list-card">
             {inactive.map((member) => (
               <MemberRow key={member.id} member={member} me={member.id === group.me.id} note={member.joinedVia === 'link' ? 'Joined through the link' : 'Was in the group chat'} />
             ))}
@@ -144,10 +147,12 @@ export function Members() {
       ) : null}
 
       <Section title="The group's link">
-        <p className="hint small">Anyone who opens the link pinned in the group joins this trip. If the link got into the wrong hands, reset it.</p>
-        <button type="button" className="button button-quiet danger" disabled={busy} onClick={() => setResetting(true)}>
-          Reset link
-        </button>
+        <div className="card card-pad">
+          <p className="muted-2">Anyone who opens the link pinned in the group joins this trip. If the link got into the wrong hands, reset it.</p>
+          <button type="button" className="btn btn-danger btn-block" disabled={busy} onClick={() => setResetting(true)}>
+            Reset link
+          </button>
+        </div>
       </Section>
 
       {claiming ? (
@@ -171,26 +176,7 @@ export function Members() {
         </Confirm>
       ) : null}
 
-      {resetting ? (
-        <Confirm
-          title="Reset the group's link?"
-          confirmLabel="Reset link"
-          danger
-          busy={busy}
-          onCancel={() => setResetting(false)}
-          onConfirm={() =>
-            void run(async () => {
-              const result = await client.resetLink();
-              client.setLaunch(result.launch);
-              setGroup((current) => ({ ...current, group: result.group, link: result.link }));
-              setDone('The link was reset. A new pinned message is posted in the group.');
-            })
-          }
-        >
-          <p>Old links stop working for everyone, including buttons on older messages in the chat. A new message with the new link is posted and pinned in the group.</p>
-          <p>People who already joined stay members.</p>
-        </Confirm>
-      ) : null}
+      {resetting ? <ResetLinkConfirm onCancel={() => setResetting(false)} onDone={(message) => { setResetting(false); setDone(message); }} /> : null}
     </Screen>
   );
 }

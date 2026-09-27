@@ -20,7 +20,7 @@ export function balanceText(minor: number, currency: string): string {
 export function myBalanceText(minor: number, currency: string): string {
   if (minor > 0) return `You are owed ${money(minor, currency)}`;
   if (minor < 0) return `You owe ${money(-minor, currency)}`;
-  return 'You are settled up';
+  return "You're settled up!";
 }
 
 export function amountText(minor: number, currency: string): string {
@@ -68,4 +68,46 @@ export function today(now: Date = new Date()): string {
 
 export function nameOf(members: ReadonlyArray<Member>, id: number): string {
   return members.find((m) => m.id === id)?.displayName ?? 'Someone who left';
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The phone's own calendar day of a moment, as YYYY-MM-DD. */
+export function localDay(iso: string): string {
+  const moment = new Date(iso);
+  if (Number.isNaN(moment.getTime())) return iso.slice(0, 10);
+  return today(moment);
+}
+
+/**
+ * A day as a heading: "Today", "Yesterday", then "Fri 25 Sep", with the year only when it is not this year.
+ * Today is the phone's own today.
+ */
+export function dayLabel(date: string, now: Date = new Date()): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  if (date === today(now)) return 'Today';
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (date === today(yesterday)) return 'Yesterday';
+  // Noon, so that no daylight saving change moves it to another day.
+  const weekday = WEEKDAYS[new Date(year, month, day, 12).getDay()];
+  const text = `${weekday} ${day} ${MONTHS[month] ?? ''}`;
+  return year === now.getFullYear() ? text : `${text} ${year}`;
+}
+
+/** "Fri 25 Sep 2026", always with the year. */
+export function longDayText(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  const weekday = WEEKDAYS[new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getDay()];
+  return `${weekday} ${dayText(date)}`;
+}
+
+/** "you lent 20.00 SGD" and the like. Null when the person is not involved. */
+export function stakeText(stake: { kind: 'lent' | 'borrowed' | 'none'; amount: number; currency: string } | undefined): string | null {
+  if (!stake || stake.kind === 'none' || stake.amount <= 0) return null;
+  return `you ${stake.kind} ${money(stake.amount, stake.currency)}`;
 }

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { activityText } from '../activityText';
 import type { ActivityEntry } from '../api/types';
-import { ActionError, Empty, ErrorState, Loading, Screen } from '../components/ui';
+import { ActionError, Avatar, Empty, ErrorState, Loading, Screen } from '../components/ui';
+import { Clock } from '../components/icons';
 import { momentText } from '../format';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
@@ -55,25 +56,26 @@ export function Activity() {
       ) : loaded.data === undefined ? (
         <Loading what="activity" />
       ) : loaded.data.entries.length === 0 ? (
-        <Empty>Nothing has happened yet.</Empty>
+        <Empty icon={Clock}>Nothing has happened yet.</Empty>
       ) : (
         <>
-          <ul className="list">
+          <ul className="list-card">
             {loaded.data.entries.map((entry) => {
               const data = loaded.data!;
               const line = activityText(entry, group.members, data.trips);
               const own = entry.action.startsWith('member.') && entry.action !== 'member.claim' && entry.actor.kind === 'system';
               return (
-                <li key={entry.id} className="row activity">
+                <li key={entry.id} className="item activity">
+                  {own ? <span className="tile" aria-hidden="true"><Clock /></span> : <Avatar name={entry.actorName} size="lg" />}
                   <span className="row-main">
-                    <span className="row-title wrap">
+                    <span className="row-title wrap activity-line">
                       {own ? null : <strong>{entry.actorName} </strong>}
                       {entry.entityType === 'expense' ? <Link to={`/expenses/${entry.entityId}`}>{line}</Link> : line}
                     </span>
-                    <span className="hint small">{momentText(entry.createdAt)}</span>
+                    <span className="row-sub">{momentText(entry.createdAt)}</span>
                   </span>
                   {entry.restore ? (
-                    <button type="button" className="button button-small button-quiet" disabled={busy} onClick={() => void restore(entry)}>
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void restore(entry)}>
                       Restore
                     </button>
                   ) : null}
@@ -83,7 +85,7 @@ export function Activity() {
           </ul>
           {loaded.data.nextBefore !== null ? (
             <div className="actions">
-              <button type="button" className="button button-quiet" disabled={busy} onClick={() => void more()}>
+              <button type="button" className="btn btn-secondary btn-block" disabled={busy} onClick={() => void more()}>
                 {busy ? 'Loading…' : 'Show older'}
               </button>
             </div>

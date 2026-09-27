@@ -26,10 +26,10 @@ const row = (name: string) => screen.getByText(name, { selector: '.person-name' 
 describe('a new expense split evenly', () => {
   it('starts with today, the caller as payer and every active member ticked', () => {
     setup();
-    expect(screen.getByLabelText('Date')).toHaveValue(today());
+    expect(screen.getByLabelText('When')).toHaveValue(today());
     expect(screen.getByLabelText('Paid by')).toHaveValue(String(SAM.id));
     expect(screen.getByRole('option', { name: 'Sam (you)' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Evenly' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Equally' })).toBeChecked();
     expect(box('Ana')).toBeChecked();
     expect(box('Sam')).toBeChecked();
     expect(box('Leo')).toBeChecked();
@@ -96,8 +96,9 @@ describe('a new expense split evenly', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(client.createExpense).not.toHaveBeenCalled();
 
-    // A draft may be incomplete.
+    // A draft may be incomplete. Saving one is under More options.
     client.createExpense.mockResolvedValue(written(expenseView({ status: 'draft' })));
+    await user.click(screen.getByRole('button', { name: /^More options/ }));
     await user.click(screen.getByRole('button', { name: 'Save as draft' }));
     expect(client.createExpense.mock.calls[0]![1]).toMatchObject({ status: 'draft', total: 1250, shares: [] });
   });
@@ -204,7 +205,7 @@ describe('the split type registry', () => {
       const option = screen.getByRole('radio', { name: /By item/ });
       expect(option).toBeDisabled();
       await user.click(option);
-      expect(screen.getByRole('radio', { name: 'Evenly' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Equally' })).toBeChecked();
     } finally {
       registerSplitType(original);
     }
@@ -411,6 +412,9 @@ describe('expense currency and own rate', () => {
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
     await screen.findByText('Trip rate');
+    // An own rate is not the usual case: it is under More options.
+    expect(screen.queryByRole('button', { name: 'Use a different rate for this expense' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^More options/ }));
     await user.click(screen.getByRole('button', { name: 'Use a different rate for this expense' }));
     const input = screen.getByLabelText("This expense's rate: 1 SGD = ___ JPY");
     await user.clear(input);

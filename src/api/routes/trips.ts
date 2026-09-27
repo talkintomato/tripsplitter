@@ -22,6 +22,7 @@ import { idParam, type ApiEnv, type Caller, type Services } from '../context.js'
 import { notify, settlementNotice } from '../notices.js';
 import { createSettlementBody, createTripBody, patchTripBody, readBody, versionBody } from '../schemas.js';
 import type { BalancesResponse, SettlementResponse, TripResponse, TripsResponse } from '../types.js';
+import { tripSummary } from '../views.js';
 
 export function registerTripRoutes(app: Hono<ApiEnv>, { db, deps }: Services): void {
   const tripNotice = (caller: Caller, trip: Trip) => ({
@@ -99,6 +100,7 @@ export function registerTripRoutes(app: Hono<ApiEnv>, { db, deps }: Services): v
       balances: result.balances,
       payments: result.payments,
       settlements: listSettlements(db, scope, tripId),
+      summary: tripSummary(db, scope, result.trip),
     };
     return c.json(response);
   });

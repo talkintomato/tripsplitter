@@ -39,6 +39,15 @@ class PreviewDone extends Error {
   }
 }
 
+/** Refuses an expense that needs a rate nobody has given and none could be looked up. */
+function rateNeeded(currency: string): ValidationError {
+  const message = `Couldn't look up an exchange rate for ${currency}. Enter the trip rate for ${currency} to save this expense.`;
+  return new ValidationError('rate_missing', message, { problems: [{ field: 'fxRate', code: 'rate_missing', message }] });
+}
+
+/** Asked for when a person tries to create a draft. Drafts come only from receipt photos, through the bot. */
+export const NO_MANUAL_DRAFTS = 'Expenses are saved straight away. Drafts come from receipt photos.';
+
 /** One create or save, described so that it can be run again once a rate has been found. */
 interface ExpenseWrite {
   /** The trip to write to. May create it. Runs inside the transaction. */
@@ -71,7 +80,7 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
 
   /**
    * Runs a create or save. When the expense has no rate, the latest one is looked up and becomes the trip's
-   * rate. Only when the lookup finds nothing does the expense stay a draft.
+   * rate. When the lookup finds nothing, a new expense is refused, and a receipt draft being approved stays a draft.
    */
   async function writeExpense(caller: Caller, write: ExpenseWrite): Promise<WriteResult> {
     const { scope } = caller;
@@ -91,7 +100,9 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
       const { home, currency } = write.currencies();
       const value = await lookUpRate(home, currency);
       if (value === null) {
-        if (!write.runAsDraft) throw error;
+        // A receipt draft being approved stays a draft, with the changes saved. Anything else is refused,
+        // and nothing was written: the attempt above ran in a transaction that was rolled back.
+        if (!write.runAsDraft) throw rateNeeded(currency);
         return { ...attempt({ asDraft: true }), keptAsDraft: true };
       }
       return { ...attempt({ rate: { currency, value } }), keptAsDraft: false };
@@ -158,7 +169,8 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     const tripId = useActive ? 0 : idParam(c, 'tripId', 'trip');
     if (!useActive) getTrip(db, scope, tripId);
     const { status, ...input } = await readBody(c, createExpenseBody);
-    const wanted = status ?? 'confirmed';
+    // A person's expense is saved or not saved. Drafts are made by the receipt reader, not through this route.
+    if (status === 'draft') throw new ValidationError('invalid_input', NO_MANUAL_DRAFTS);
 
     const result = await writeExpense(caller, {
       trip: () => (useActive ? getOrCreateActiveTrip(db, scope).trip : getTrip(db, scope, tripId)),
@@ -168,10 +180,7 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
           : getTrip(db, scope, tripId).homeCurrency;
         return { home, currency: input.currency ?? home };
       },
-      run: (trip) => createExpense(db, scope, { ...input, tripId: trip.id, status: wanted }),
-      ...(wanted === 'confirmed'
-        ? { runAsDraft: (trip: Trip) => createExpense(db, scope, { ...input, tripId: trip.id, status: 'draft' }) }
-        : {}),
+      run: (trip) => createExpense(db, scope, { ...input, tripId: trip.id, status: 'confirmed' }),
     });
 
     await announceRate(caller, result);

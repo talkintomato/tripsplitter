@@ -64,7 +64,9 @@ it('renames the trip through Home settings and asks before clearing rates for a 
   completeSetup(s.db, s.asAna, s.trip.id);
   setTripRate(s.db, s.asAna, s.trip.id, 'JPY', '100', 'member');
   const user = open();
-  await user.click(await screen.findByRole('link', { name: /Trip settings/ }));
+  // Trip settings are in the trip's menu.
+  await user.click(await screen.findByRole('button', { name: 'More' }));
+  await user.click(screen.getByRole('button', { name: 'Rename trip' }));
   const input = await screen.findByRole('textbox', { name: 'Name' });
   await user.clear(input); await user.type(input, 'Autumn trip');
   await user.click(screen.getByRole('button', { name: 'Save name' }));
@@ -82,7 +84,8 @@ it('shows a refreshed preview on a stale rate and only applies after a second co
   setTripRate(s.db, s.asAna, s.trip.id, 'JPY', '100', 'member');
   createExpense(s.db, s.asAna, ramen(s));
   const user = open();
-  await user.click(await screen.findByRole('link', { name: /Trip settings/ }));
+  await user.click(await screen.findByRole('button', { name: 'More' }));
+  await user.click(screen.getByRole('button', { name: 'Currencies and rates' }));
   await user.click(await screen.findByRole('link', { name: 'Change rate' }));
   const input = await screen.findByRole('textbox', { name: /how many JPY/ });
   await user.clear(input); await user.type(input, '120');
