@@ -21,7 +21,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/web/dist ./web/dist
 RUN mkdir -p /data && chown node:node /data
 USER node
-VOLUME ["/data"]
 EXPOSE 3000
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
