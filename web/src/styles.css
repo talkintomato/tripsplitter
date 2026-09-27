@@ -724,3 +724,8 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
 }
+
+.amount-row input { min-width: 0; flex: 1; }
+.amount-row .currency-picker { width: auto; flex: 0 0 82px; }
+.fx { display: grid; gap: 8px; min-width: 0; }
+.fx .link { text-align: left; white-space: normal; }

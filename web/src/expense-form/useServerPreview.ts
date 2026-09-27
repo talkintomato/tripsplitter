@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ApiClient } from '../api/client';
-import type { CreateExpenseBody, ExpensePreviewResponse } from '../api/types';
+import type { ExpensePreviewBody, ExpensePreviewResponse } from '../api/types';
 
 export interface ServerPreview {
   /**
@@ -19,7 +19,7 @@ export interface ServerPreview {
 export const PREVIEW_DELAY_MS = 150;
 
 /** The part of an expense that decides who pays what. A change anywhere else needs no new answer. */
-function splitKey(input: CreateExpenseBody): string {
+function splitKey(input: ExpensePreviewBody): string {
   const { description: _description, merchant: _merchant, expenseDate: _date, items, ...rest } = input;
   return JSON.stringify({ ...rest, items: (items ?? []).map((item) => ({ amount: item.amount, shares: item.shares ?? [] })) });
 }
@@ -28,7 +28,7 @@ function splitKey(input: CreateExpenseBody): string {
  * Asks the server what each person would pay, again after every change that matters.
  * Pass null while there is nothing to ask, such as an amount that cannot be read.
  */
-export function useServerPreview(client: ApiClient, input: CreateExpenseBody | null): ServerPreview {
+export function useServerPreview(client: ApiClient, input: ExpensePreviewBody | null): ServerPreview {
   const key = input === null ? null : splitKey(input);
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<{ key: string; attempt: number; result?: ExpensePreviewResponse; error?: unknown } | null>(null);

@@ -317,3 +317,59 @@ describe('notices for expenses', () => {
     expect(countActivity(h.db)).toBe(before + 5);
   });
 });
+
+describe('expense currency and rate preview', () => {
+  it('keeps an untouched trip rate, sets an own rate, preserves it when omitted, and clears with null', async () => {
+    const h = harness();
+    try {
+      setTripRate(h.db, h.a.asAna, h.a.trip.id, 'JPY', '112.4', 'member');
+      const input = dinnerBody(h.a, { currency: 'JPY', total: 11240 });
+      const created = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, input);
+      const id = created.body.expense.id;
+      for (const [version, patch, source, rate] of [
+        [1, {}, 'trip', '112.4'],
+        [2, { rateOverride: '100' }, 'expense', '100'],
+        [3, {}, 'expense', '100'],
+        [4, { rateOverride: null }, 'trip', '112.4'],
+      ] as const) {
+        const saved = await h.ana.put(`/api/expenses/${id}`, { ...input, version, ...patch });
+        expect(saved.status).toBe(200);
+        expect(saved.body.expense).toMatchObject({ fxRateSource: source, fxRate: rate });
+      }
+    } finally { h.db.close(); }
+  });
+  it('previews rates and home totals without writes, lookup or notices, preserving a loaded own rate', async () => {
+    const h = harness();
+    try {
+      setTripRate(h.db, h.a.asAna, h.a.trip.id, 'JPY', '112.4', 'member');
+      const own = createExpense(h.db, h.a.asAna, ramen(h.a, { total: 11240, rateOverride: '100' }));
+      const input = dinnerBody(h.a, { currency: 'JPY', total: 11240, tripId: h.a.trip.id });
+      const before = fingerprint(h.db);
+      for (const [patch, rate, source, total] of [
+        [{}, '112.4', 'trip', 10000],
+        [{ expenseId: own.id }, '100', 'expense', 11240],
+        [{ expenseId: own.id, rateOverride: null }, '112.4', 'trip', 10000],
+        [{ rateOverride: '200' }, '200', 'expense', 5620],
+        [{ currency: 'THB' }, null, 'missing', null],
+      ] as const) {
+        const preview = await h.ana.post('/api/expenses/preview', { ...input, ...patch });
+        expect(preview.status).toBe(200);
+        expect(preview.body.fx).toEqual({ fxRate: rate, fxRateSource: source, homeCurrency: 'SGD', homeTotal: total });
+      }
+      const mismatch = await h.ana.post('/api/expenses/preview', {
+        ...input, currency: 'SGD', splitType: 'items', total: 900, discount: 50,
+        items: [{ label: 'Lunch', amount: 1000 }],
+      });
+      expect(mismatch.body).toMatchObject({ difference: -50, corrections: { total: 950, discount: 100 }, amounts: null });
+      expect(fingerprint(h.db)).toBe(before);
+      expect((await h.ana.post('/api/expenses/preview', { ...input, tripId: h.b.trip.id })).status).toBe(404);
+      const other = createExpense(h.db, h.b.asAna, dinner(h.b));
+      const afterOther = fingerprint(h.db);
+      expect((await h.ana.post('/api/expenses/preview', { ...input, expenseId: other.id })).status).toBe(404);
+      expect(fingerprint(h.db)).toBe(afterOther);
+      expect(h.rateLookups).toEqual([]);
+      expect(h.sent()).toEqual([]);
+      expect(before).not.toBe(afterOther);
+    } finally { h.db.close(); }
+  });
+});

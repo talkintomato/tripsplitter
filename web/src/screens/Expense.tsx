@@ -163,7 +163,7 @@ export function ExpenseDetail() {
       <div className="total-card">
         <span className="total">{money(expense.total, expense.currency)}</span>
         {foreign && expense.homeTotal !== null ? <span className="hint">= {money(expense.homeTotal, expense.homeCurrency)}</span> : null}
-        {foreign ? <span className="hint small">{rateText(expense) ? `Rate: ${rateText(expense)}` : 'No exchange rate yet'}</span> : null}
+        {foreign ? <><span className="hint small">{rateText(expense) ? `Rate: ${rateText(expense)}` : 'No exchange rate yet'}</span>{expense.fxRate ? <span className="hint small">{expense.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span> : null}</> : null}
       </div>
 
       <dl className="facts">
@@ -245,6 +245,10 @@ export function ExpenseDetail() {
                     {item.label}
                     {item.quantity !== 1 ? ` ×${item.quantity}` : ''}
                   </span>
+                  <span className="hint small">{(() => {
+                    const assigned = expense.shares.filter((share) => share.itemId === item.id);
+                    return (assigned.length > 0 ? assigned : included).map((share) => nameOf(group.members, share.memberId)).join(', ') || 'Nobody yet';
+                  })()}</span>
                 </span>
                 <span className="row-amount">{money(item.amount, expense.currency)}</span>
               </li>

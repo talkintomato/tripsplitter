@@ -1,15 +1,15 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { currencyDecimals } from '../../../src/core/currencies';
+import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
 import { ApiError, messageOf, type ApiClient } from '../api/client';
 import type { ExpenseView, ExpenseWriteResponse, Member } from '../api/types';
 import { Banner } from '../components/ui';
-import { amountText, dayText, expenseTitle, money, nameOf, rateText } from '../format';
+import { amountText, dayText, expenseTitle, money, nameOf } from '../format';
 import {
   formMembers,
   includedShares,
   newExpenseState,
   parseAmount,
-  preview,
+  changeCurrency,
   stateFromExpense,
   toExpenseInput,
   type ExpenseFormState,
@@ -59,6 +59,8 @@ function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, lat
   add('Description', mine.description.trim(), theirs.description.trim());
   const mineTotal = parseAmount(mine.amountText, mine.currency);
   add('Amount', mineTotal === null ? mine.amountText : money(mineTotal, mine.currency), money(latest.total, latest.currency));
+  add('Currency', mine.currency, theirs.currency);
+  if (mine.rateOverride !== undefined) add('Rate for this expense', mine.rateOverride ?? 'Trip rate', latest.fxRateSource === 'expense' ? latest.fxRate ?? '' : 'Trip rate');
   add('Date', dayText(mine.expenseDate), dayText(theirs.expenseDate));
   add('Paid by', nameOf(members, mine.payerId), nameOf(members, theirs.payerId));
   add('Split', SPLIT_WORDS[mine.splitType], SPLIT_WORDS[theirs.splitType]);
@@ -104,13 +106,15 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const people = useMemo(() => formMembers(members, state), [members, state]);
   const entry = splitType(state.splitType);
   const Body = entry.Body;
-  // Where the amounts come from. For a split type with `serverPreview` the server's answer is the only
-  // source: nothing is worked out here, so what is shown is what a save stores.
-  const asksServer = Body !== null && entry.serverPreview === true;
-  const local = useMemo(() => (asksServer ? { amounts: null, problems: [] } : preview(state, total)), [asksServer, state, total]);
-  const asked = useMemo(() => (asksServer && total !== null ? toExpenseInput(state, total) : null), [asksServer, state, total]);
+  // All shares and converted figures come from the server.
+  const asksServer = Body !== null;
+  const asked = useMemo(() => (asksServer && total !== null ? {
+    ...toExpenseInput(state, total), currency,
+    tripId: props.tripId,
+    ...(expense ? { expenseId: expense.id } : {}),
+  } : null), [asksServer, state, total, currency, props.tripId, expense]);
   const server = useServerPreview(client, asked);
-  const shown = asksServer ? { amounts: server.result?.amounts ?? null, problems: server.result?.problems ?? [] } : local;
+  const shown = { amounts: server.status === 'ready' ? server.result?.amounts ?? null : null, problems: server.status === 'ready' ? server.result?.problems ?? [] : [] };
 
   const amountProblem =
     total === null
@@ -132,9 +136,9 @@ export function ExpenseForm(props: ExpenseFormProps) {
       : server.status !== 'ready'
         ? 'Working out what each person pays…'
         : (server.result?.problems[0]?.message ?? null);
-  const blocked = asksServer && (unreadable !== null || serverProblem !== null);
+  const blocked = entry.serverPreview === true && (unreadable !== null || serverProblem !== null);
   const firstProblem = asksServer
-    ? (unreadable ?? currencyProblem ?? serverProblem)
+    ? (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? serverProblem)
     : (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? shown.problems[0]?.message ?? null);
 
   async function submit(kind: 'save' | 'draft', useVersion = version): Promise<void> {
@@ -168,7 +172,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
     void submit('save');
   }
 
-  const rate = expense ? rateText(expense) : null;
+  const fx = server.status === 'ready' ? server.result?.fx : undefined;
+  const rate = fx?.fxRate ? `1 ${fx.homeCurrency} = ${fx.fxRate} ${currency}` : null;
   const rows = latest ? differences(members, state, latest) : [];
   const gone = latest !== null && latest.status !== 'draft' && latest.status !== 'confirmed';
 
@@ -274,28 +279,41 @@ export function ExpenseForm(props: ExpenseFormProps) {
             aria-invalid={touched && amountProblem !== null}
             onChange={(event) => update({ amountText: event.target.value.replace(',', '.') })}
           />
-          <span className="currency">{currency}</span>
+          <select aria-label="Expense currency" className="currency-picker" value={currency} disabled={busy !== null}
+            onChange={(event) => {
+              try { setState(changeCurrency(state, event.target.value)); setError(undefined); }
+              catch (problem) { setError(new ApiError(400, 'invalid_input', problem instanceof Error ? problem.message : 'Check the amounts before changing currency.')); }
+            }}>
+            {CURRENCIES.map((option) => <option key={option.code} value={option.code}>{option.code}</option>)}
+          </select>
         </span>
       </div>
 
-      {foreign ? (
-        <div className="fx" aria-label="Exchange rate">
-          {rate && expense?.fxRate && total !== null && total > 0 && total === expense.total && expense.homeTotal !== null ? (
-            <p>
-              {money(total, currency)} is <strong>{money(expense.homeTotal, props.homeCurrency)}</strong>
-            </p>
-          ) : null}
-          {rate ? <p className="hint small">Rate: {rate}</p> : <p className="hint small">No exchange rate yet.</p>}
+      {state.currencyNeedsReview ? (
+        <div className="fx">
+          <p className="hint small">Check the currency read from the receipt. Choose a currency above or confirm {currency}.</p>
+          <button type="button" className="button button-small button-quiet" onClick={() => update({ currencyChecked: true, currencyNeedsReview: false })}>
+            Confirm {currency}
+          </button>
         </div>
       ) : null}
 
-      {state.currencyNeedsReview ? (
-        <label className="check">
-          <input type="checkbox" checked={state.currencyChecked} onChange={(event) => update({ currencyChecked: event.target.checked })} />
-          <span>
-            The currency was read from the receipt. Yes, this is in <strong>{currency}</strong>.
-          </span>
-        </label>
+      {foreign ? (
+        <div className="fx" aria-label="Exchange rate">
+          {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <p>Converted amount: <strong>{money(fx.homeTotal, fx.homeCurrency)}</strong></p> : null}
+          {rate ? <><p className="hint small">Rate: {rate}</p><p className="hint small">{fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</p></>
+            : <p className="hint small">{server.status === 'loading' ? 'Checking the rate…' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
+          {state.rateOverride !== undefined && state.rateOverride !== null ? (
+            <div className="field">
+              <label htmlFor="expense-rate">Rate for this expense: 1 {props.homeCurrency} in {currency}</label>
+              <input id="expense-rate" aria-describedby="expense-rate-hint" type="text" inputMode="decimal" value={state.rateOverride} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
+              <span id="expense-rate-hint" className="hint small">Enter a rate above zero, with up to 6 decimal places.</span>
+            </div>
+          ) : <button type="button" className="link" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>Use a different rate for this expense</button>}
+          {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
+            <button type="button" className="button button-small button-quiet" onClick={() => update({ rateOverride: null })}>Use the trip rate</button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="field-pair">
@@ -345,6 +363,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
           members={people}
           total={total}
           currency={currency}
+          corrections={server.status === 'ready' ? server.result?.corrections : undefined}
           amounts={shown.amounts}
           problems={shown.problems}
           disabled={busy !== null}
@@ -355,19 +374,12 @@ export function ExpenseForm(props: ExpenseFormProps) {
         />
       ) : null}
 
-      {asksServer ? (
-        // The body shows what the server reported next to the field it concerns.
-        unreadable !== null || (touched && currencyProblem !== null) ? (
-          <p className="problem" role="alert">
-            {unreadable ?? currencyProblem}
-          </p>
-        ) : null
-      ) : touched && firstProblem !== null ? (
-        <p className="problem" role="alert">
-          {firstProblem}
-        </p>
+      {(touched || unreadable !== null) && firstProblem !== null && (state.splitType !== 'items' || currencyProblem !== null || unreadable !== null) ? (
+        <p className="problem" role="alert">{firstProblem}</p>
       ) : null}
+      {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link" onClick={server.retry}>Try preview again</button> : null}
 
+      {server.status === 'loading' ? <p role="status" className="hint small">Updating amounts…</p> : null}
       <div className="form-actions">
         <button type="submit" className="button" disabled={busy !== null || blocked}>
           {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Finish and save' : 'Save changes'}

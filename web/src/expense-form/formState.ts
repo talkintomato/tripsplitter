@@ -1,7 +1,5 @@
-import { toMinorUnits } from '../../../src/core/currencies';
-import { computeShares, validateExpense } from '../../../src/core/split';
-import type { SplitItem, SplitShare } from '../../../src/core/types';
-import type { ExpenseInput, ExpenseItemInput, ExpenseProblem, ExpenseView, Member, ShareInput, SplitType } from '../api/types';
+import { currencyDecimals, fromMinorUnits, toMinorUnits } from '../../../src/core/currencies';
+import type { ExpenseInput, ExpenseItemInput, ExpenseView, Member, ShareInput, SplitType } from '../api/types';
 import { amountText, today } from '../format';
 
 /**
@@ -27,11 +25,14 @@ export interface ExpenseFormState {
   tip: number;
   serviceCharge: number;
   discount: number;
-  /** The currency of the expense. Not editable in this build. */
+  /** The currency of this expense, independent of the trip home currency. */
   currency: string;
+  /** Undefined means the member has not edited the own rate in this session. */
+  rateOverride?: string | null;
+  currencyChanged?: boolean;
   /** True when the currency was guessed from a receipt and nobody has checked it yet. */
   currencyNeedsReview: boolean;
-  /** Ticked by the member: the guessed currency is right. */
+  /** The member selected or confirmed a currency this session. */
   currencyChecked: boolean;
 }
 
@@ -112,8 +113,7 @@ export function includedShares(state: ExpenseFormState): ShareInput[] {
 }
 
 /**
- * The whole expense, ready to send. Currency and rate are left out, which keeps what the expense has,
- * except when the member has just confirmed a guessed currency.
+ * The whole expense, ready to send. An untouched own rate is deliberately omitted.
  */
 export function toExpenseInput(state: ExpenseFormState, total: number): ExpenseInput {
   const shares = includedShares(state);
@@ -133,44 +133,42 @@ export function toExpenseInput(state: ExpenseFormState, total: number): ExpenseI
     // A person taken out of the expense is taken off its items too.
     items: state.items.map((item) => ({ ...item, shares: (item.shares ?? []).filter((s) => includedIds.has(s.memberId)) })),
     shares,
-    ...(state.currencyNeedsReview && state.currencyChecked ? { currency: state.currency } : {}),
+    ...(state.currencyChanged || state.currencyChecked ? { currency: state.currency } : {}),
+    ...(state.rateOverride !== undefined ? { rateOverride: state.rateOverride } : {}),
   };
-}
-
-export interface Preview {
-  /** Each person's amount in the expense currency. Null while there is a problem. */
-  amounts: Record<number, number> | null;
-  problems: ExpenseProblem[];
-}
-
-/** What each person would pay, worked out with the same arithmetic the server uses. */
-export function preview(state: ExpenseFormState, total: number | null): Preview {
-  if (total === null) return { amounts: null, problems: [] };
-  const input = toExpenseInput(state, total);
-  const expense = {
-    payerId: input.payerId,
-    total,
-    tax: state.tax,
-    taxIncluded: state.taxIncluded,
-    tip: state.tip,
-    serviceCharge: state.serviceCharge,
-    discount: state.discount,
-    splitType: state.splitType,
-  };
-  const items: SplitItem[] = (input.items ?? []).map((item, index) => ({ id: index, amount: item.amount }));
-  const shares: SplitShare[] = [
-    ...input.shares.map((s) => ({ memberId: s.memberId, weight: s.weight ?? 1, itemId: null })),
-    ...(input.items ?? []).flatMap((item, index) => (item.shares ?? []).map((s) => ({ memberId: s.memberId, weight: s.weight ?? 1, itemId: index }))),
-  ];
-  const problems = validateExpense(expense, items, shares);
-  if (problems.length > 0) return { amounts: null, problems };
-  const amounts: Record<number, number> = {};
-  for (const [memberId, amount] of computeShares(expense, items, shares)) amounts[memberId] = Number(amount);
-  return { amounts, problems: [] };
 }
 
 /** The people to list in the form: everyone active, and anyone already on this expense. */
 export function formMembers(members: ReadonlyArray<Member>, state: ExpenseFormState): Member[] {
   const onExpense = new Set<number>([state.payerId, ...state.included, ...Object.keys(state.portions).map(Number).filter((id) => (state.portions[id] ?? 0) > 0)]);
   return members.filter((m) => m.active || onExpense.has(m.id));
+}
+
+/** Preserve displayed numbers, rounding half up when the destination has fewer decimals.
+ * This is decimal rescaling, not exchange-rate conversion. Nothing is mutated on failure.
+ */
+export function changeCurrency(state: ExpenseFormState, currency: string): ExpenseFormState {
+  const oldScale = 10n ** BigInt(currencyDecimals(state.currency));
+  const newScale = 10n ** BigInt(currencyDecimals(currency));
+  const rescale = (value: number): number => {
+    const scaled = (BigInt(value) * newScale * 2n + oldScale) / (oldScale * 2n);
+    if (scaled > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('This amount is too large. Enter a smaller amount first.');
+    return Number(scaled);
+  };
+  const total = parseAmount(state.amountText, state.currency);
+  if (total === null) throw new Error('Check the amount before changing currency.');
+  return {
+    ...state,
+    currency,
+    currencyChanged: state.currencyChanged || currency !== state.currency,
+    currencyChecked: true,
+    currencyNeedsReview: false,
+    ...(currency !== state.currency && state.rateOverride !== undefined ? { rateOverride: null } : {}),
+    amountText: state.amountText === '' ? '' : oldScale === newScale ? state.amountText : fromMinorUnits(rescale(total), currency),
+    items: state.items.map((item) => ({ ...item, amount: rescale(item.amount) })),
+    tax: rescale(state.tax),
+    tip: rescale(state.tip),
+    serviceCharge: rescale(state.serviceCharge),
+    discount: rescale(state.discount),
+  };
 }

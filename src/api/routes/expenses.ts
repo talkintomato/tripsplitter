@@ -23,7 +23,7 @@ import {
 } from '../../db/index.js';
 import { idParam, type ApiContext, type ApiEnv, type Caller, type Services } from '../context.js';
 import { describeChanges, expenseNotice, notify } from '../notices.js';
-import { createExpenseBody, readBody, saveExpenseBody, versionBody } from '../schemas.js';
+import { createExpenseBody, previewExpenseBody, readBody, saveExpenseBody, versionBody } from '../schemas.js';
 import type { ExpensePreviewResponse, ExpenseResponse, ExpensesResponse, ExpenseWriteResponse } from '../types.js';
 import { toExpenseView } from '../views.js';
 
@@ -186,14 +186,24 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
   // and figures are checked exactly as a save checks them, and nothing is written.
   app.post('/api/expenses/preview', async (c) => {
     const { scope } = c.get('caller');
-    const { status: _status, ...input } = await readBody(c, createExpenseBody);
+    const { status: _status, tripId, expenseId, ...input } = await readBody(c, previewExpenseBody);
     try {
       inTransaction(db, () => {
-        const { trip } = getOrCreateActiveTrip(db, scope);
-        const draft = createExpense(db, scope, { ...input, tripId: trip.id, status: 'draft' });
+        const existing = expenseId === undefined ? undefined : getExpense(db, scope, expenseId);
+        const trip = existing ? getTrip(db, scope, existing.tripId) : tripId === undefined || tripId === 'active' ? getOrCreateActiveTrip(db, scope).trip : getTrip(db, scope, tripId);
+        const keptRate = existing?.fxRateSource === 'expense' && existing.currency === (input.currency ?? existing.currency) && input.rateOverride === undefined
+          ? { rateOverride: existing.fxRate } : {};
+        const draft = createExpense(db, scope, { ...(existing ? { currency: existing.currency } : {}), ...keptRate, ...input, tripId: trip.id, status: 'draft' });
+        const view = toExpenseView(db, scope, draft, trip);
         const problems = validateExpense(draft, draft.items, draft.shares);
         const mismatch = problems.find((p) => p.code === 'total_mismatch');
+        const safe = (value: bigint): number | null => value > 0n && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null;
+        const corrections = {
+          total: mismatch?.difference === undefined ? null : safe(BigInt(draft.total) - BigInt(mismatch.difference)),
+          discount: mismatch?.difference === undefined || mismatch.difference >= 0 ? null : safe(BigInt(draft.discount) - BigInt(mismatch.difference)),
+        };
         throw new PreviewDone({
+          ...(tripId !== undefined || expenseId !== undefined ? { corrections, fx: { fxRate: view.fxRate, fxRateSource: view.fxRateSource, homeTotal: view.homeTotal, homeCurrency: view.homeCurrency } } : {}),
           amounts: problems.length === 0 ? amountsToRecord(computeShares(draft, draft.items, draft.shares)) : null,
           problems,
           difference: mismatch?.difference ?? null,

@@ -1,6 +1,5 @@
 import type { ExpenseFormState, FormPatch } from '../expense-form/formState';
 import type { ExpenseItemInput } from '../api/types';
-import { amountText } from '../format';
 
 // Changes to the expense made from the item screen. Each returns the fields to change.
 // No share is worked out here: that is the server's answer.
@@ -47,25 +46,8 @@ export function addItem(items: ReadonlyArray<ExpenseItemInput>, item: ExpenseIte
 // What can be done when the figures do not add up. `difference` is the one the server reported:
 // total minus what the items, tax, tip, service charge and discount add up to.
 
-/** The total that makes the figures add up. Null when that would not be an amount above zero. */
-export function matchingTotal(total: number, difference: number): number | null {
-  const next = total - difference;
-  return next > 0 ? next : null;
-}
-
-export function changeTotalToMatch(total: number, difference: number, currency: string): FormPatch {
-  const next = matchingTotal(total, difference);
-  return next === null ? {} : { amountText: amountText(next, currency) };
-}
-
 /** For a total that is more than the items explain: the rest becomes an item shared by everyone. */
 export function addDifferenceAsOther(state: ExpenseFormState, difference: number): FormPatch {
   if (difference <= 0) return {};
   return addItem(state.items, { label: 'Other', quantity: 1, amount: difference, shares: [] });
-}
-
-/** For a total that is less than the items explain: the rest is a discount. Never a negative item. */
-export function addDifferenceAsDiscount(state: ExpenseFormState, difference: number): FormPatch {
-  if (difference >= 0) return {};
-  return { discount: state.discount - difference };
 }

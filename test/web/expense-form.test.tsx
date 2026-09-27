@@ -1,18 +1,19 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../web/src/api/client';
 import { ExpenseForm, type ExpenseFormProps } from '../../web/src/expense-form/ExpenseForm';
 import { registerSplitType, splitType, type SplitBodyProps } from '../../web/src/expense-form/registry';
 import { today } from '../../web/src/format';
-import { ANA, KAI, LEO, MEMBERS, SAM, expenseView, fakeClient, written } from './helpers';
+import { ANA, KAI, LEO, MEMBERS, SAM, expenseView, fakeClient, previewAnswer, written } from './helpers';
 
 afterEach(cleanup);
 
 function setup(over: Partial<ExpenseFormProps> = {}) {
   const client = fakeClient();
+  client.previewExpense.mockImplementation(async (body) => previewAnswer(body, over.expense));
   const onSaved = vi.fn();
   const user = userEvent.setup();
   const view = render(<ExpenseForm client={client} members={MEMBERS} meId={SAM.id} tripId={1} homeCurrency="SGD" onSaved={onSaved} {...over} />);
@@ -34,9 +35,9 @@ describe('a new expense split evenly', () => {
     expect(box('Leo')).toBeChecked();
     // Kai left the chat and is not offered for a new expense.
     expect(screen.queryByText('Kai')).not.toBeInTheDocument();
-    // No currency to choose and no rate to enter in this build.
+    // The expense currency starts at the home currency.
     expect(screen.getByText('SGD')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/currency/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Expense currency' })).toHaveValue('SGD');
     expect(screen.queryByLabelText(/rate/i)).not.toBeInTheDocument();
   });
 
@@ -48,13 +49,15 @@ describe('a new expense split evenly', () => {
     await user.type(screen.getByLabelText('What was it for?'), 'Dinner');
     await user.type(screen.getByLabelText('Amount'), '10.00');
     // The cent left over goes to the payer.
-    expect(within(row('Sam')).getByText('3.34 SGD')).toBeInTheDocument();
+    expect(await within(row('Sam')).findByText('3.34 SGD')).toBeInTheDocument();
     expect(within(row('Ana')).getByText('3.33 SGD')).toBeInTheDocument();
 
     await user.click(box('Leo'));
-    expect(within(row('Ana')).getByText('5.00 SGD')).toBeInTheDocument();
+    expect(await within(row('Ana')).findByText('5.00 SGD')).toBeInTheDocument();
     expect(within(row('Leo')).queryByText(/SGD/)).not.toBeInTheDocument();
 
+    await waitFor(() => expect(client.previewExpense).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(client.createExpense).toHaveBeenCalledTimes(1);
     const [tripId, body] = client.createExpense.mock.calls[0]!;
@@ -75,6 +78,8 @@ describe('a new expense split evenly', () => {
 
   it('does not send an expense without an amount or without people', async () => {
     const { client, user } = setup();
+    await waitFor(() => expect(client.previewExpense).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter the amount.');
 
@@ -86,6 +91,8 @@ describe('a new expense split evenly', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Choose at least one person.');
+    await waitFor(() => expect(client.previewExpense).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(client.createExpense).not.toHaveBeenCalled();
 
@@ -99,6 +106,8 @@ describe('a new expense split evenly', () => {
     const { client, onSaved, user } = setup({ tripId: 'active' });
     client.createExpense.mockRejectedValue(new ApiError(400, 'trip_ended', 'This trip has ended.'));
     await user.type(screen.getByLabelText('Amount'), '8');
+    await waitFor(() => expect(client.previewExpense).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('This trip has ended.')).toBeInTheDocument();
     expect(client.createExpense.mock.calls[0]![0]).toBe('active');
@@ -121,14 +130,16 @@ describe('a split by portions', () => {
     await user.click(screen.getByRole('button', { name: 'Fewer portions for Leo' }));
     expect(screen.getByLabelText('Portions for Ana')).toHaveValue('2');
     expect(screen.getByLabelText('Portions for Leo')).toHaveValue('0');
-    expect(within(row('Ana')).getByText('6.00 SGD')).toBeInTheDocument();
+    expect(await within(row('Ana')).findByText('6.00 SGD')).toBeInTheDocument();
     expect(within(row('Sam')).getByText('3.00 SGD')).toBeInTheDocument();
     expect(within(row('Leo')).queryByText(/SGD/)).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText('Portions for Sam'));
     await user.type(screen.getByLabelText('Portions for Sam'), '4');
-    expect(within(row('Sam')).getByText('6.00 SGD')).toBeInTheDocument();
+    expect(await within(row('Sam')).findByText('6.00 SGD')).toBeInTheDocument();
 
+    await waitFor(() => expect(client.previewExpense).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save' }));
     const body = client.createExpense.mock.calls[0]![1];
     expect(body).toMatchObject({ total: 900, splitType: 'portions' });
@@ -160,6 +171,7 @@ describe('a split by portions', () => {
     expect(screen.getByLabelText('Portions for Sam')).toHaveValue('0');
     expect(screen.getByLabelText('Amount')).toHaveValue('30.00');
 
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(client.saveExpense).toHaveBeenCalledWith(7, {
       version: 3,
@@ -220,8 +232,9 @@ describe('the split type registry', () => {
       await second.user.click(screen.getByRole('radio', { name: 'By item' }));
       await second.user.click(screen.getByRole('button', { name: 'items body' }));
       expect(seen.at(-1)).toMatchObject({ total: 950, currency: 'SGD', state: { splitType: 'items', tip: 500 } });
-      expect(seen.at(-1)!.amounts).not.toBeNull();
-      await second.user.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(seen.at(-1)!.amounts).not.toBeNull());
+      await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    await second.user.click(screen.getByRole('button', { name: 'Save' }));
       expect(second.client.createExpense.mock.calls[0]![1]).toMatchObject({ splitType: 'items', tip: 500, total: 950, items: [{ label: 'Beer', amount: 450, shares: [] }] });
     } finally {
       registerSplitType(original);
@@ -248,11 +261,12 @@ describe('a draft', () => {
 
     expect(screen.getByLabelText('Amount')).toHaveValue('11240');
     expect(screen.getByText('JPY')).toBeInTheDocument();
-    expect(screen.getByText('Rate: 1 SGD = 112.4 JPY')).toBeInTheDocument();
+    expect(await screen.findByText('Rate: 1 SGD = 112.4 JPY')).toBeInTheDocument();
     expect(screen.getByText('100.00 SGD')).toBeInTheDocument();
-    expect(within(row('Sam')).getByText('3746 JPY')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: /currency/i })).not.toBeInTheDocument();
+    expect(await within(row('Sam')).findByText('3746 JPY')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /currency/i })).toHaveValue('JPY');
 
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Finish and save' }));
     const [id, body] = client.saveExpense.mock.calls[0]!;
     expect(id).toBe(7);
@@ -267,7 +281,7 @@ describe('a draft', () => {
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
     expect(screen.getByText(notice)).toBeInTheDocument();
-    expect(screen.getByText('No exchange rate yet.')).toBeInTheDocument();
+    expect(await screen.findByText('The latest rate will be looked up when saving.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save draft for later' }));
     expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('confirm');
   });
@@ -276,11 +290,13 @@ describe('a draft', () => {
     const expense = expenseView({ status: 'draft', currency: 'THB', currencyNeedsReview: true, fxRate: '26.1', fxRateSource: 'trip' });
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Finish and save' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Check the currency first');
     expect(client.saveExpense).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('checkbox', { name: /Yes, this is in THB/ }));
+    await user.click(screen.getByRole('button', { name: 'Confirm THB' }));
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Finish and save' }));
     expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ currency: 'THB', confirm: true });
   });
@@ -304,6 +320,7 @@ describe('when someone else changed the expense', () => {
     await result.user.type(screen.getByLabelText('What was it for?'), 'Dinner at the pier');
     await result.user.clear(screen.getByLabelText('Amount'));
     await result.user.type(screen.getByLabelText('Amount'), '33.00');
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await result.user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText(/Someone else changed this expense/);
     return { ...result, current };
@@ -351,6 +368,7 @@ describe('when someone else changed the expense', () => {
     expect(box('Leo')).not.toBeChecked();
 
     client.saveExpense.mockResolvedValueOnce(written(expenseView({ version: 5 })));
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ version: 4, total: 4500, payerId: SAM.id });
   });
@@ -358,9 +376,89 @@ describe('when someone else changed the expense', () => {
   it('does not offer to save over an expense that was deleted', async () => {
     const { user, client } = setup({ expense: expenseView() });
     client.saveExpense.mockRejectedValueOnce(new ApiError(409, 'stale', 'Changed.', { current: expenseView({ version: 4, status: 'deleted' }) }));
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText(/has been deleted in the meantime/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save mine' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Amount')).toHaveValue('30.00');
+  });
+});
+
+describe('expense currency and own rate', () => {
+  const foreign = () => expenseView({ currency: 'JPY', total: 11240, fxRate: '112.4', fxRateSource: 'trip', homeTotal: 10000 });
+  const ready = () => waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+
+  it('defaults the picker to the trip home currency', () => {
+    setup({ homeCurrency: 'MYR' });
+    expect(screen.getByRole('combobox', { name: 'Expense currency' })).toHaveValue('MYR');
+  });
+
+  it('saves an untouched trip-sourced expense without rateOverride in either request', async () => {
+    const expense = foreign();
+    const { client, user } = setup({ expense });
+    client.saveExpense.mockResolvedValue(written(expense));
+    expect(await screen.findByText('Trip rate')).toBeInTheDocument();
+    expect(screen.getByText('100.00 SGD')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(client.saveExpense).toHaveBeenCalledTimes(1);
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
+    expect(client.previewExpense.mock.calls[0]![0]).not.toHaveProperty('rateOverride');
+  });
+
+  it('sets an own rate as a decimal string, then explicitly clears it with null', async () => {
+    const expense = foreign();
+    const { client, user } = setup({ expense });
+    client.saveExpense.mockResolvedValue(written(expense));
+    await screen.findByText('Trip rate');
+    await user.click(screen.getByRole('button', { name: 'Use a different rate for this expense' }));
+    const input = screen.getByLabelText('Rate for this expense: 1 SGD in JPY');
+    await user.clear(input);
+    await user.type(input, '100');
+    await screen.findByText("This expense's own rate");
+    expect(screen.getByText('112.40 SGD')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ rateOverride: '100' });
+    await user.click(screen.getByRole('button', { name: 'Use the trip rate' }));
+    await screen.findByText('Trip rate');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ rateOverride: null });
+  });
+
+  it('preserves a loaded own rate without sending it back as an override', async () => {
+    const expense = { ...foreign(), fxRate: '100', fxRateSource: 'expense' as const };
+    const { client, user } = setup({ expense });
+    client.saveExpense.mockResolvedValue(written(expense));
+    await screen.findByText("This expense's own rate");
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
+  });
+
+  it('selects a supported currency, rescales the amount, and uses the API converted total', async () => {
+    const { client, user } = setup();
+    client.createExpense.mockResolvedValue(written(foreign()));
+    await user.type(screen.getByLabelText('Amount'), '84.50');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Expense currency' }), 'JPY');
+    expect(screen.getByLabelText('Amount')).toHaveValue('85');
+    await screen.findByText('The latest rate will be looked up when saving.');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(client.createExpense.mock.calls[0]![1]).toMatchObject({ currency: 'JPY', total: 85 });
+    expect(client.createExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
+    client.previewExpense.mockResolvedValue({ amounts: { 1: 85 }, problems: [], difference: null, fx: { fxRate: '112.4', fxRateSource: 'trip', homeTotal: 12345, homeCurrency: 'SGD' } });
+    await user.type(screen.getByLabelText('Amount'), '0');
+    expect(await screen.findByText('123.45 SGD')).toBeInTheDocument();
+  });
+
+  it('choosing a currency confirms a receipt draft, while saving for later leaves an unchecked draft alone', async () => {
+    const expense = expenseView({ status: 'draft', currency: 'THB', currencyNeedsReview: true });
+    const { client, user } = setup({ expense });
+    client.saveExpense.mockResolvedValue(written(expense));
+    await user.click(screen.getByRole('button', { name: 'Save draft for later' }));
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('currency');
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('confirm');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Expense currency' }), 'SGD');
+    expect(screen.queryByRole('button', { name: 'Confirm THB' })).not.toBeInTheDocument();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ currency: 'SGD', confirm: true });
   });
 });

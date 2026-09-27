@@ -6,6 +6,7 @@ import type {
   BalancesResponse,
   ClaimResponse,
   CreateExpenseBody,
+  ExpensePreviewBody,
   CreateSettlementBody,
   CreateTripBody,
   ExpensePreviewResponse,
@@ -80,7 +81,7 @@ export interface ApiClient {
   /** `tripId` "active": the group's active trip, started first when there is none. */
   createExpense(tripId: number | 'active', body: CreateExpenseBody): Promise<ExpenseWriteResponse>;
   /** What each person would pay for an expense that is not saved yet. Changes nothing. */
-  previewExpense(body: CreateExpenseBody): Promise<ExpensePreviewResponse>;
+  previewExpense(body: ExpensePreviewBody): Promise<ExpensePreviewResponse>;
   getExpense(id: number): Promise<ExpenseResponse>;
   saveExpense(id: number, body: SaveExpenseBody): Promise<ExpenseWriteResponse>;
   confirmExpense(id: number, version: number): Promise<ExpenseResponse>;

@@ -38,6 +38,7 @@ const expenseFields = {
 };
 
 export const createExpenseBody = z.object({ ...expenseFields, status: z.enum(['draft', 'confirmed']).optional() });
+export const previewExpenseBody = createExpenseBody.extend({ tripId: z.union([wholeNumber, z.literal('active')]).optional(), expenseId: wholeNumber.optional() });
 export const saveExpenseBody = z.object({ ...expenseFields, version: wholeNumber, confirm: z.boolean().optional() });
 export const versionBody = z.object({ version: wholeNumber });
 export const createTripBody = z.object({ name: z.string().optional(), homeCurrency: z.string().optional() });

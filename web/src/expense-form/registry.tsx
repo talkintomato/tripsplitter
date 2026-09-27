@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { ApiClient } from '../api/client';
-import type { ExpenseProblem, Member, SplitType } from '../api/types';
+import type { ExpensePreviewResponse, ExpenseProblem, Member, SplitType } from '../api/types';
 import { EvenSplit } from './EvenSplit';
 import type { ExpenseFormState, FormPatch } from './formState';
 import { PortionsSplit } from './PortionsSplit';
@@ -21,6 +21,7 @@ export interface SplitBodyProps {
    * While `pending` is true these are the amounts and problems of a moment ago.
    */
   amounts: Record<number, number> | null;
+  corrections?: ExpensePreviewResponse['corrections'];
   problems: ExpenseProblem[];
   disabled: boolean;
   client: ApiClient;
@@ -42,7 +43,7 @@ export interface SplitTypeEntry {
   unavailable?: string;
   /**
    * True: the amounts and problems come from `POST /api/expenses/preview`, and Save is off until that
-   * answer says there is no problem. Left out: they are worked out in the form itself.
+   * answer says there is no problem. All split types use server amounts.
    */
   serverPreview?: boolean;
 }

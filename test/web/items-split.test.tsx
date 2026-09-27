@@ -112,7 +112,7 @@ describe('paint mode', () => {
     });
     // What was saved is what the amounts on the screen were worked out from.
     const { version: _version, confirm: _confirm, ...sent } = body as Record<string, unknown>;
-    expect(sent).toEqual(lastPreview(client));
+    expect(lastPreview(client)).toEqual({ ...sent, currency: 'SGD', tripId: 1, expenseId: 7 });
     expect(onSaved).toHaveBeenCalledWith(saved);
   });
 
@@ -427,11 +427,12 @@ describe('Save', () => {
     expect(client.previewExpense).toHaveBeenCalledTimes(asked);
   });
 
-  it('does not ask the server for a split that is worked out in the form', async () => {
+  it('asks the server for even and portions splits too', async () => {
     const { client, user } = setup();
     await user.type(screen.getByLabelText('Amount'), '10');
+    await waitFor(() => expect(lastPreview(client)).toMatchObject({ total: 1000, splitType: 'even' }));
     await user.click(screen.getByRole('radio', { name: 'Portions' }));
-    expect(client.previewExpense).not.toHaveBeenCalled();
+    await waitFor(() => expect(lastPreview(client)).toMatchObject({ total: 1000, splitType: 'portions' }));
   });
 
   it('creates a new expense that was entered by hand', async () => {

@@ -2,14 +2,11 @@ import { useState } from 'react';
 import { messageOf } from '../api/client';
 import type { ExpenseItemInput, ExpenseProblem } from '../api/types';
 import type { SplitBodyProps } from '../expense-form/registry';
-import { money } from '../format';
+import { amountText, money } from '../format';
 import {
-  addDifferenceAsDiscount,
   addDifferenceAsOther,
   addItem,
   assignedTo,
-  changeTotalToMatch,
-  matchingTotal,
   removeItem,
   replaceItem,
   toggleIncluded,
@@ -60,7 +57,7 @@ export function ItemsSplit(props: SplitBodyProps) {
   const itemProblems = at('items').filter((p) => p.code !== 'no_items');
   // A missing amount is said by the box about the difference, and by the empty list while there is no item.
   const totalProblems = at('total').filter((p) => !(p.code === 'total_not_positive' && (mismatch || state.items.length === 0)));
-  const newTotal = mismatch && total !== null ? matchingTotal(total, difference) : null;
+  const newTotal = props.corrections?.total ?? null;
   const noTotal = total === 0;
 
   const whoText = (item: ExpenseItemInput): string => {
@@ -221,7 +218,7 @@ export function ItemsSplit(props: SplitBodyProps) {
             )}
             <div className="difference-choices">
               {newTotal !== null ? (
-                <button type="button" className="button button-small" disabled={pending} onClick={() => update(changeTotalToMatch(total ?? 0, difference, currency))}>
+                <button type="button" className="button button-small" disabled={pending} onClick={() => update({ amountText: amountText(newTotal, currency) })}>
                   {noTotal ? 'Use' : 'Change the amount to'} {money(newTotal, currency)}
                 </button>
               ) : null}
@@ -230,8 +227,8 @@ export function ItemsSplit(props: SplitBodyProps) {
                   Add {money(difference, currency)} as “Other”, shared by everyone
                 </button>
               ) : null}
-              {difference < 0 && !noTotal ? (
-                <button type="button" className="button button-small button-quiet" disabled={pending} onClick={() => update(addDifferenceAsDiscount(state, difference))}>
+              {difference < 0 && !noTotal && props.corrections?.discount != null ? (
+                <button type="button" className="button button-small button-quiet" disabled={pending} onClick={() => update({ discount: props.corrections!.discount! })}>
                   Enter {money(-difference, currency)} as a discount
                 </button>
               ) : null}

@@ -115,8 +115,16 @@ export interface ExpenseWriteResponse extends ExpenseResponse {
   keptAsDraft: boolean;
 }
 
-/** Answer of `POST /api/expenses/preview`, whose body is a `CreateExpenseBody`. Nothing is saved. */
+export interface ExpensePreviewBody extends CreateExpenseBody {
+  tripId?: number | 'active';
+  expenseId?: number;
+}
+
+/** Answer of `POST /api/expenses/preview`. Nothing is saved or looked up. */
 export interface ExpensePreviewResponse {
+  /** Present when trip or expense context was requested. */
+  fx?: Pick<ExpenseView, 'fxRate' | 'fxRateSource' | 'homeTotal' | 'homeCurrency'>;
+  corrections?: { total: number | null; discount: number | null };
   /** Each included member's amount in the expense currency. Null while there is a problem. */
   amounts: Record<number, number> | null;
   /** Everything about the split that stops the expense from being saved. Empty when nothing does. */
