@@ -3,10 +3,11 @@ import type { RatePreview } from '../api/rates';
 import { balanceText, nameOf } from '../format';
 import { useApp } from '../state';
 
-export function CurrencyField(props: { label: string; value: string; onChange(value: string): void; disabled?: boolean; exclude?: string }) {
+export function CurrencyField(props: { label: string; value: string; onChange(value: string): void; disabled?: boolean; exclude?: string | readonly string[] }) {
+  const excluded = props.exclude === undefined ? [] : typeof props.exclude === 'string' ? [props.exclude] : props.exclude;
   return <label className="field"><span>{props.label}</span>
     <select value={props.value} disabled={props.disabled} onChange={(e) => props.onChange(e.target.value)}>
-      {CURRENCIES.filter((c) => c.code !== props.exclude).map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+      {CURRENCIES.filter((c) => !excluded.includes(c.code)).map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
     </select>
   </label>;
 }

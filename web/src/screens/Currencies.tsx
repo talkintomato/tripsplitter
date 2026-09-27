@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { CURRENCIES } from '../../../src/core/currencies';
 import { ratesApi } from '../api/rates';
 import type { Trip } from '../api/types';
 import { ActionError, Banner, Confirm, ErrorState, Loading, Screen, Section } from '../components/ui';
@@ -14,7 +15,7 @@ export function Currencies() {
   const [currency, setCurrency] = useState('JPY');
   return <Screen title="Trip settings" back="/">
     {loaded.error !== undefined ? <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} /> : !loaded.data ? <Loading /> : <>
-      <TripSettings key={`${loaded.data.trip.id}-${loaded.data.trip.homeCurrency}-${loaded.data.trip.name}`} trip={loaded.data.trip} onSaved={async () => { await refresh(); await loaded.reload(); }} />
+      <TripSettings key={loaded.data.trip.id} trip={loaded.data.trip} onSaved={async () => { await refresh(); await loaded.reload(); }} />
       <Section title="Currencies">
         <p className="hint small">Rates stay fixed until someone changes them.</p>
         {loaded.data.rates.length === 0 ? <p>No foreign currencies added yet.</p> : <ul className="list">{loaded.data.rates.map((r) => <li className="card" key={r.currency}>
@@ -22,13 +23,22 @@ export function Currencies() {
           <span className="hint small">{r.origin === 'member' ? 'Set by a member' : 'Suggested rate'}</span>
           {loaded.data!.trip.status === 'active' ? <Link to={`/trips/${tripId}/rates/${r.currency}`}>Change rate</Link> : null}
         </li>)}</ul>}
-        {loaded.data.trip.status === 'active' ? <>
-          <CurrencyField label="Add currency" value={currency === loaded.data.trip.homeCurrency ? (currency === 'JPY' ? 'SGD' : 'JPY') : currency} exclude={loaded.data.trip.homeCurrency} onChange={setCurrency} />
-          <Link className="button button-quiet" to={`/trips/${tripId}/rates/${currency === loaded.data.trip.homeCurrency ? (currency === 'JPY' ? 'SGD' : 'JPY') : currency}`}>Set rate</Link>
-        </> : null}
+        {loaded.data.trip.status === 'active' ? <AddCurrency tripId={tripId} taken={[loaded.data.trip.homeCurrency, ...loaded.data.rates.map((r) => r.currency)]} currency={currency} onChange={setCurrency} /> : null}
       </Section>
     </>}
   </Screen>;
+}
+
+/** Offers only the currencies the trip does not have yet. The ones it has are changed from the list above. */
+function AddCurrency({ tripId, taken, currency, onChange }: { tripId: number; taken: string[]; currency: string; onChange(value: string): void }) {
+  const open = CURRENCIES.filter((c) => !taken.includes(c.code));
+  const first = open[0];
+  if (first === undefined) return null;
+  const chosen = open.some((c) => c.code === currency) ? currency : first.code;
+  return <>
+    <CurrencyField label="Add currency" value={chosen} exclude={taken} onChange={onChange} />
+    <Link className="button button-quiet" to={`/trips/${tripId}/rates/${chosen}`}>Set rate</Link>
+  </>;
 }
 
 function TripSettings({ trip, onSaved }: { trip: Trip; onSaved(): Promise<void> }) {

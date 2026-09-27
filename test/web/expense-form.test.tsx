@@ -462,3 +462,41 @@ describe('expense currency and own rate', () => {
     expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ currency: 'SGD', confirm: true });
   });
 });
+
+describe('a rate that is still being typed', () => {
+  it('is never sent: not for the amounts, and not with a draft', async () => {
+    const expense = expenseView({ status: 'draft', currency: 'JPY', total: 11240, fxRate: null, fxRateSource: 'missing', homeTotal: null, homeAmounts: null });
+    const { client, user } = setup({ expense });
+    client.saveExpense.mockResolvedValue(written(expense));
+    await screen.findByText('The latest rate will be looked up when saving.');
+    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    client.previewExpense.mockClear();
+
+    // The field opens empty, because there is no rate to start from.
+    await user.click(screen.getByRole('button', { name: 'Use a different rate for this expense' }));
+    const input = screen.getByLabelText('Rate for this expense: 1 SGD in JPY');
+    expect(input).toHaveValue('');
+    await user.type(input, '0');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(client.previewExpense).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Try preview again' })).not.toBeInTheDocument();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+
+    // Finishing is refused with the reason, and nothing is sent.
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a rate above zero');
+    expect(client.saveExpense).not.toHaveBeenCalled();
+
+    // A draft can still be put aside, without the unfinished rate.
+    await user.click(screen.getByRole('button', { name: 'Save draft for later' }));
+    expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('rateOverride');
+
+    // Once it can be read it is sent as before.
+    await user.clear(input);
+    await user.type(input, '112.4');
+    expect(await screen.findByText('100.00 SGD')).toBeInTheDocument();
+    for (const [body] of client.previewExpense.mock.calls) expect((body as { rateOverride?: string }).rateOverride).toBe('112.4');
+    await user.click(screen.getByRole('button', { name: 'Finish and save' }));
+    expect(client.saveExpense.mock.calls[1]![1]).toMatchObject({ rateOverride: '112.4', confirm: true });
+  });
+});

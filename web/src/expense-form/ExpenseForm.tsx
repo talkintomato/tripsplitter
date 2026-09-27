@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
+import { isValidRate } from '../../../src/core/rates';
 import { ApiError, messageOf, type ApiClient } from '../api/client';
 import type { ExpenseView, ExpenseWriteResponse, Member } from '../api/types';
 import { Banner } from '../components/ui';
@@ -103,16 +104,18 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const currency = state.currency;
   const foreign = currency !== props.homeCurrency;
   const total = parseAmount(state.amountText, currency);
+  // A rate still being typed is not sent anywhere: the server would refuse it.
+  const rateProblem = foreign && typeof state.rateOverride === 'string' && !isValidRate(state.rateOverride) ? 'Enter a rate above zero, with up to 6 decimal places.' : null;
   const people = useMemo(() => formMembers(members, state), [members, state]);
   const entry = splitType(state.splitType);
   const Body = entry.Body;
   // All shares and converted figures come from the server.
   const asksServer = Body !== null;
-  const asked = useMemo(() => (asksServer && total !== null ? {
+  const asked = useMemo(() => (asksServer && total !== null && rateProblem === null ? {
     ...toExpenseInput(state, total), currency,
     tripId: props.tripId,
     ...(expense ? { expenseId: expense.id } : {}),
-  } : null), [asksServer, state, total, currency, props.tripId, expense]);
+  } : null), [asksServer, state, total, rateProblem, currency, props.tripId, expense]);
   const server = useServerPreview(client, asked);
   const shown = { amounts: server.status === 'ready' ? server.result?.amounts ?? null : null, problems: server.status === 'ready' ? server.result?.problems ?? [] : [] };
 
@@ -131,7 +134,9 @@ export function ExpenseForm(props: ExpenseFormProps) {
   // With the server's answer: Save is off while the answer is missing or reports a problem.
   const serverProblem = !asksServer
     ? null
-    : server.status === 'failed'
+    : rateProblem !== null
+      ? rateProblem
+      : server.status === 'failed'
       ? messageOf(server.error)
       : server.status !== 'ready'
         ? 'Working out what each person pays…'
@@ -147,6 +152,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
     // A draft may be incomplete, but what is typed must still be readable.
     if (kind === 'draft' ? total === null : firstProblem !== null) return;
     const input = toExpenseInput(state, total ?? 0);
+    // A draft may be incomplete: a rate that cannot be read yet is left out, not sent.
+    if (rateProblem !== null) delete input.rateOverride;
     setBusy(kind);
     try {
       let result: ExpenseWriteResponse;
@@ -306,8 +313,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
           {state.rateOverride !== undefined && state.rateOverride !== null ? (
             <div className="field">
               <label htmlFor="expense-rate">Rate for this expense: 1 {props.homeCurrency} in {currency}</label>
-              <input id="expense-rate" aria-describedby="expense-rate-hint" type="text" inputMode="decimal" value={state.rateOverride} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
-              <span id="expense-rate-hint" className="hint small">Enter a rate above zero, with up to 6 decimal places.</span>
+              <input id="expense-rate" aria-describedby="expense-rate-hint" aria-invalid={rateProblem !== null && state.rateOverride !== ''} type="text" inputMode="decimal" value={state.rateOverride} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
+              <span id="expense-rate-hint" className={rateProblem !== null && state.rateOverride !== '' ? 'problem small' : 'hint small'}>Enter a rate above zero, with up to 6 decimal places.</span>
             </div>
           ) : <button type="button" className="link" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>Use a different rate for this expense</button>}
           {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
