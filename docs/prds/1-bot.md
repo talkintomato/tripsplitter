@@ -20,7 +20,7 @@ The bot can be added to a Telegram group, learns who is in it, and posts notices
 
 Every update from a group passes through these steps, in order, before any other handler:
 
-1. **Allowed chat**: look the chat up with `findGroupByChatId`, which also matches earlier IDs of an upgraded group. The chat is allowed when its current ID or any earlier ID is in `ALLOWED_CHAT_IDS`. Export this as `isAllowedChat(config, db, chatId)` so PRD 3 uses the same rule. A chat that is not allowed stops here.
+1. **Allowed chat**: when `ALLOWED_CHAT_IDS` is empty, which is the default, every chat is allowed and this step passes. Otherwise look the chat up with `findGroupByChatId`, which also matches earlier IDs of an upgraded group. The chat is allowed when its current ID or any earlier ID is in `ALLOWED_CHAT_IDS`. Export this as `isAllowedChat(config, db, chatId)` so PRD 3 uses the same rule. A chat that is not allowed stops here.
 2. **Group exists**: call `ensureGroup`, which does nothing if the group is already set up. This covers a chat that was enabled after the bot was added, a restart, and the bot being removed and added again.
 3. **Learn the sender**, as described below.
 4. **Continue**: call `await next()` so that handlers registered later, including the receipt handlers, receive the update.
@@ -29,7 +29,7 @@ Every update from a group passes through these steps, in order, before any other
 
 ### Chat not allowed
 
-When the bot is added to a chat that is not allowed, or is mentioned in one, it posts "This group isn't enabled. Chat ID: `<id>`", at most once per hour per chat, and does nothing else there. The owner adds the ID to `ALLOWED_CHAT_IDS` and restarts. The next message in the group then sets it up.
+This applies only when `ALLOWED_CHAT_IDS` lists chat IDs. When the bot is added to a chat that is not allowed, or is mentioned in one, it posts "This group isn't enabled. Chat ID: `<id>`", at most once per hour per chat, and does nothing else there. The owner adds the ID to `ALLOWED_CHAT_IDS` and restarts. The next message in the group then sets it up.
 
 ### First set-up of a group
 

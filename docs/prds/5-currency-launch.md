@@ -72,7 +72,7 @@ On the expense routes:
 ## Deployment
 
 - `Dockerfile` building the server and the Mini App into one image, with the database on a mounted volume.
-- `docs/deploy.md`: BotFather setup (create the bot, register the Mini App and its URL, turn privacy mode off, and note that the bot must be removed from and added back to any group it was in before that change), environment variables, first run, enabling a group by its chat ID, and how to back up the database file.
+- `docs/deploy.md`: BotFather setup (create the bot, register the Mini App and its URL, turn privacy mode off, and note that the bot must be removed from and added back to any group it was in before that change), environment variables, first run, how to restrict the bot to chosen groups if wanted, and how to back up the database file.
 - The hosting provider is the owner's choice and is asked for at the start of this build.
 - A `/health` route returning the database status.
 
@@ -80,7 +80,7 @@ On the expense routes:
 
 In a real test group with at least two accounts:
 
-1. Add the bot, enable the chat, and post from both accounts. Open the link from a third account that is not in the chat and see it join. Reset the link and see the old one refused.
+1. Add the bot and post from both accounts. Open the link from a third account that is not in the chat and see it join. Reset the link and see the old one refused.
 2. Run trip setup with SGD as home and JPY as a trip currency.
 3. Tag a JPY receipt, split it by item, and check each person's SGD amount by hand.
 4. Add a manual expense in SGD.

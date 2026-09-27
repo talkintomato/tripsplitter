@@ -119,7 +119,7 @@ export function groupMiddleware(deps: GroupMiddlewareDeps): MiddlewareFn<Context
     const group = findGroupByChatId(db, oldChatId);
     if (group === undefined || group.chatId === newChatId) return;
     migrateChat(db, oldChatId, newChatId);
-    if (isChatIdListed(config, newChatId)) return;
+    if (config.allowedChatIds.length === 0 || isChatIdListed(config, newChatId)) return;
     const prefix = 'This group was upgraded by Telegram and has a new chat ID: ';
     const id = String(newChatId);
     const text = `${prefix}${id}\nI keep working here. Please add the new ID to ALLOWED_CHAT_IDS.`;

@@ -10,8 +10,8 @@ When you check an item, replace "not verified" with "verified" or "wrong", the d
 
 1. Create a bot in BotFather, register the Mini App, and turn privacy mode off (`/setprivacy`, Disable).
 2. Create a test group with two human accounts. Make it a basic group, not a supergroup, so item 5 can be checked. A group is basic when it is new, private and has no features such as a public link or visible history for new members.
-3. Start the server with the bot token, and leave `ALLOWED_CHAT_IDS` empty.
-4. Add the bot to the group. It should post "This group isn't enabled. Chat ID: ..." Copy the ID into `ALLOWED_CHAT_IDS` and restart.
+3. Start the server with the bot token. Leave `ALLOWED_CHAT_IDS` empty, so the bot works in every chat.
+4. Add the bot to the group. It should post and pin the intro message.
 5. Start the bot with the `chat_member` update kind turned on. Telegram leaves it out by default. `src/bot/index.ts` exports `ALLOWED_UPDATES` for this.
 
 ## Items from the PRD

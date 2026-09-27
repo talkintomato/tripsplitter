@@ -44,7 +44,8 @@ Build order: 0, then 1, 2, 3 and 3b in parallel, then 4, then 5.
 15. **Receipt photos**: only the Telegram file ID is stored, never the image.
 16. **Message text**: ordinary chat messages are never stored or logged. Text sent with a tagged receipt is stored as that expense's description.
 17. **Links into the Mini App** use one format, defined in PRD 0, carrying the signed group and an optional destination.
-18. **Day boundaries** for daily limits use Singapore time.
+18. **Any group can use the bot.** Adding it to a chat is enough. The owner pays for receipt reading in every group, bounded by the daily cap per group. Listing chat IDs in `ALLOWED_CHAT_IDS` restricts the bot to those chats, and is off by default.
+19. **Day boundaries** for daily limits use Singapore time.
 
 ## Notes from the foundation build
 

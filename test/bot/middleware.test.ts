@@ -57,6 +57,21 @@ describe('allowed chats', () => {
     expect(h.isAllowedChat(OTHER_CHAT)).toBe(false);
   });
 
+  it('works in every chat when no chat IDs are listed, and posts nothing about IDs on an upgrade', async () => {
+    const h = harness({ allowed: [] });
+    let reached = 0;
+    h.bot.on('message', () => {
+      reached += 1;
+    });
+    await h.bot.handleUpdate(textUpdate(CHAT, SAM));
+    await h.bot.handleUpdate(textUpdate(OTHER_CHAT, SAM));
+    expect(findGroupByChatId(h.db, CHAT)).toBeDefined();
+    expect(findGroupByChatId(h.db, OTHER_CHAT)).toBeDefined();
+    expect(reached).toBe(2);
+    expect(h.isAllowedChat(OTHER_CHAT)).toBe(true);
+    expect(h.texts().some((text) => text.includes("isn't enabled"))).toBe(false);
+  });
+
   it('stops in a chat that is not allowed: no group, no member, no later handler, no message', async () => {
     const h = harness();
     let reached = 0;
@@ -104,7 +119,7 @@ describe('allowed chats', () => {
 
   it('sets up a chat enabled after the bot was added, on its next message', async () => {
     const db = openDatabase(':memory:');
-    const before = harness({ db, allowed: [] });
+    const before = harness({ db, allowed: [OTHER_CHAT] });
     await before.bot.handleUpdate(chatMemberUpdate('my_chat_member', CHAT, ANA, BOT_INFO, 'left', 'member'));
     await before.bot.handleUpdate(textUpdate(CHAT, SAM));
     expect(findGroupByChatId(db, CHAT)).toBeUndefined();

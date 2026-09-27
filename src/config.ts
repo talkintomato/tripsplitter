@@ -129,7 +129,7 @@ export interface Config {
   botUsername: string;
   /** MINI_APP_NAME */
   miniAppName: string;
-  /** ALLOWED_CHAT_IDS, parsed. Empty means the bot works nowhere. */
+  /** ALLOWED_CHAT_IDS, parsed. Empty means the bot works in every chat it is added to. */
   allowedChatIds: number[];
   /** LINK_SECRET */
   linkSecret: string;

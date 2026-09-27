@@ -21,10 +21,11 @@ export function describeError(error: unknown): string {
 }
 
 /**
- * The chat is allowed when its current ID or any earlier ID (before an upgrade to a supergroup) is in
- * ALLOWED_CHAT_IDS.
+ * With ALLOWED_CHAT_IDS empty, the bot works in every chat it is added to. With IDs listed, the chat is
+ * allowed when its current ID or any earlier ID (before an upgrade to a supergroup) is in the list.
  */
 export function isAllowedChat(config: Config, db: Db, chatId: number): boolean {
+  if (config.allowedChatIds.length === 0) return true;
   if (isChatIdListed(config, chatId)) return true;
   const group = findGroupByChatId(db, chatId);
   if (group === undefined) return false;

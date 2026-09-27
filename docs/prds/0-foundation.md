@@ -23,7 +23,7 @@ Read the shared decisions in [README.md](README.md) first. They bind this build.
 | `BOT_TOKEN` | Telegram bot token | required |
 | `BOT_USERNAME` | Bot username without `@` | required |
 | `MINI_APP_NAME` | Short name of the Mini App registered with BotFather | required |
-| `ALLOWED_CHAT_IDS` | Comma-separated chat IDs the bot may work in | empty |
+| `ALLOWED_CHAT_IDS` | Optional. Empty means the bot works in every chat it is added to. When chat IDs are listed, comma-separated, it works only in those. | empty |
 | `LINK_SECRET` | Secret for signing links, at least 32 characters | required |
 | `DATABASE_PATH` | SQLite file | `./data/tripsplitter.db` |
 | `OPENAI_API_KEY` | Key for receipt reading | optional; receipt reading is off without it |
