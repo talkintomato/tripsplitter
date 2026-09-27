@@ -33,7 +33,7 @@ import {
 } from '../db/index.js';
 import { planDraft } from './interpret.js';
 import { draftMessage, savedMessage, TEXT } from './messages.js';
-import { createAnthropicReader, detectImageType, ReceiptReadError, type ReceiptReader } from './reader.js';
+import { createOpenAIReader, detectImageType, ReceiptReadError, type ReceiptReader } from './reader.js';
 import type { ReceiptReading } from './schema.js';
 
 /** Gets the bytes of a Telegram file. */
@@ -43,7 +43,7 @@ export interface ReceiptDeps {
   isAllowedChat: (chatId: number) => boolean;
   notifier: Notifier;
   suggestRate: RateSuggester;
-  /** Defaults to the Anthropic reader when `ANTHROPIC_API_KEY` is set. Tests pass a fake. */
+  /** Defaults to the OpenAI reader when `OPENAI_API_KEY` is set. Tests pass a fake. */
   readReceipt?: ReceiptReader;
   /** Defaults to a download from Telegram with the bot token. Tests pass a fake. */
   downloadPhoto?: PhotoDownloader;
@@ -147,8 +147,8 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
   const logError = deps.logError ?? ((message: string) => console.error(message));
   const reader: ReceiptReader | undefined =
     deps.readReceipt ??
-    (receiptReadingEnabled(config) && config.anthropicApiKey !== undefined
-      ? createAnthropicReader({ apiKey: config.anthropicApiKey, model: config.receiptModel })
+    (receiptReadingEnabled(config) && config.openaiApiKey !== undefined
+      ? createOpenAIReader({ apiKey: config.openaiApiKey, model: config.receiptModel })
       : undefined);
   const download = deps.downloadPhoto ?? createTelegramDownloader(bot.api, config.botToken);
 

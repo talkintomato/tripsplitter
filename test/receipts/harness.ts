@@ -78,7 +78,7 @@ export interface HarnessOptions {
 }
 
 export function harness(options: HarnessOptions) {
-  const config = buildConfig({ anthropicApiKey: undefined, ...options.config });
+  const config = buildConfig({ openaiApiKey: undefined, ...options.config });
   const calls: ApiCall[] = [];
   const passedOn: Update[] = [];
   const errors: string[] = [];

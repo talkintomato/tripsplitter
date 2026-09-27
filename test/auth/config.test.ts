@@ -26,8 +26,8 @@ describe('loadConfig', () => {
       allowedChatIds: [],
       linkSecret: 'a-secret-of-at-least-thirty-two-characters',
       databasePath: './data/tripsplitter.db',
-      anthropicApiKey: undefined,
-      receiptModel: 'claude-sonnet-5',
+      openaiApiKey: undefined,
+      receiptModel: 'gpt-6-luna',
       receiptDailyCap: 30,
       port: 3000,
       nodeEnv: 'development',
@@ -43,7 +43,7 @@ describe('loadConfig', () => {
       NODE_ENV: 'production',
       ALLOWED_CHAT_IDS: ' -1001234567890, -42 ,7',
       DATABASE_PATH: '/data/trips.db',
-      ANTHROPIC_API_KEY: 'placeholder-key',
+      OPENAI_API_KEY: 'placeholder-key',
       RECEIPT_MODEL: 'some-model',
       RECEIPT_DAILY_CAP: '5',
       PORT: '8080',
@@ -54,7 +54,7 @@ describe('loadConfig', () => {
       nodeEnv: 'production',
       allowedChatIds: [-1001234567890, -42, 7],
       databasePath: '/data/trips.db',
-      anthropicApiKey: 'placeholder-key',
+      openaiApiKey: 'placeholder-key',
       receiptModel: 'some-model',
       receiptDailyCap: 5,
       port: 8080,
@@ -141,11 +141,11 @@ describe('.env.example', () => {
     expect(names.sort()).toEqual(
       [
         'NODE_ENV', 'BOT_TOKEN', 'BOT_USERNAME', 'MINI_APP_NAME', 'ALLOWED_CHAT_IDS', 'LINK_SECRET', 'DATABASE_PATH',
-        'ANTHROPIC_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
+        'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
       ].sort(),
     );
-    expect(text).not.toMatch(/sk-ant-/);
-    expect(text).toMatch(/^ANTHROPIC_API_KEY=$/m);
+    expect(text).not.toMatch(/sk-[A-Za-z0-9]/);
+    expect(text).toMatch(/^OPENAI_API_KEY=$/m);
     expect(text).toMatch(/^BOT_TOKEN=000000000:replace/m);
   });
 });

@@ -327,7 +327,7 @@ describe('daily cap', () => {
 
 describe('no key configured', () => {
   it('replies that receipt reading is not set up', async () => {
-    const h = harness({ db, reader: null, config: { anthropicApiKey: undefined } });
+    const h = harness({ db, reader: null, config: { openaiApiKey: undefined } });
     await h.sendPhoto('@tripsplitter_test_bot');
 
     expect(h.sent().map((c) => c.payload.text)).toEqual([TEXT.notSetUp]);

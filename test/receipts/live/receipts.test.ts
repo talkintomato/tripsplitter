@@ -1,4 +1,4 @@
-// Live receipt tests: `pnpm test:receipts`. They call the real model, need ANTHROPIC_API_KEY and cost money.
+// Live receipt tests: `pnpm test:receipts`. They call the real model, need OPENAI_API_KEY and cost money.
 // The layout of this folder is described in README.md.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { isSupportedCurrency } from '../../../src/core/index.js';
-import { createAnthropicReader, detectImageType, parsePrintedAmount, type ReceiptReading } from '../../../src/receipts/index.js';
+import { createOpenAIReader, detectImageType, parsePrintedAmount, type ReceiptReading } from '../../../src/receipts/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PHOTO_TYPES = new Set(['.jpg', '.jpeg', '.png', '.webp']);
@@ -30,8 +30,8 @@ interface Row {
 const photos = readdirSync(here)
   .filter((name) => PHOTO_TYPES.has(extname(name).toLowerCase()))
   .sort();
-const apiKey = (process.env.ANTHROPIC_API_KEY ?? '').trim();
-const model = (process.env.RECEIPT_MODEL ?? '').trim() || 'claude-sonnet-5';
+const apiKey = (process.env.OPENAI_API_KEY ?? '').trim();
+const model = (process.env.RECEIPT_MODEL ?? '').trim() || 'gpt-6-luna';
 const rows: Row[] = [];
 
 const loose = (text: string | null) => (text ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -55,10 +55,10 @@ describe('live receipts', () => {
   }
 
   it('has a key', () => {
-    expect(apiKey, 'Set ANTHROPIC_API_KEY to run the live receipt tests.').not.toBe('');
+    expect(apiKey, 'Set OPENAI_API_KEY to run the live receipt tests.').not.toBe('');
   });
 
-  const reader = apiKey === '' ? undefined : createAnthropicReader({ apiKey, model, timeoutMs: 100_000 });
+  const reader = apiKey === '' ? undefined : createOpenAIReader({ apiKey, model, timeoutMs: 100_000 });
 
   for (const photo of photos) {
     const name = basename(photo, extname(photo));

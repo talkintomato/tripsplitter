@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// `pnpm test:receipts`: only test/receipts/live/, against the live model. Needs ANTHROPIC_API_KEY and costs money.
+// `pnpm test:receipts`: only test/receipts/live/, against the live model. Needs OPENAI_API_KEY and costs money.
 export default defineConfig({
   test: {
     environment: 'node',

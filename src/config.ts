@@ -98,8 +98,8 @@ const envSchema = z.object({
     z.string({ error: 'is required' }).min(32, 'must be at least 32 characters'),
   ),
   DATABASE_PATH: z.preprocess(blankToUndefined, z.string().default('./data/tripsplitter.db')),
-  ANTHROPIC_API_KEY: optionalString,
-  RECEIPT_MODEL: z.preprocess(blankToUndefined, z.string().default('claude-sonnet-5')),
+  OPENAI_API_KEY: optionalString,
+  RECEIPT_MODEL: z.preprocess(blankToUndefined, z.string().default('gpt-6-luna')),
   RECEIPT_DAILY_CAP: positiveInt(30),
   PORT: positiveInt(3000),
   NODE_ENV: z.preprocess(blankToUndefined, z.enum(['development', 'test', 'production']).default('development')),
@@ -135,8 +135,8 @@ export interface Config {
   linkSecret: string;
   /** DATABASE_PATH */
   databasePath: string;
-  /** ANTHROPIC_API_KEY. Undefined unless set. Receipt reading is off without it. */
-  anthropicApiKey: string | undefined;
+  /** OPENAI_API_KEY. Undefined unless set. Receipt reading is off without it. */
+  openaiApiKey: string | undefined;
   /** RECEIPT_MODEL */
   receiptModel: string;
   /** RECEIPT_DAILY_CAP */
@@ -191,7 +191,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     allowedChatIds: e.ALLOWED_CHAT_IDS,
     linkSecret: e.LINK_SECRET,
     databasePath: e.DATABASE_PATH,
-    anthropicApiKey: e.ANTHROPIC_API_KEY,
+    openaiApiKey: e.OPENAI_API_KEY,
     receiptModel: e.RECEIPT_MODEL,
     receiptDailyCap: e.RECEIPT_DAILY_CAP,
     port: e.PORT,
@@ -226,8 +226,8 @@ function buildUnchecked(overrides: Partial<Config>): Config {
     allowedChatIds: [],
     linkSecret: 'test-link-secret-0123456789-abcdefghij',
     databasePath: ':memory:',
-    anthropicApiKey: undefined,
-    receiptModel: 'claude-sonnet-5',
+    openaiApiKey: undefined,
+    receiptModel: 'gpt-6-luna',
     receiptDailyCap: 30,
     port: 3000,
     nodeEnv: 'test',
@@ -238,9 +238,9 @@ function buildUnchecked(overrides: Partial<Config>): Config {
   };
 }
 
-/** True when `ANTHROPIC_API_KEY` is set, so receipts can be read. */
+/** True when `OPENAI_API_KEY` is set, so receipts can be read. */
 export function receiptReadingEnabled(config: Config): boolean {
-  return config.anthropicApiKey !== undefined && config.anthropicApiKey !== '';
+  return config.openaiApiKey !== undefined && config.openaiApiKey !== '';
 }
 
 /** True when the chat ID itself is in ALLOWED_CHAT_IDS. Earlier IDs of an upgraded group are not looked at here. */

@@ -9,7 +9,7 @@ Read the shared decisions in [README.md](README.md) first. They bind this build.
 ## Tooling
 
 - Node 22, TypeScript strict, pnpm, one package, ESM.
-- Dependencies to install now, for all PRDs: `grammy`, `hono`, `@hono/node-server`, `better-sqlite3`, `zod`, `@anthropic-ai/sdk`, `react`, `react-dom`, `react-router-dom`, `@twa-dev/sdk`. Dev: `typescript`, `vitest`, `vite`, `@vitejs/plugin-react`, `tsx`, `jsdom`, `@testing-library/react`, `@types/node`, `@types/better-sqlite3`, `@types/react`, `@types/react-dom`.
+- Dependencies to install now, for all PRDs: `grammy`, `hono`, `@hono/node-server`, `better-sqlite3`, `zod`, `openai`, `react`, `react-dom`, `react-router-dom`, `@twa-dev/sdk`. Dev: `typescript`, `vitest`, `vite`, `@vitejs/plugin-react`, `tsx`, `jsdom`, `@testing-library/react`, `@types/node`, `@types/better-sqlite3`, `@types/react`, `@types/react-dom`.
 - Scripts: `dev`, `build`, `start`, `test`, `test:receipts`, `typecheck`, `web:dev`, `web:build`.
 - `pnpm test` runs everything under `test/` except `test/receipts/live/`. `pnpm test:receipts` runs only `test/receipts/live/` with its own Vitest config. This build creates that folder with a README and no tests.
 - `web/` holds a Vite and React scaffold with a placeholder page.
@@ -26,8 +26,8 @@ Read the shared decisions in [README.md](README.md) first. They bind this build.
 | `ALLOWED_CHAT_IDS` | Comma-separated chat IDs the bot may work in | empty |
 | `LINK_SECRET` | Secret for signing links, at least 32 characters | required |
 | `DATABASE_PATH` | SQLite file | `./data/tripsplitter.db` |
-| `ANTHROPIC_API_KEY` | Key for receipt reading | optional; receipt reading is off without it |
-| `RECEIPT_MODEL` | Model ID for receipt reading | `claude-sonnet-5` |
+| `OPENAI_API_KEY` | Key for receipt reading | optional; receipt reading is off without it |
+| `RECEIPT_MODEL` | Model ID for receipt reading | `gpt-6-luna` |
 | `RECEIPT_DAILY_CAP` | Model calls per group per day | `30` |
 | `PORT` | HTTP port | `3000` |
 | `WEBHOOK_URL` | Public base URL. Unset means long polling. | unset |

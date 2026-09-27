@@ -37,15 +37,15 @@ Tests get a database with `openDatabase(':memory:')` and a config with `buildCon
 
 | Export | Description |
 |---|---|
-| `interface Config` | `botToken`, `botUsername`, `miniAppName`, `allowedChatIds: number[]`, `linkSecret`, `databasePath`, `anthropicApiKey: string \| undefined`, `receiptModel`, `receiptDailyCap: number`, `port: number`, `nodeEnv: 'development' \| 'test' \| 'production'`, `devFakeUser: DevFakeUser \| undefined`, `webhookUrl: string \| undefined`, `webhookSecret: string \| undefined` |
+| `interface Config` | `botToken`, `botUsername`, `miniAppName`, `allowedChatIds: number[]`, `linkSecret`, `databasePath`, `openaiApiKey: string \| undefined`, `receiptModel`, `receiptDailyCap: number`, `port: number`, `nodeEnv: 'development' \| 'test' \| 'production'`, `devFakeUser: DevFakeUser \| undefined`, `webhookUrl: string \| undefined`, `webhookSecret: string \| undefined` |
 | `interface DevFakeUser` | `{ id: number; firstName: string; lastName?: string; username?: string }`. Same shape as `TelegramUser`. |
 | `loadConfig(env?: Record<string, string \| undefined>): Config` | Reads and checks the environment, `process.env` by default. Throws `ConfigError` naming every missing or invalid variable. |
 | `buildConfig(overrides?: Partial<Config>): Config` | A config for tests, without any environment variable. `nodeEnv` is `test`, `databasePath` is `:memory:`. |
 | `class ConfigError extends Error` | `variables: string[]` names the variables at fault. |
-| `receiptReadingEnabled(config: Config): boolean` | True when `ANTHROPIC_API_KEY` is set. |
+| `receiptReadingEnabled(config: Config): boolean` | True when `OPENAI_API_KEY` is set. |
 | `isChatIdListed(config: Config, chatId: number): boolean` | True when this exact ID is in `ALLOWED_CHAT_IDS`. Earlier IDs of an upgraded chat are not looked at; PRD 1's `isAllowedChat` does that with `group.previousChatIds`. |
 
-Variables: `NODE_ENV` (default `development`), `BOT_TOKEN`, `BOT_USERNAME` (no `@`), `MINI_APP_NAME`, `ALLOWED_CHAT_IDS`, `LINK_SECRET` (at least 32 characters), `DATABASE_PATH` (default `./data/tripsplitter.db`), `ANTHROPIC_API_KEY` (optional), `RECEIPT_MODEL` (default `claude-sonnet-5`), `RECEIPT_DAILY_CAP` (default 30), `PORT` (default 3000), `WEBHOOK_URL` (optional), `WEBHOOK_SECRET` (16 to 256 letters, digits, `_` or `-`; required when `WEBHOOK_URL` is set), `DEV_FAKE_USER` (JSON such as `{"id":1,"first_name":"Dev"}`; loading fails when it is set in production). A blank value counts as not set.
+Variables: `NODE_ENV` (default `development`), `BOT_TOKEN`, `BOT_USERNAME` (no `@`), `MINI_APP_NAME`, `ALLOWED_CHAT_IDS`, `LINK_SECRET` (at least 32 characters), `DATABASE_PATH` (default `./data/tripsplitter.db`), `OPENAI_API_KEY` (optional), `RECEIPT_MODEL` (default `gpt-6-luna`), `RECEIPT_DAILY_CAP` (default 30), `PORT` (default 3000), `WEBHOOK_URL` (optional), `WEBHOOK_SECRET` (16 to 256 letters, digits, `_` or `-`; required when `WEBHOOK_URL` is set), `DEV_FAKE_USER` (JSON such as `{"id":1,"first_name":"Dev"}`; loading fails when it is set in production). A blank value counts as not set.
 
 ## Money maths: `src/core/`
 

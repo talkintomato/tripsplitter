@@ -18,13 +18,13 @@ deps = {
   isAllowedChat: (chatId) => boolean,
   notifier: Notifier,
   suggestRate: RateSuggester,
-  readReceipt?: ReceiptReader      // defaults to the Anthropic reader; tests pass a fake
+  readReceipt?: ReceiptReader      // defaults to the OpenAI reader; tests pass a fake
 }
 ```
 
 PRD 5 wires it into the bot. The bot's own middleware has already set up the group and learned the sender before these handlers run.
 
-When `ANTHROPIC_API_KEY` is not set, a tagged photo gets the reply "Receipt reading isn't set up. Tap Add expense to enter it by hand."
+When `OPENAI_API_KEY` is not set, a tagged photo gets the reply "Receipt reading isn't set up. Tap Add expense to enter it by hand."
 
 ## Trigger
 
@@ -56,7 +56,7 @@ Every model call, including a retry, uses one reservation. Reservations are kept
 
 ## Model call
 
-- Anthropic SDK, model from `RECEIPT_MODEL`.
+- OpenAI SDK (`openai`), Responses API, model from `RECEIPT_MODEL`.
 - Structured output with this shape, validated with zod:
 
 ```

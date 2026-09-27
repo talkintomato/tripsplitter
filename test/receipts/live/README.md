@@ -1,14 +1,14 @@
 # Live receipt tests
 
-Tests in this folder call the real model. They need `ANTHROPIC_API_KEY`, cost money, and are not part of `pnpm test`.
+Tests in this folder call the real model. They need `OPENAI_API_KEY`, cost money, and are not part of `pnpm test`.
 
 Run them with:
 
 ```
-ANTHROPIC_API_KEY=... pnpm test:receipts
+OPENAI_API_KEY=... pnpm test:receipts
 ```
 
-The model is `RECEIPT_MODEL` when that variable is set, otherwise `claude-sonnet-5`. `pnpm test:receipts` does not read `.env`, so set the variables in the shell.
+The model is `RECEIPT_MODEL` when that variable is set, otherwise `gpt-6-luna`. `pnpm test:receipts` does not read `.env`, so set the variables in the shell.
 
 ## What to add
 
@@ -52,5 +52,5 @@ Receipt photos can hold card numbers and names. Check before committing them.
 One test per photo, named after it. A test fails when any of the four fields differs, and names each one that does. At the end a table lists every receipt with `ok` or what was returned against what was expected for each field, followed by the number of matches per field.
 
 - With no photos in the folder the run passes and says so. No key is needed.
-- With photos and no `ANTHROPIC_API_KEY`, the run fails with "Set ANTHROPIC_API_KEY to run the live receipt tests." and calls nothing.
+- With photos and no `OPENAI_API_KEY`, the run fails with "Set OPENAI_API_KEY to run the live receipt tests." and calls nothing.
 - A photo without its `.expected.json` fails that test before the model is called.

@@ -11,11 +11,13 @@ export {
   type ReceiptTrigger,
 } from './handlers.js';
 export {
-  createAnthropicReader,
+  createOpenAIReader,
+  receiptTextFormat,
+  RECEIPT_FORMAT_NAME,
   detectImageType,
   toReceiptReadError,
   ReceiptReadError,
-  type AnthropicReaderOptions,
+  type OpenAIReaderOptions,
   type ReceiptImage,
   type ReceiptImageType,
   type ReceiptReader,
