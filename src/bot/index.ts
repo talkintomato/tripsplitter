@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import type { Config } from '../config.js';
 import type { Notifier } from '../core/index.js';
@@ -36,6 +36,15 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   const logger = options.logger ?? consoleLogger;
   const bot = new Bot(config.botToken, options.botInfo !== undefined ? { botInfo: options.botInfo } : {});
   bot.use(groupMiddleware({ api: bot.api, config, db, logger }));
+  bot.chatType('private').command('start', async (ctx) => {
+    if (config.webhookUrl) {
+      await ctx.reply('Open Trip Split to see your groups.', {
+        reply_markup: new InlineKeyboard().webApp('Open Trip Split', config.webhookUrl),
+      });
+    } else {
+      await ctx.reply("Open Trip Split from your group's pinned message.");
+    }
+  });
   return {
     bot,
     isAllowedChat: (chatId) => isAllowedChat(config, db, chatId),

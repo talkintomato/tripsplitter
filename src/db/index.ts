@@ -8,6 +8,7 @@ export { now, nowIso, setClockForTests, singaporeDate } from './clock.js';
 export {
   ensureGroup,
   findGroupByChatId,
+  listGroupsForTelegramUser,
   getGroup,
   migrateChat,
   renameGroup,

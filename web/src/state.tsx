@@ -4,6 +4,7 @@ import type { GroupResponse, Member } from './api/types';
 
 export interface AppState {
   client: ApiClient;
+  allGroups?(): void;
   /** The group as last loaded: members, the caller, the active trip. */
   group: GroupResponse;
   /** Loads the group again, after members or trips changed. */

@@ -123,3 +123,12 @@ Run `railway up` again. Railway stops the old copy before starting the new one, 
 - The image builds and starts on a local machine. It has not been deployed to Railway.
 - Whether Telegram delivers a message again after a 502 from a sleeping app, and how long that takes.
 - Monthly cost with Serverless on.
+
+## Show an Open button on the bot's profile
+
+In @BotFather, use `/mybots`, choose your bot, and open Bot Settings → Configure Mini App
+to set its Main Mini App. Use the same public HTTPS base address as `WEBHOOK_URL`
+(for Railway, the address from step 4), without a group start parameter or webhook secret path.
+The profile's Open button and the private-chat `/start` button then open **Your groups**.
+Keep the named Mini App's address set to that same URL for the pinned group links.
+Without `WEBHOOK_URL`, private `/start` gives text directing people to their group's pinned message.

@@ -5,6 +5,7 @@ import type { GroupResponse } from './api/types';
 import { Activity } from './screens/Activity';
 import { Balances } from './screens/Balances';
 import { AddExpense, Drafts, EditExpense, ExpenseDetail } from './screens/Expense';
+import { YourGroups } from './screens/YourGroups';
 import { Home, PastTrips, TripScreen } from './screens/Home';
 import { Currencies } from './screens/Currencies';
 import { ChangeRate } from './screens/ChangeRate';
@@ -55,6 +56,7 @@ export function App(props: AppProps) {
     () => props.client ?? createApiClient({ initData: getInitData(), launch: startParam ?? '' }),
     [props.client, startParam],
   );
+  const [showGroups, setShowGroups] = useState(!startParam);
   const [group, setGroupState] = useState<GroupResponse | null>(null);
   const [entries, setEntries] = useState<string[] | null>(null);
   const [error, setError] = useState<unknown>(undefined);
@@ -81,13 +83,24 @@ export function App(props: AppProps) {
     if (startParam) void open();
   }, [open, startParam]);
 
-  if (!startParam) return <NoLink />;
+  const allGroups = () => {
+    setShowGroups(true);
+    setGroupState(null);
+    setEntries(null);
+    setError(undefined);
+  };
+  if (showGroups) return <YourGroups client={client} noTelegram={<NoLink />} onOpen={(launch) => {
+    client.setLaunch(launch);
+    setShowGroups(false);
+    void open();
+  }} />;
 
   if (error !== undefined) {
     const refused = error instanceof ApiError && (error.status === 401 || error.status === 403);
     return (
       <Page title={refused ? 'This link does not work' : 'Could not open the trip'}>
         <p role="alert">{messageOf(error)}</p>
+        <button type="button" className="link" onClick={allGroups}>All my groups</button>
         {refused ? (
           <p className="hint">Go to the group chat and tap the button on the pinned TripSplitter message.</p>
         ) : (
@@ -112,6 +125,7 @@ export function App(props: AppProps) {
   const state: AppState = {
     client,
     group,
+    allGroups,
     refresh,
     setGroup: (update) => setGroupState((current) => (current ? update(current) : current)),
   };
@@ -119,7 +133,7 @@ export function App(props: AppProps) {
   return (
     <AppProvider value={state}>
       <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
-        {group.activeTrip && !group.activeTrip.setupDone ? <TripSetup tripId={group.activeTrip.id} automatic /> : <Routes>
+        {group.activeTrip && !group.activeTrip.setupDone ? <><div className="screen all-groups"><button type="button" className="link small" onClick={allGroups}>All my groups</button></div><TripSetup tripId={group.activeTrip.id} automatic /></> : <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/trips/:tripId/setup" element={<TripSetup />} />
           <Route path="/trips/:tripId/currencies" element={<Currencies />} />

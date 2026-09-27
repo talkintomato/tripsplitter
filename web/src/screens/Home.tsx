@@ -10,8 +10,15 @@ import { useLoad } from '../useLoad';
 /** The first screen: the active trip, or the way to start one. */
 export function Home() {
   const { group } = useApp();
-  if (group.activeTrip) return <TripHome tripId={group.activeTrip.id} root />;
-  return <NoTrip />;
+  return <>
+    <AllGroups />
+    {group.activeTrip ? <TripHome tripId={group.activeTrip.id} root /> : <NoTrip />}
+  </>;
+}
+
+function AllGroups() {
+  const { allGroups } = useApp();
+  return allGroups ? <div className="screen all-groups"><button type="button" className="link small" onClick={allGroups}>All my groups</button></div> : null;
 }
 
 /** A trip opened from the list of past trips. */

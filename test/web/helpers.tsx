@@ -76,7 +76,7 @@ export function written(expense: ExpenseView): ExpenseWriteResponse {
 /** A client whose every function is a mock that fails unless the test says what it returns. */
 export function fakeClient(): { [K in keyof ApiClient]: ReturnType<typeof vi.fn> } & ApiClient {
   const names: Array<keyof ApiClient> = [
-    'request', 'setLaunch', 'getGroup', 'resetLink', 'addMember', 'claimMember', 'listActivity', 'listTrips', 'createTrip', 'getTrip',
+    'request', 'setLaunch', 'getMyGroups', 'getGroup', 'resetLink', 'addMember', 'claimMember', 'listActivity', 'listTrips', 'createTrip', 'getTrip',
     'patchTrip', 'endTrip', 'reopenTrip', 'listExpenses', 'createExpense', 'previewExpense', 'getExpense', 'saveExpense', 'confirmExpense',
     'discardExpense', 'deleteExpense', 'restoreExpense', 'getBalances', 'createSettlement', 'undoSettlement', 'restoreSettlement',
   ];

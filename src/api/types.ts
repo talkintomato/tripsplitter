@@ -219,3 +219,16 @@ export interface ApiErrorBody {
 }
 
 export type { ExpenseStatus };
+
+export interface MyGroupsResponse {
+  botUsername: string;
+  groups: Array<{
+    id: number;
+    title: string;
+    tripName: string | null;
+    /** Signed minor units of the active trip's home currency. */
+    balance: { amount: number; currency: CurrencyCode } | null;
+    draftsCount: number;
+    launch: string;
+  }>;
+}

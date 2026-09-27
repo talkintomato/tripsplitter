@@ -453,3 +453,17 @@ const group = findGroupByChatId(db, chatId);
 const { member } = upsertTelegramMember(db, systemScope(group.id), profile);
 const scope = memberScope(group.id, member.id);
 ```
+
+### Membership discovery
+
+`listGroupsForTelegramUser(db: Db, telegramUserId: number): Array<{ group: Group; member: Member }>`
+returns only that Telegram user's existing, unmerged memberships, including inactive members.
+It orders groups by latest activity timestamp descending, then activity ID and group ID descending
+for ties. Invalid IDs and people with no memberships return `[]`. It writes no rows or activity.
+Callers must authenticate the Telegram identity before using this operation to issue group links.
+
+`GET /api/my-groups` needs `Authorization: tma <initData>` alone. It returns
+`{ botUsername, groups: [{ id, title, tripName, balance: { amount, currency }, draftsCount, launch }] }`.
+`tripName` and `balance` are null without an active trip; `draftsCount` is then zero.
+Amounts are signed home-currency minor units, serialized as numbers. Launch parameters use the
+current link version and destination `home`. No request group ID is used and no membership is created.

@@ -729,3 +729,7 @@ button:disabled {
 .amount-row .currency-picker { width: auto; flex: 0 0 82px; }
 .fx { display: grid; gap: 8px; min-width: 0; }
 .fx .link { text-align: left; white-space: normal; }
+
+.group-choice { width: 100%; text-align: left; color: var(--text); background: transparent; border: 0; }
+.group-choice .row-main { overflow-wrap: anywhere; }
+.all-groups { padding-bottom: 0; }

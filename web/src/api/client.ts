@@ -17,6 +17,7 @@ import type {
   ExpensesResponse,
   ExpenseWriteResponse,
   GroupResponse,
+  MyGroupsResponse,
   MemberResponse,
   PatchTripBody,
   ResetLinkResponse,
@@ -64,6 +65,7 @@ export interface ApiClient {
   /** Replaces the start parameter, after the link was reset. */
   setLaunch(launch: string): void;
 
+  getMyGroups(): Promise<MyGroupsResponse>;
   getGroup(): Promise<GroupResponse>;
   resetLink(): Promise<ResetLinkResponse>;
   addMember(body: AddMemberBody): Promise<MemberResponse>;
@@ -115,7 +117,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         method,
         headers: {
           Authorization: `tma ${options.initData}`,
-          'X-Launch': launch,
+          ...(path === '/api/my-groups' ? {} : { 'X-Launch': launch }),
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -153,6 +155,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       launch = next;
     },
 
+    getMyGroups: () => request('GET', '/api/my-groups'),
     getGroup: () => request('GET', '/api/group'),
     resetLink: () => request('POST', '/api/group/reset-link'),
     addMember: (body) => request('POST', '/api/members', body),

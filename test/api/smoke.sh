@@ -64,6 +64,8 @@ ME="$(last 'v.me.id')"; TRIP="$(last 'v.activeTrip.id')"
 SAM="$(last 'v.members.find(m=>m.displayName==="Sam").id')"
 PRIYA="$(last 'v.members.find(m=>m.displayName==="Priya").id')"
 
+USE_LAUNCH='' check 'GET /api/my-groups without launch' 200 'v.groups.length===1 && v.groups[0].launch.length>10 && typeof v.botUsername==="string"' GET /api/my-groups
+
 check 'GET /api/trips' 200 'v.trips.length===1' GET /api/trips
 check 'PATCH /api/trips/:id' 200 'v.trip.name==="Smoke trip"' PATCH "/api/trips/$TRIP" '{"name":"Smoke trip"}'
 check 'PATCH with one bad field changes nothing' 400 'v.error.code==="unsupported_currency"' PATCH "/api/trips/$TRIP" '{"name":"Nope","homeCurrency":"EUR"}'

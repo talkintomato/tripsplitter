@@ -175,3 +175,18 @@ export function resetLink(db: Db, scope: Scope): Group {
     return after;
   })();
 }
+
+/** Existing memberships only, active or inactive, newest group activity first. Writes nothing. */
+export function listGroupsForTelegramUser(db: Db, telegramUserId: number): Array<{ group: Group; member: Member }> {
+  if (!isId(telegramUserId)) return [];
+  const rows = db.prepare(`
+    SELECT m.* FROM member m JOIN chat_group g ON g.id = m.group_id
+    WHERE m.telegram_user_id = ? AND m.merged_into IS NULL
+    ORDER BY COALESCE((SELECT MAX(a.created_at) FROM activity a WHERE a.group_id = g.id), g.created_at) DESC,
+      (SELECT MAX(a.id) FROM activity a WHERE a.group_id = g.id) DESC, g.id DESC
+  `).all(telegramUserId);
+  return rows.map((row) => {
+    const member = mapMember(row);
+    return { group: readGroup(db, member.groupId)!, member };
+  });
+}

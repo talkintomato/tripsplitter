@@ -92,3 +92,12 @@ To restore, stop the app cleanly first. Keep a copy of the existing database and
 ## Check before inviting everyone
 
 Use two Telegram accounts to check the [PRD 5 end-to-end list](prds/5-currency-launch.md#end-to-end-check), including a third account joining by link, reset-link refusal, SGD/JPY setup, receipt handling, balance previews, stale edits and trip ending. This repository build does not prove the real Telegram signature, BotFather settings, OpenAI model access or your host's HTTPS forwarding: those need your deployed test group. The expense-form currency picker, per-expense rate controls and rate-source detail are deferred to the next integration stage, so the full launch checklist cannot yet be signed off.
+
+## Show an Open button on the bot's profile
+
+In @BotFather, use `/mybots`, choose your bot, and open Bot Settings → Configure Mini App
+to set its Main Mini App. Use the same public HTTPS base address as `WEBHOOK_URL`
+(for Railway, the address from step 4), without a group start parameter or webhook secret path.
+The profile's Open button and the private-chat `/start` button then open **Your groups**.
+Keep the named Mini App's address set to that same URL for the pinned group links.
+Without `WEBHOOK_URL`, private `/start` gives text directing people to their group's pinned message.
