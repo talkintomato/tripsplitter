@@ -102,6 +102,10 @@ const envSchema = z.object({
   RECEIPT_MODEL: z.preprocess(blankToUndefined, z.string().default('gpt-6-luna')),
   RECEIPT_DAILY_CAP: positiveInt(30),
   RECEIPT_GLOBAL_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(300)),
+  AGENT_ENABLED: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional()),
+  AGENT_MODEL: z.preprocess(blankToUndefined, z.string().trim().min(1).default('gpt-6-luna')),
+  AGENT_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(100)),
+  AGENT_GLOBAL_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(1000)),
   PORT: positiveInt(3000),
   NODE_ENV: z.preprocess(blankToUndefined, z.enum(['development', 'test', 'production']).default('development')),
   DEV_FAKE_USER: fakeUser,
@@ -144,6 +148,10 @@ export interface Config {
   receiptDailyCap: number;
   /** RECEIPT_GLOBAL_DAILY_CAP. Zero disables the overall limit. */
   receiptGlobalDailyCap: number;
+  agentEnabled: boolean;
+  agentModel: string;
+  agentDailyCap: number;
+  agentGlobalDailyCap: number;
   /** PORT */
   port: number;
   /** NODE_ENV */
@@ -198,6 +206,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     receiptModel: e.RECEIPT_MODEL,
     receiptDailyCap: e.RECEIPT_DAILY_CAP,
     receiptGlobalDailyCap: e.RECEIPT_GLOBAL_DAILY_CAP,
+    agentEnabled: e.AGENT_ENABLED === undefined ? e.OPENAI_API_KEY !== undefined : e.AGENT_ENABLED === 'true',
+    agentModel: e.AGENT_MODEL,
+    agentDailyCap: e.AGENT_DAILY_CAP,
+    agentGlobalDailyCap: e.AGENT_GLOBAL_DAILY_CAP,
     port: e.PORT,
     nodeEnv: e.NODE_ENV,
     devFakeUser: e.DEV_FAKE_USER,
@@ -234,6 +246,10 @@ function buildUnchecked(overrides: Partial<Config>): Config {
     receiptModel: 'gpt-6-luna',
     receiptDailyCap: 30,
     receiptGlobalDailyCap: 300,
+    agentEnabled: Boolean(overrides.openaiApiKey),
+    agentModel: 'gpt-6-luna',
+    agentDailyCap: 100,
+    agentGlobalDailyCap: 1000,
     port: 3000,
     nodeEnv: 'test',
     devFakeUser: undefined,

@@ -7,6 +7,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.{ts,tsx}'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'test/receipts/live/**', 'test/fx/live/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'test/receipts/live/**', 'test/fx/live/**', 'test/agent/live/**'],
   },
 });

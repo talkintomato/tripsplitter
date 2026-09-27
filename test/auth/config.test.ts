@@ -30,6 +30,10 @@ describe('loadConfig', () => {
       receiptModel: 'gpt-6-luna',
       receiptDailyCap: 30,
       receiptGlobalDailyCap: 300,
+      agentEnabled: false,
+      agentModel: 'gpt-6-luna',
+      agentDailyCap: 100,
+      agentGlobalDailyCap: 1000,
       port: 3000,
       nodeEnv: 'development',
       devFakeUser: undefined,
@@ -144,11 +148,28 @@ describe('.env.example', () => {
     expect(names.sort()).toEqual(
       [
         'NODE_ENV', 'BOT_TOKEN', 'BOT_USERNAME', 'MINI_APP_NAME', 'ALLOWED_CHAT_IDS', 'LINK_SECRET', 'DATABASE_PATH',
-        'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
+        'AGENT_ENABLED', 'AGENT_MODEL', 'AGENT_DAILY_CAP', 'AGENT_GLOBAL_DAILY_CAP', 'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
       ].sort(),
     );
     expect(text).not.toMatch(/sk-[A-Za-z0-9]/);
     expect(text).toMatch(/^OPENAI_API_KEY=$/m);
     expect(text).toMatch(/^BOT_TOKEN=000000000:replace/m);
+  });
+});
+
+describe('agent settings', () => {
+  it('defaults enabled from the key, and supports explicit true/false', () => {
+    expect(loadConfig(required)).toMatchObject({agentEnabled:false,agentModel:'gpt-6-luna',agentDailyCap:100,agentGlobalDailyCap:1000});
+    expect(loadConfig({...required,OPENAI_API_KEY:'placeholder'}).agentEnabled).toBe(true);
+    expect(loadConfig({...required,OPENAI_API_KEY:'placeholder',AGENT_ENABLED:'false'}).agentEnabled).toBe(false);
+    expect(loadConfig({...required,AGENT_ENABLED:'true',AGENT_MODEL:'test-model',AGENT_DAILY_CAP:'7',AGENT_GLOBAL_DAILY_CAP:'0'})).toMatchObject({agentEnabled:true,agentModel:'test-model',agentDailyCap:7,agentGlobalDailyCap:0});
+    expect(loadConfig({...required,OPENAI_API_KEY:'  ',AGENT_ENABLED:''}).agentEnabled).toBe(false);
+    expect(buildConfig({openaiApiKey:'fake'}).agentEnabled).toBe(true);
+    expect(loadConfig({...required,AGENT_DAILY_CAP:'0'}).agentDailyCap).toBe(0);
+  });
+  it('names invalid booleans, negative/fractional/unsafe caps', () => {
+    expect(failure({...required,AGENT_ENABLED:'yes'}).variables).toEqual(['AGENT_ENABLED']);
+    for(const name of ['AGENT_DAILY_CAP','AGENT_GLOBAL_DAILY_CAP'])
+      for(const value of ['-1','1.5','no','9007199254740992'])expect(failure({...required,[name]:value}).variables).toEqual([name]);
   });
 });
