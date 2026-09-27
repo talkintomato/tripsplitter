@@ -14,7 +14,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { loadConfig, type Config } from '../config.js';
 import { encodeLaunch, type Notifier, type RateSuggester } from '../core/index.js';
-import { ensureGroup, openDatabase, type Db } from '../db/index.js';
+import { createExpense, ensureGroup, getOrCreateActiveTrip, openDatabase, type CreateExpenseInput, type Db } from '../db/index.js';
 import { createApi } from './index.js';
 import { registerHealth } from './health.js';
 
@@ -88,6 +88,21 @@ export function createDevApp(config: Config, db: Db, webRoot = resolve('web/dist
   app.get('/dev/launch', (c) => {
     const launch = devLaunch(config, db);
     return c.json({ launch, url: `http://localhost:${config.port}/?startapp=${launch}` });
+  });
+  // A receipt draft, made the way the bot's receipt reader makes one: through the database operation, acting as
+  // the payer. People cannot create drafts through the API. Development only: src/main.ts has no such route.
+  app.post('/dev/receipt-draft', async (c) => {
+    devLaunch(config, db);
+    const { group } = ensureGroup(db, DEV_CHAT_ID, 'Dev trip', []);
+    const body = (await c.req.json()) as Omit<CreateExpenseInput, 'tripId' | 'status'>;
+    const scope = { groupId: group.id, actor: { kind: 'member' as const, memberId: body.payerId } };
+    try {
+      const { trip } = getOrCreateActiveTrip(db, scope);
+      const expense = createExpense(db, scope, { ...body, tripId: trip.id, status: 'draft' });
+      return c.json({ expense: { id: expense.id, version: expense.version, status: expense.status, currency: expense.currency, fxRateSource: expense.fxRateSource } }, 201);
+    } catch (error) {
+      return c.json({ error: { message: error instanceof Error ? error.message : String(error) } }, 400);
+    }
   });
   app.route('/', createApi(config, db, { notifier: createConsoleNotifier(), suggestRate: devRateSuggester }));
   if (existsSync(webRoot)) {

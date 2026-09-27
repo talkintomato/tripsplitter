@@ -23,7 +23,7 @@ export function TripSetup(props: { tripId?: number; automatic?: boolean; leading
 }
 
 function SetupForm({ trip: initial, existing, automatic }: { trip: Trip; existing: Record<string, string>; automatic: boolean }) {
-  const { client, refresh } = useApp();
+  const { client, refresh, group } = useApp();
   const navigate = useNavigate();
   const api = ratesApi(client);
   const [trip, setTrip] = useState(initial);
@@ -95,7 +95,7 @@ function SetupForm({ trip: initial, existing, automatic }: { trip: Trip; existin
       <p className="field-hint">Saving records these as rates set by you. Rates already saved stay on the trip even if unticked here.</p>
       {previews ? Object.entries(previews).map(([currency, preview]) => <section className="card card-pad" key={currency}>
         <p className="sub-head">1 {trip.homeCurrency} = {rates[currency]} {currency}</p>
-        <RateComparison preview={preview} home={trip.homeCurrency} />
+        <RateComparison preview={preview} home={trip.homeCurrency} members={group.members} />
       </section>) : null}
       <button className="btn btn-primary btn-block btn-lg" disabled={busy || Object.values(rates).some((rate) => !isValidRate(rate))} onClick={() => void run(async () => {
         if (previews === null) {

@@ -40,6 +40,9 @@ describe('openDatabase', () => {
     const tables = (db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all() as Array<{ name: string }>).map((r) => r.name);
     expect(tables).toEqual([
       'activity',
+      'agent_proposal',
+      'agent_turn',
+      'agent_usage',
       'chat_alias',
       'chat_group',
       'currency',
@@ -67,7 +70,7 @@ describe('openDatabase', () => {
     expect(columns('expense')).toEqual([
       'id', 'trip_id', 'created_by', 'payer_id', 'description', 'merchant', 'expense_date', 'total', 'tax', 'tax_included', 'tip',
       'service_charge', 'discount', 'currency', 'currency_needs_review', 'fx_rate', 'fx_rate_source', 'split_type', 'receipt_file_id',
-      'status', 'status_before_removal', 'version', 'created_at', 'updated_at',
+      'status', 'status_before_removal', 'version', 'created_at', 'updated_at', 'emoji',
     ]);
     expect(columns('expense_item')).toEqual(['id', 'expense_id', 'label', 'quantity', 'amount', 'position']);
     expect(columns('share')).toEqual(['id', 'member_id', 'weight', 'expense_id', 'item_id']);
@@ -79,12 +82,16 @@ describe('openDatabase', () => {
   it('records migrations and applies each one once', () => {
     const path = join(tempDir(), 'test.db');
     const first = openDatabase(path);
-    expect(first.prepare('SELECT id, name FROM migration').all()).toEqual([{ id: 1, name: '001_init.sql' }]);
+    expect(first.prepare('SELECT id, name FROM migration ORDER BY id').all()).toEqual([
+      { id: 1, name: '001_init.sql' },
+      { id: 2, name: '002_agent.sql' },
+      { id: 3, name: '003_expense_emoji.sql' },
+    ]);
     expect(migrate(first)).toEqual([]);
     first.close();
     const second = openDatabase(path);
     open.push(second);
-    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 1 });
+    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 3 });
   });
 
   it('applies numbered files in order, and rolls back one that fails', () => {

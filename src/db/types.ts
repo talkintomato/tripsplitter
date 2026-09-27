@@ -105,6 +105,8 @@ export interface Expense {
   fxRateSource: RateSource;
   splitType: SplitType;
   receiptFileId: string | null;
+  /** An emoji chosen as the expense's picture, or null. */
+  emoji: string | null;
   status: ExpenseStatus;
   /** For a discarded or deleted expense: the status that restoring returns it to. Otherwise null. */
   statusBeforeRemoval: 'draft' | 'confirmed' | null;
@@ -274,6 +276,8 @@ export interface ExpenseInput {
   splitType: SplitType;
   /** Create: defaults to null. Save: left out keeps it, null removes it. */
   receiptFileId?: string | null;
+  /** One emoji as the expense's picture. Create: defaults to null. Save: left out keeps it, null removes it. */
+  emoji?: string | null;
   /** Receipt lines in order. Default: none. Kept on the expense whatever the split type. */
   items?: ExpenseItemInput[];
   /** Members included in the expense. */

@@ -122,9 +122,19 @@ export function registerGroupRoutes(app: Hono<ApiEnv>, { config, db, deps }: Ser
     const { scope } = c.get('caller');
     const tripId = positiveQuery(c.req.query('tripId'), 'tripId');
     const before = positiveQuery(c.req.query('before'), 'before');
+    // One record's history: both are needed, or neither.
+    const entityType = c.req.query('entityType');
+    const entityId = positiveQuery(c.req.query('entityId'), 'entityId');
+    if ((entityType === undefined || entityType === '') !== (entityId === undefined)) {
+      throw new ValidationError('invalid_input', 'Give both "entityType" and "entityId", or neither.');
+    }
+    if (entityType !== undefined && entityType !== '' && entityType !== 'expense' && entityType !== 'settlement') {
+      throw new ValidationError('invalid_input', '"entityType" must be expense or settlement.');
+    }
     const rows = listActivity(db, scope, {
       ...(tripId !== undefined ? { tripId } : {}),
       ...(before !== undefined ? { before } : {}),
+      ...(entityId !== undefined ? { entity: { type: entityType as 'expense' | 'settlement', id: entityId } } : {}),
       limit: ACTIVITY_PAGE_SIZE + 1,
     });
     const page = rows.slice(0, ACTIVITY_PAGE_SIZE);

@@ -111,3 +111,24 @@ export function stakeText(stake: { kind: 'lent' | 'borrowed' | 'none'; amount: n
   if (!stake || stake.kind === 'none' || stake.amount <= 0) return null;
   return `you ${stake.kind} ${money(stake.amount, stake.currency)}`;
 }
+
+/** "Today 14:05", "Yesterday 09:30", "25 Sep 18:20", with the year when it is not this year. In the phone's time zone. */
+export function whenText(iso: string, now: Date = new Date()): string {
+  const moment = new Date(iso);
+  if (Number.isNaN(moment.getTime())) return iso;
+  const time = `${String(moment.getHours()).padStart(2, '0')}:${String(moment.getMinutes()).padStart(2, '0')}`;
+  const day = today(moment);
+  if (day === today(now)) return `Today ${time}`;
+  if (day === today(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) return `Yesterday ${time}`;
+  const date = `${moment.getDate()} ${MONTHS[moment.getMonth()]}`;
+  return moment.getFullYear() === now.getFullYear() ? `${date} ${time}` : `${date} ${moment.getFullYear()} ${time}`;
+}
+
+const LEADING_EMOJI = /^(\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s*/u;
+
+/** The emoji a title starts with, such as 🍜 in "🍜 Ramen", and the title without it. */
+export function splitEmoji(title: string): { emoji: string | null; rest: string } {
+  const match = LEADING_EMOJI.exec(title.trim());
+  if (!match) return { emoji: null, rest: title.trim() };
+  return { emoji: match[1]!, rest: title.trim().slice(match[0].length) };
+}

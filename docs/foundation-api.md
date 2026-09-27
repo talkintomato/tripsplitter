@@ -398,7 +398,7 @@ A draft may be incomplete: no shares, a total of zero, items that do not add up.
 | Operation | Description |
 |---|---|
 | `listActivity(db: Db, scope: Scope, options?: ListActivityOptions): Activity[]` | Newest first. |
-| `interface ListActivityOptions` | `{ tripId?: number; before?: number; limit?: number }`. `before` is the ID of the last entry of the previous page. `limit` defaults to 50, at most 200. |
+| `interface ListActivityOptions` | `{ tripId?: number; before?: number; limit?: number; entity?: { type: 'expense' \| 'settlement'; id: number } }`. `before` is the ID of the last entry of the previous page. `limit` defaults to 50, at most 200. `entity` keeps only the entries about that one expense or settlement, including those written by other operations that changed it (a trip rate change, a member merge); a record of another group throws `NotFoundError`. |
 
 There is no operation that writes, changes or removes an entry. Triggers refuse UPDATE and DELETE on the table.
 
@@ -467,3 +467,104 @@ Callers must authenticate the Telegram identity before using this operation to i
 `tripName` and `balance` are null without an active trip; `draftsCount` is then zero.
 Amounts are signed home-currency minor units, serialized as numbers. Launch parameters use the
 current link version and destination `home`. No request group ID is used and no membership is created.
+
+## Chat agent Phase A: migration 002 and `src/agent/index.ts`
+
+Migration `002_agent.sql` adds only `agent_proposal`, `agent_turn` and `agent_usage`.
+Existing tables and operations are unchanged by Phase A. These tables never write activity.
+Proposals have random UUIDs, validated action plans and code-built summaries, JSON versions,
+owner/group/chat IDs, an optional message ID, a 15-minute expiry, and pending/done/cancelled/expired status.
+Usage rows reserve messages atomically in an immediate transaction, using Singapore days.
+
+New exports from `src/db/index.js`:
+
+```ts
+createProposal(db: Db, scope: Scope, input: {
+  chatId: number; messageId?: number; actions: unknown[]; summary: string;
+  versions: unknown; now: Date;
+}): AgentProposal
+getProposal(db: Db, id: string): AgentProposal | undefined
+finishProposal(db: Db, scope: Scope, id: string,
+  status: 'done' | 'cancelled' | 'expired'): boolean
+appendTurn(db: Db, scope: Scope, chatId: number,
+  role: 'user' | 'assistant', content: string, now: Date): void
+recentTurns(db: Db, scope: Scope, chatId: number, now: Date): AgentTurn[]
+forgetExpiredTurns(db: Db, now: Date): number
+reserveAgentMessage(db: Db, groupId: number, cap: number,
+  now: Date, globalCap?: number): boolean
+rememberChosenGroup(db: Db, scope: Scope, chatId: number, now: Date): void
+chosenGroup(db: Db, telegramUserId: number, chatId: number):
+  { groupId: number; memberId: number } | undefined
+```
+
+`getProposal` is a trusted callback lookup. Check the authenticated member before exposing its contents;
+use `confirmProposal`/`cancelProposal` to apply those checks. `createProposal` accepts already validated
+plans from the agent service; it is not a model-facing tool. It cancels earlier pending offers for the
+same person/chat, including that Telegram person's memberships in other groups. `finishProposal` is
+a scoped compare-and-set from pending and returns whether it changed a row.
+
+A turn is an individual user or assistant message. Retention is at most eight messages per person/chat,
+including across private-chat group switches; history returned to the model is additionally isolated
+by group membership. The entire conversation expires after 30 minutes idle. Reads and appends purge
+expired conversations; Phase B should also schedule `forgetExpiredTurns` to purge during idle periods.
+Private choices use the reserved `agent_turn.role = 'chosen_group'` and empty content so the migration
+still has three tables. Choices are not conversation turns, are not sent to the model, and do not expire.
+`chosenGroup` accepts an authenticated Telegram identity and rechecks its unmerged membership.
+
+New config fields are `agentEnabled`, `agentModel`, `agentDailyCap`, `agentGlobalDailyCap`.
+Their environment variables are `AGENT_ENABLED` (strict true/false, blank follows presence of the API key),
+`AGENT_MODEL` (gpt-6-luna), `AGENT_DAILY_CAP` (100), `AGENT_GLOBAL_DAILY_CAP` (1000).
+A per-group cap of zero refuses every message; a global cap of zero disables that limit.
+
+The Phase B entry point is `src/agent/index.js`; its file header documents the integration contract:
+
+```ts
+interface AgentModel {
+  respond(input: AgentModelInput): Promise<AgentModelOutput>;
+}
+interface AgentDeps { model: AgentModel; suggestRate: RateSuggester }
+runAgentTurn(db: Db, config: Config, deps: AgentDeps, input: {
+  groupId: number; memberId: number; chatId: number; text: string; now: Date;
+}): Promise<AgentTurnResult>
+confirmProposal(db: Db, deps: ConfirmationDeps, input: ProposalDecision): ConfirmationResult
+cancelProposal(db: Db, deps: ConfirmationDeps, input: ProposalDecision): ConfirmationResult
+// applyProposal is an alias of confirmProposal. ConfirmationDeps is currently {}.
+// ProposalDecision = { proposalId: string; memberId: number; now: Date }
+```
+
+`AgentModelInput` contains `instruction`, `conversation`, `trip` (an `untrusted_data` envelope),
+`tools` (JSON schemas), `message`, ordered `steps` of calls/results, and `remainingToolCalls`.
+Outputs are `{ kind: 'text', text }` or `{ kind: 'tool_calls', calls: [{ id, name, arguments }] }`.
+There is no OpenAI implementation. Tests use `test/agent/fakeModel.ts`.
+`AgentTurnResult` is reply/text, proposal/proposalId/summary/confirmLabel, limit, or unavailable.
+Each message reserves usage once, including failures, and executes at most six tool calls.
+All tool results, errors, names and receipt descriptions are wrapped as untrusted data.
+
+`ConfirmationResult` is done/notices, not_yours/text, expired/text, changed/text,
+already_done/text, or refused/reason. The transaction applies all actions, their foundation activity,
+and the done status together. Only the first successful confirmation returns `AgentNotice[]`.
+Each notice has a `method` naming a `Notifier` method and its correctly typed `payload`.
+Phase B sends these after commit, to the group's current Telegram chat. Cancellation returns no notices.
+This is an at-most-once handoff, not a durable notification outbox; transport failures or process crashes
+must not cause a second application. Render summaries as plain text (or escape for the chosen parse mode).
+
+All 23 PRD tools are exported through `registry`, `toolDefinitions`, and
+`runTool(context: ToolContext, name: string, args: unknown): Promise<ToolOutcome>`.
+Reading tools return data; changing tools return in-memory validated plans without changing any table.
+`createAgentProposal` combines those plans and persists one offer. `proposalVersions` captures expense
+and settlement versions plus a conservative group activity revision; *any* intervening activity in that
+group invalidates an offer, including a member rename or a changed default everyone split.
+Activity in another group does not invalidate it. Partial edits preserve loaded expense fields and items.
+Receipt drafts may be edited but only `approve_draft` confirms them; `add_expense` always confirms.
+Suggested rates are explicit proposed actions with origin suggested; null/invalid/failed suggestions ask
+for a rate. Equivalent rate actions are deduplicated and applied before expense actions; summaries are
+recomputed against those rates. Conflicting rates and multiple separate mutations of the same expense
+or settlement are refused; combine field changes into one edit tool call. Other actions retain their order.
+All arithmetic comes from foundation functions.
+
+`test/agent/live/**` is excluded from normal Vitest runs. Phase C should add a dedicated live config and
+package script, e.g. `test:agent: vitest run --config vitest.agent.config.ts`, following receipt/fx live tests.
+Phase A does not change package scripts, wire Telegram handlers, implement a real model, or add live tests.
+
+`AgentModelInput.today` also supplies the Singapore calendar date (`YYYY-MM-DD`) from the caller's
+`now`, so a provider can interpret relative dates without guessing the server timezone.

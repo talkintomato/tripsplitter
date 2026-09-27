@@ -2,11 +2,14 @@ import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'r
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
 import { isValidRate } from '../../../src/core/rates';
 import { ApiError, messageOf, type ApiClient } from '../api/client';
-import { ratesApi } from '../api/rates';
 import type { ExpenseView, ExpenseWriteResponse, Member } from '../api/types';
-import { Banner } from '../components/ui';
-import { ChevronDown } from '../components/icons';
-import { amountText, dayLabel, dayText, money, nameOf } from '../format';
+import { Badge, Banner } from '../components/ui';
+import { ChevronDown, ChevronRight, Smile } from '../components/icons';
+import { RateSheet } from './RateSheet';
+import type { TripRateApplied } from '../api/useTripRateChange';
+import { amountText, dayLabel, money, nameOf } from '../format';
+import { EmojiPicker } from './EmojiPicker';
+import { expenseChanges } from '../expenseChanges';
 import {
   formMembers,
   includedShares,
@@ -35,9 +38,9 @@ export interface ExpenseFormProps {
   /** Called with the saved expense. */
   onSaved(result: ExpenseWriteResponse): void;
   onCancel?(): void;
+  /** Opens the exchange rate sheet straight away, as "Change" on the expense's detail does. */
+  openRateSheet?: boolean;
 }
-
-const SPLIT_WORDS = { even: 'Equally', portions: 'By portions', items: 'By item' } as const;
 
 function decimalsOf(currency: string): number {
   try {
@@ -47,50 +50,21 @@ function decimalsOf(currency: string): number {
   }
 }
 
-function peopleText(members: ReadonlyArray<Member>, shares: Array<{ memberId: number; weight?: number }>, portions: boolean): string {
-  if (shares.length === 0) return 'Nobody';
-  return shares.map((s) => `${nameOf(members, s.memberId)}${portions ? ` × ${s.weight ?? 1}` : ''}`).join(', ');
-}
-
 /** The lines where the latest saved version differs from what the member has typed. */
 function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, latest: ExpenseView): Array<{ label: string; mine: string; latest: string }> {
-  const theirs = stateFromExpense(latest);
-  const rows: Array<{ label: string; mine: string; latest: string }> = [];
-  const add = (label: string, a: string, b: string): void => {
-    if (a !== b) rows.push({ label, mine: a || '(empty)', latest: b || '(empty)' });
-  };
-  add('Description', mine.description.trim(), theirs.description.trim());
-  const mineTotal = parseAmount(mine.amountText, mine.currency);
-  add('Amount', mineTotal === null ? mine.amountText : money(mineTotal, mine.currency), money(latest.total, latest.currency));
-  add('Currency', mine.currency, theirs.currency);
-  if (mine.rateOverride !== undefined) add('Rate for this expense', mine.rateOverride ?? 'Trip rate', latest.fxRateSource === 'expense' ? latest.fxRate ?? '' : 'Trip rate');
-  add('Date', dayText(mine.expenseDate), dayText(theirs.expenseDate));
-  add('Paid by', nameOf(members, mine.payerId), nameOf(members, theirs.payerId));
-  add('Split', SPLIT_WORDS[mine.splitType], SPLIT_WORDS[theirs.splitType]);
-  const sorted = (state: ExpenseFormState) => includedShares(state).sort((a, b) => a.memberId - b.memberId);
-  add('People', peopleText(members, sorted(mine), mine.splitType === 'portions'), peopleText(members, sorted(theirs), theirs.splitType === 'portions'));
-  if (mine.splitType === 'items' || theirs.splitType === 'items') {
-    const figure = (state: ExpenseFormState, value: number): string => (value === 0 ? '' : money(value, state.currency));
-    add('Tax', `${figure(mine, mine.tax)}${mine.tax > 0 && mine.taxIncluded ? ', in the prices' : ''}`, `${figure(theirs, theirs.tax)}${theirs.tax > 0 && theirs.taxIncluded ? ', in the prices' : ''}`);
-    add('Tip', figure(mine, mine.tip), figure(theirs, theirs.tip));
-    add('Service charge', figure(mine, mine.serviceCharge), figure(theirs, theirs.serviceCharge));
-    add('Discount', figure(mine, mine.discount), figure(theirs, theirs.discount));
-    const itemText = (state: ExpenseFormState, index: number): string => {
-      const item = state.items[index];
-      if (!item) return '';
-      const who = (item.shares ?? []).filter((s) => state.included.includes(s.memberId)).sort((a, b) => a.memberId - b.memberId);
-      return `${item.label}${(item.quantity ?? 1) !== 1 ? ` ×${item.quantity}` : ''}, ${money(item.amount, state.currency)}, ${who.length === 0 ? 'everyone' : peopleText(members, who, false)}`;
-    };
-    for (let i = 0; i < Math.max(mine.items.length, theirs.items.length); i++) add(`Item ${i + 1}`, itemText(mine, i), itemText(theirs, i));
-  }
-  return rows;
+  // Only when the member set or cleared the expense's own rate in this session.
+  const rate: [string, string] | undefined = mine.rateOverride !== undefined
+    ? [mine.rateOverride ?? 'Trip rate', latest.fxRateSource === 'expense' ? latest.fxRate ?? '' : 'Trip rate']
+    : undefined;
+  return expenseChanges(members, mine, stateFromExpense(latest), { rate, rateLabel: 'Rate for this expense' }).map((row) => ({ label: row.label, mine: row.before, latest: row.after }));
 }
 
 /** Create, edit, and finish a draft. The body under the switch comes from the split type registry. */
 export function ExpenseForm(props: ExpenseFormProps) {
   const { client, members } = props;
   const [expense, setExpense] = useState(props.expense);
-  const [tripRate, setTripRate] = useState('');
+  // The currency a new expense was refused in for want of a rate. The rate row then asks for one.
+  const [refusedCurrency, setRefusedCurrency] = useState<string | null>(null);
   const [roundingNote, setRoundingNote] = useState('');
   const [state, setState] = useState<ExpenseFormState>(() =>
     expense ? stateFromExpense(expense) : newExpenseState({ members, meId: props.meId, currency: props.homeCurrency }),
@@ -102,6 +76,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const [error, setError] = useState<unknown>(undefined);
   const [touched, setTouched] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
+  const [emojiSheet, setEmojiSheet] = useState(false);
+  const [rateSheet, setRateSheet] = useState(props.openRateSheet === true && props.expense !== undefined && props.expense.currency !== props.homeCurrency);
   // Opened from the start when the expense is not the plain case: a draft, a split by item, its own rate.
   const [moreOpen, setMoreOpen] = useState(() => expense?.status === 'draft' || expense?.splitType === 'items' || expense?.fxRateSource === 'expense');
 
@@ -126,7 +102,9 @@ export function ExpenseForm(props: ExpenseFormProps) {
   } : null), [asksServer, state, total, rateProblem, currency, props.tripId, expense]);
   const server = useServerPreview(client, asked);
   const fx = server.status === 'ready' ? server.result?.fx : undefined;
-  const needsTripRate = foreign && expense?.currency === currency && expense.fxRateSource === 'missing' && state.rateOverride == null && (!fx || fx.fxRateSource === 'missing');
+  // No rate for this currency, and none could be looked up: the trip needs one before this can be saved.
+  const rateNeeded = foreign && state.rateOverride == null && (!fx || fx.fxRateSource === 'missing')
+    && ((expense?.currency === currency && expense.fxRateSource === 'missing') || refusedCurrency === currency);
   const shown = { amounts: server.status === 'ready' ? server.result?.amounts ?? null : null, problems: server.status === 'ready' ? server.result?.problems ?? [] : [] };
 
   const amountProblem =
@@ -140,6 +118,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const peopleProblem = includedShares(state).length === 0 ? 'Choose at least one person.' : null;
   const typeProblem = Body === null ? 'Choose how to split: evenly or by portions.' : null;
   const currencyProblem = state.currencyNeedsReview && !state.currencyChecked ? `Check the currency first: is this in ${currency}?` : null;
+  const rateNeededProblem = rateNeeded ? `Set the exchange rate for ${currency} to save this expense.` : null;
   const unreadable = total === null ? amountProblem : null;
   // With the server's answer: Save is off while the answer is missing or reports a problem.
   const serverProblem = !asksServer
@@ -153,45 +132,31 @@ export function ExpenseForm(props: ExpenseFormProps) {
         : (server.result?.problems[0]?.message ?? null);
   const blocked = entry.serverPreview === true && (unreadable !== null || serverProblem !== null);
   const firstProblem = asksServer
-    ? (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? serverProblem)
-    : (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? shown.problems[0]?.message ?? null);
+    ? (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? rateNeededProblem ?? serverProblem)
+    : (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? rateNeededProblem ?? shown.problems[0]?.message ?? null);
 
+  /**
+   * `save`: saves a new expense or an edit, and approves a receipt draft. `draft`: only for a receipt draft being
+   * edited, "Save changes, approve later". A person's own expense is never kept as a draft.
+   */
   async function submit(kind: 'save' | 'draft', useVersion = version): Promise<void> {
     setTouched(true);
     setError(undefined);
-    // A draft may be incomplete, but what is typed must still be readable.
+    if (kind === 'draft' && !isDraft) return;
+    // A draft put aside may be incomplete, but what is typed must still be readable.
     if (kind === 'draft' ? total === null : firstProblem !== null) return;
-    if (kind === 'save' && needsTripRate && !isValidRate(tripRate)) {
-      setError(new ApiError(400, 'rate_missing', 'Enter the trip rate above zero, with up to 6 decimal places.'));
-      return;
-    }
     const input = toExpenseInput(state, total ?? 0);
-    // A draft may be incomplete: a rate that cannot be read yet is left out, not sent.
+    // A rate that cannot be read yet is left out, not sent.
     if (rateProblem !== null) delete input.rateOverride;
     setBusy(kind);
     try {
-      if (kind === 'save' && needsTripRate && expense) {
-        const api = ratesApi(client);
-        const preview = await api.preview(expense.tripId, currency, tripRate);
-        const applied = await api.apply(expense.tripId, currency, tripRate, preview.snapshot).catch((problem: unknown) => {
-          if (problem instanceof ApiError && problem.stale) throw new ApiError(400, 'invalid_input', 'The trip changed. Check the rate and try saving again.');
-          throw problem;
-        });
-        const changed = applied.updatedExpenses.find((item) => item.id === expense.id);
-        // Advance only over our own rate change, never over someone else's edit.
-        if (changed && changed.version === useVersion + 1) {
-          useVersion = changed.version;
-          setVersion(useVersion);
-        }
-        setExpense({ ...expense, fxRate: tripRate, fxRateSource: 'trip', notice: null });
-        server.retry();
-      }
       let result: ExpenseWriteResponse;
       if (expense === undefined) {
-        result = await client.createExpense(props.tripId, { ...input, status: kind === 'draft' ? 'draft' : 'confirmed' });
+        result = await client.createExpense(props.tripId, { ...input, status: 'confirmed' });
       } else {
         result = await client.saveExpense(expense.id, { ...input, version: useVersion, ...(isDraft && kind === 'save' ? { confirm: true } : {}) });
       }
+      // Approving a receipt draft can leave it a draft, with its changes saved, when no rate could be found.
       if (kind === 'save' && (result.keptAsDraft || result.expense.status !== 'confirmed')) {
         setExpense(result.expense);
         setVersion(result.expense.version);
@@ -204,11 +169,27 @@ export function ExpenseForm(props: ExpenseFormProps) {
       if (problem instanceof ApiError && problem.stale && problem.current) {
         setLatest(problem.current as ExpenseView);
       } else {
+        // Nothing was saved. When a rate is what is missing, the rate row asks for one.
+        if (problem instanceof ApiError && problem.code === 'rate_missing') setRefusedCurrency(currency);
         setError(problem);
       }
     } finally {
       setBusy(null);
     }
+  }
+
+  /** The trip's rate was changed from the sheet: this expense now uses it. */
+  function tripRateApplied(result: TripRateApplied, rate: string): void {
+    if (expense) {
+      const changed = result.updatedExpenses.find((item) => item.id === expense.id);
+      // Advance only over our own rate change, never over someone else's edit.
+      if (changed && changed.version === version + 1) setVersion(changed.version);
+      setExpense({ ...expense, fxRate: rate, fxRateSource: 'trip', notice: null });
+    }
+    setRefusedCurrency(null);
+    if (state.rateOverride != null || fx?.fxRateSource === 'expense') update({ rateOverride: null });
+    setError(undefined);
+    server.retry();
   }
 
   function onSubmit(event: FormEvent): void {
@@ -222,16 +203,13 @@ export function ExpenseForm(props: ExpenseFormProps) {
 
   // More options: what is needed less often. Shown only when there is something in it.
   const Extras = entry.Extras ?? null;
-  const ownRate = state.rateOverride !== undefined && state.rateOverride !== null;
-  const canDraft = isNew || isDraft;
-  const hasMore = Extras !== null || foreign || canDraft;
-  const moreParts = [
-    ...(Extras !== null ? ['Tax, tip, service charge, discount'] : []),
-    ...(foreign ? ['exchange rate for this expense only'] : []),
-    ...(canDraft ? ['save as draft'] : []),
-  ];
-  const moreSummary = moreParts.join(', ').replace(/^./, (c) => c.toUpperCase());
+  const ownRate = (state.rateOverride !== undefined && state.rateOverride !== null) || (state.rateOverride === undefined && fx?.fxRateSource === 'expense');
+  const hasMore = Extras !== null;
+  const moreSummary = 'Tax, tip, service charge, discount';
   const showMore = hasMore && moreOpen;
+  const rateTripId = typeof props.tripId === 'number' ? props.tripId : (expense?.tripId ?? null);
+  const rateSource = fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate';
+  const rateAction = rateNeeded || !rate ? 'Set' : 'Change';
 
   // Why Save is off. A problem the split already shows next to its field is only pointed to here.
   const bodyShowsProblems = state.splitType === 'items' && entry.serverPreview === true;
@@ -245,6 +223,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
           ? 'Fix what is marked above to save.'
           : firstProblem;
 
+  const titleEmoji = state.emoji;
   const dateFace = state.expenseDate ? dayLabel(state.expenseDate) : 'Choose a date';
   const moveToAmount = (event: KeyboardEvent<HTMLInputElement>): void => {
     if (event.key !== 'Enter') return;
@@ -330,8 +309,19 @@ export function ExpenseForm(props: ExpenseFormProps) {
 
       {expense?.notice && (error === undefined || messageOf(error) !== expense.notice) ? <Banner kind="warn">{expense.notice}</Banner> : null}
 
+      {isDraft && expense ? (
+        <p className="origin-line">
+          <Badge tone="draft">Draft</Badge>
+          <span>{expense.receiptFileId ? 'Read from a receipt' : 'Waiting for approval'} · added by {expense.createdBy === props.meId ? 'you' : nameOf(members, expense.createdBy)}</span>
+        </p>
+      ) : null}
+
       <div className="field">
         <label className="field-label" htmlFor="expense-title">What was it for?</label>
+        <div className="title-row">
+        <button type="button" className="emoji-btn" aria-label={titleEmoji ? `Emoji ${titleEmoji}, change` : 'Add an emoji'} onClick={() => setEmojiSheet(true)}>
+          {titleEmoji ?? <span className="emoji-empty" aria-hidden="true"><Smile /></span>}
+        </button>
         <input
           id="expense-title"
           className="title-input"
@@ -346,10 +336,19 @@ export function ExpenseForm(props: ExpenseFormProps) {
           onKeyDown={moveToAmount}
           onChange={(event) => update({ description: event.target.value })}
         />
+        </div>
       </div>
+      {emojiSheet ? (
+        <EmojiPicker
+          current={titleEmoji}
+          onPick={(emoji) => update({ emoji, emojiChanged: true })}
+          onClose={() => setEmojiSheet(false)}
+        />
+      ) : null}
 
       <div className="field">
         <label className="field-label" htmlFor="expense-amount">Amount</label>
+        <div className="amount-card">
         <div className="amount-box" data-invalid={touched && amountProblem !== null}>
           <select aria-label="Expense currency" className="currency-select" value={currency} disabled={busy !== null}
             onChange={(event) => {
@@ -359,7 +358,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
                 const after = [next.amountText, ...next.items.map((item) => amountText(item.amount, next.currency)), ...[next.tax, next.tip, next.serviceCharge, next.discount].map((value) => amountText(value, next.currency))];
                 const rounded = decimalsOf(next.currency) === 0 ? before.findIndex((value) => /\.\d*[1-9]/.test(value)) : -1;
                 setRoundingNote(rounded < 0 ? '' : `${next.currency} has no cents, so ${before[rounded]} becomes ${after[rounded]}.`);
-                setState(next); setTripRate(''); setError(undefined);
+                setState(next); setRefusedCurrency(null); setError(undefined);
               }
               catch (problem) { setError(new ApiError(400, 'invalid_input', problem instanceof Error ? problem.message : 'Check the amounts before changing currency.')); }
             }}>
@@ -379,6 +378,29 @@ export function ExpenseForm(props: ExpenseFormProps) {
             onChange={(event) => update({ amountText: event.target.value.replace(',', '.') })}
           />
         </div>
+        {foreign ? (
+          <button type="button" className={`rate-row ${rateNeeded ? 'rate-row-needed' : ''}`} aria-label={`${rateAction} exchange rate`} onClick={() => setRateSheet(true)}>
+            <span className="row-main">
+              <span className="rate-main">{rateNeeded ? 'Exchange rate needed' : rate ?? (server.status === 'loading' ? 'Checking the rate…' : 'Exchange rate')}</span>
+              <span className="rate-sub">
+                {rateNeeded ? (
+                  `No rate for ${currency} could be looked up. Set one to save this expense.`
+                ) : rate ? (
+                  <>
+                    <span>{rateSource}</span>
+                    {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <> · ≈ <span className="num">{money(fx.homeTotal, fx.homeCurrency)}</span></> : null}
+                  </>
+                ) : fx?.fxRateSource === 'missing' ? (
+                  'The latest rate will be looked up when saving.'
+                ) : server.status === 'loading' ? null : (
+                  'Enter the amount to see the rate and converted amount.'
+                )}
+              </span>
+            </span>
+            <span className="rate-action" aria-hidden="true">{rateAction}<ChevronRight size={14} /></span>
+          </button>
+        ) : null}
+        </div>
       </div>
 
       {roundingNote ? <p className="field-hint" role="status">{roundingNote}</p> : null}
@@ -391,19 +413,6 @@ export function ExpenseForm(props: ExpenseFormProps) {
               Confirm {currency}
             </button>
           </div>
-        </div>
-      ) : null}
-
-      {foreign ? (
-        <div className="fx" aria-label="Exchange rate">
-          {fx?.homeTotal !== null && fx?.homeTotal !== undefined ? <p className="fx-converted"><span>Converted amount</span> <strong>{money(fx.homeTotal, fx.homeCurrency)}</strong></p> : null}
-          {rate ? <p className="fx-lines"><span>Rate: {rate}</span><span>{fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span></p>
-            : <p>{server.status === 'loading' ? 'Checking the rate…' : needsTripRate ? 'Enter a trip rate to save this expense.' : fx?.fxRateSource === 'missing' ? 'The latest rate will be looked up when saving.' : 'Enter valid figures to see the rate and converted amount.'}</p>}
-          {needsTripRate ? <label className="field">
-            <span id="trip-rate-label">Trip rate: 1 {props.homeCurrency} = ___ {currency}</span>
-            <input aria-labelledby="trip-rate-label" type="text" inputMode="decimal" value={tripRate} disabled={busy !== null} onChange={(event) => setTripRate(event.target.value.replace(',', '.'))} />
-            <span className="field-hint">Used for this and future expenses in {currency}. Use up to 6 decimal places.</span>
-          </label> : null}
         </div>
       ) : null}
 
@@ -502,34 +511,6 @@ export function ExpenseForm(props: ExpenseFormProps) {
                   client={client}
                 />
               ) : null}
-              {foreign ? (
-                <div className="field">
-                  <span className="sub-head">Exchange rate for this expense</span>
-                  {ownRate ? (
-                    <div className="field">
-                      <label htmlFor="expense-rate">This expense's rate: 1 {props.homeCurrency} = ___ {currency}</label>
-                      <input id="expense-rate" aria-describedby="expense-rate-hint" aria-invalid={rateProblem !== null && state.rateOverride !== ''} type="text" inputMode="decimal" value={state.rateOverride ?? ''} onChange={(event) => update({ rateOverride: event.target.value.replace(',', '.') })} />
-                      <span id="expense-rate-hint" className={rateProblem !== null && state.rateOverride !== '' ? 'problem' : 'field-hint'}>Enter a rate above zero, with up to 6 decimal places.</span>
-                    </div>
-                  ) : (
-                    <button type="button" className="btn btn-secondary btn-block" onClick={() => update({ rateOverride: fx?.fxRate ?? '' })}>
-                      {fx?.fxRateSource === 'expense' ? "Change this expense's rate" : 'Use a different rate for this expense'}
-                    </button>
-                  )}
-                  {state.rateOverride != null || fx?.fxRateSource === 'expense' ? (
-                    <button type="button" className="btn btn-ghost" onClick={() => update({ rateOverride: null })}>Use the trip rate instead</button>
-                  ) : null}
-                </div>
-              ) : null}
-              {canDraft ? (
-                <div className="field">
-                  <span className="sub-head">Not finished?</span>
-                  <button type="button" className="btn btn-secondary btn-block" disabled={busy !== null} onClick={() => void submit('draft')}>
-                    {busy === 'draft' ? 'Saving…' : isNew ? 'Save as draft' : 'Save draft for later'}
-                  </button>
-                  <span className="field-hint">A draft does not count toward balances until it is finished.</span>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>
@@ -539,9 +520,32 @@ export function ExpenseForm(props: ExpenseFormProps) {
       <div className="action-bar">
         {saveReason !== null ? <p className="save-reason" role="alert">{saveReason}</p> : null}
         <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy !== null || saveReason !== null || blocked || firstProblem !== null}>
-          {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Finish and save' : 'Save changes'}
+          {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Approve and save' : 'Save changes'}
         </button>
+        {isDraft ? (
+          // Kept for a receipt draft only, so that half-assigned work is not lost. It stays a draft.
+          <button type="button" className="btn btn-ghost btn-block" disabled={busy !== null} onClick={() => void submit('draft')}>
+            {busy === 'draft' ? 'Saving…' : 'Save changes, approve later'}
+          </button>
+        ) : null}
       </div>
+
+      {rateSheet && foreign ? (
+        <RateSheet
+          client={client}
+          home={props.homeCurrency}
+          currency={currency}
+          members={members}
+          current={state.rateOverride ?? fx?.fxRate ?? (expense?.currency === currency ? expense.fxRate : null) ?? null}
+          ownRate={ownRate}
+          tripId={rateTripId}
+          initialScope={rateNeeded || fx?.fxRateSource === 'missing' ? 'trip' : 'expense'}
+          onOwnRate={(value) => update({ rateOverride: value })}
+          onTripRateInstead={() => update({ rateOverride: null })}
+          onTripRateApplied={tripRateApplied}
+          onClose={() => setRateSheet(false)}
+        />
+      ) : null}
     </form>
   );
 }

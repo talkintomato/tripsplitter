@@ -1,5 +1,5 @@
 import { ValidationError } from './errors.js';
-import { isId, loadTrip, mapActivity, openForRead } from './internal.js';
+import { isId, loadExpense, loadSettlement, loadTrip, mapActivity, openForRead } from './internal.js';
 import type { Activity, Db, Scope } from './types.js';
 
 export interface ListActivityOptions {
@@ -9,6 +9,11 @@ export interface ListActivityOptions {
   before?: number;
   /** Page size. Defaults to 50, at most 200. */
   limit?: number;
+  /**
+   * Only entries about this one expense or settlement, which must be of the group. That includes entries written
+   * by other operations that changed it, such as a trip rate change or a member merge.
+   */
+  entity?: { type: 'expense' | 'settlement'; id: number };
 }
 
 /**
@@ -18,11 +23,21 @@ export interface ListActivityOptions {
 export function listActivity(db: Db, scope: Scope, options: ListActivityOptions = {}): Activity[] {
   openForRead(db, scope);
   const where = ['group_id = ?'];
-  const params: number[] = [scope.groupId];
+  const params: Array<number | string> = [scope.groupId];
   if (options.tripId !== undefined) {
     loadTrip(db, scope, options.tripId);
     where.push('trip_id = ?');
     params.push(options.tripId);
+  }
+  if (options.entity !== undefined) {
+    const { type, id } = options.entity;
+    if (type !== 'expense' && type !== 'settlement') throw new ValidationError('invalid_input', 'The entity type must be expense or settlement.');
+    if (!isId(id)) throw new ValidationError('invalid_input', 'The entity must be given by its ID.');
+    // Refused, as not found, for a record of another group.
+    if (type === 'expense') loadExpense(db, scope, id);
+    else loadSettlement(db, scope, id);
+    where.push('entity_type = ?', 'entity_id = ?');
+    params.push(type, id);
   }
   if (options.before !== undefined) {
     if (!isId(options.before)) throw new ValidationError('invalid_input', '"before" must be the ID of an activity entry.');

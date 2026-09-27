@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import type { ExpenseView } from '../api/types';
 import { ActionError, Avatar, Badge, Banner, Confirm, Empty, ErrorState, IconButton, Loading, Screen, Section } from '../components/ui';
-import { expenseIcon } from '../components/ExpenseRow';
-import { Pencil, Receipt, Trash } from '../components/icons';
+import { ExpenseTile, titleWithoutEmoji } from '../components/ExpenseRow';
+import { ChevronRight, Pencil, Receipt, Trash } from '../components/icons';
+import { History } from '../components/History';
 import { ExpenseForm } from '../expense-form/ExpenseForm';
 import { dayText, expenseTitle, localDay, longDayText, money, nameOf, rateText } from '../format';
 import { useApp } from '../state';
@@ -72,6 +73,7 @@ export function EditExpense() {
   const { client, group } = useApp();
   const navigate = useNavigate();
   const id = Number(useParams().id);
+  const openRate = (useLocation().state as { openRate?: boolean } | null)?.openRate === true;
   const loaded = useExpense(id);
 
   if (loaded.error !== undefined) {
@@ -91,7 +93,7 @@ export function EditExpense() {
   const { expense, trip } = loaded.data;
   const editable = trip.status === 'active' && (expense.status === 'draft' || expense.status === 'confirmed');
   return (
-    <Screen title={expense.status === 'draft' ? 'Finish draft' : 'Edit expense'} subtitle={trip.name}>
+    <Screen title={expense.status === 'draft' ? 'Approve draft' : 'Edit expense'} subtitle={trip.name}>
       {editable ? (
         <ExpenseForm
           key={expense.id}
@@ -101,6 +103,7 @@ export function EditExpense() {
           tripId={trip.id}
           homeCurrency={trip.homeCurrency}
           expense={expense}
+          openRateSheet={openRate}
           // Back to the expense this was opened from, which loads the saved version.
           onSaved={() => navigate(-1)}
           onCancel={() => navigate(-1)}
@@ -109,6 +112,20 @@ export function EditExpense() {
         <Empty>{trip.status === 'ended' ? 'This trip has ended, so its expenses cannot be changed.' : 'This expense was removed. Restore it first to change it.'}</Empty>
       )}
     </Screen>
+  );
+}
+
+/** The rate of a foreign expense: the rate, where it comes from, and the converted amount. */
+function RateRowText(props: { expense: ExpenseView }) {
+  const { expense } = props;
+  const rate = rateText(expense);
+  return (
+    <span className="row-main">
+      <span className={`rate-main ${rate ? '' : 'warn-text'}`}>{rate ?? 'Exchange rate needed'}</span>
+      <span className="rate-sub">
+        {rate ? <span>{expense.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span> : `No rate for ${expense.currency} yet.`}
+      </span>
+    </span>
   );
 }
 
@@ -140,9 +157,9 @@ export function ExpenseDetail() {
   const foreign = expense.currency !== expense.homeCurrency;
   const included = expense.shares.filter((s) => s.itemId === null);
   const title = expenseTitle(expense);
-  const Icon = expenseIcon(title);
   const name = (memberId: number): string => (memberId === group.me.id ? 'You' : nameOf(group.members, memberId));
   const needsRate = expense.problems.some((p) => p.code === 'rate_missing');
+  const editable = open && (expense.status === 'confirmed' || expense.status === 'draft');
 
   async function change(run: (version: number) => Promise<{ expense: ExpenseView }>): Promise<void> {
     setBusy(true);
@@ -196,22 +213,32 @@ export function ExpenseDetail() {
             {expense.currencyNeedsReview ? <Badge tone="warn">Check currency</Badge> : null}
           </div>
         ) : null}
+        {expense.status === 'draft' ? (
+          <p className="origin-line">{expense.receiptFileId ? 'Read from a receipt' : 'Waiting for approval'} · added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)}</p>
+        ) : null}
         <div className="detail-title">
-          <span className="tile" aria-hidden="true"><Icon /></span>
-          <h2>{title}</h2>
+          <ExpenseTile title={title} emoji={expense.emoji} />
+          <h2>{titleWithoutEmoji(title)}</h2>
         </div>
         <p className="detail-amount">{money(expense.total, expense.currency)}</p>
         {foreign && expense.homeTotal !== null ? <p className="detail-converted">= {money(expense.homeTotal, expense.homeCurrency)}</p> : null}
-        {foreign ? (
-          <p className="detail-meta fx-lines">
-            <span>{rateText(expense) ? `Rate: ${rateText(expense)}` : 'No exchange rate yet'}</span>
-            {expense.fxRate ? <span>{expense.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate'}</span> : null}
-          </p>
-        ) : null}
         <p className="detail-meta">
           Added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)} on {dayText(localDay(expense.createdAt))}
         </p>
       </div>
+
+      {foreign ? (
+        editable ? (
+          <button type="button" className="card rate-row rate-row-card" aria-label={`${expense.fxRate ? 'Change' : 'Set'} exchange rate`} onClick={() => navigate(`/expenses/${expense.id}/edit`, { state: { openRate: true } })}>
+            <RateRowText expense={expense} />
+            <span className="rate-action" aria-hidden="true">{expense.fxRate ? 'Change' : 'Set'}<ChevronRight size={14} /></span>
+          </button>
+        ) : (
+          <div className="card rate-row rate-row-card rate-row-static">
+            <RateRowText expense={expense} />
+          </div>
+        )
+      ) : null}
 
       <section className="card tree" aria-label="Who paid and who owes">
         <p className="tree-root">
@@ -264,7 +291,7 @@ export function ExpenseDetail() {
                   </span>
                   <span className="row-sub wrap">{(() => {
                     const assigned = expense.shares.filter((share) => share.itemId === item.id);
-                    return (assigned.length > 0 ? assigned : included).map((share) => nameOf(group.members, share.memberId)).join(', ') || 'Nobody yet';
+                    return (assigned.length > 0 ? assigned : included).map((share) => `${nameOf(group.members, share.memberId)}${assigned.length > 0 && share.weight > 1 ? ` ×${share.weight}` : ''}`).join(', ') || 'Nobody yet';
                   })()}</span>
                 </span>
                 <span className="row-amount">{money(item.amount, expense.currency)}</span>
@@ -296,11 +323,13 @@ export function ExpenseDetail() {
         ))}
       </dl>
 
+      <History type="expense" id={expense.id} version={expense.version} />
+
       {open ? (
         expense.status === 'draft' ? (
           <div className="action-bar">
             <button type="button" className="btn btn-primary btn-block btn-lg" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
-              Finish
+              Review and approve
             </button>
           </div>
         ) : expense.status === 'deleted' || expense.status === 'discarded' ? (
@@ -329,10 +358,13 @@ export function ExpenseDetail() {
 }
 
 export function Drafts() {
-  const { client } = useApp();
+  const { client, group } = useApp();
   const navigate = useNavigate();
   const tripId = Number(useParams().tripId);
   const loaded = useLoad(() => client.listExpenses(tripId, ['draft']), `drafts-${tripId}`);
+  // The bot's name, for the empty list. Only asked for then, and "the bot" when it cannot be had.
+  const empty = loaded.data?.expenses.length === 0;
+  const bot = useLoad(async () => (empty ? (await client.getMyGroups()).botUsername : null), `bot-${empty ? 'ask' : 'no'}`);
   const [asking, setAsking] = useState<ExpenseView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
@@ -352,26 +384,25 @@ export function Drafts() {
   }
 
   return (
-    <Screen title="Drafts" subtitle="Drafts do not count until they are finished.">
+    <Screen title="Drafts" subtitle="Drafts do not count until they are approved.">
       <ActionError error={error} onClose={() => setError(undefined)} />
       {loaded.error !== undefined && loaded.data === undefined ? (
         <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} />
       ) : loaded.data === undefined ? (
         <Loading what="drafts" />
       ) : loaded.data.expenses.length === 0 ? (
-        <Empty icon={Receipt}>No drafts. Drafts come from receipt photos or from “Save draft for later”.</Empty>
+        <Empty icon={Receipt}>No drafts. Tag a receipt photo with {bot.data ? `@${bot.data}` : 'the bot'} in the group and it will appear here to approve.</Empty>
       ) : (
         <ul className="cards">
           {loaded.data.expenses.map((expense) => {
-            const Icon = expenseIcon(expenseTitle(expense));
             const needsRate = expense.problems.some((p) => p.code === 'rate_missing');
             return (
               <li key={expense.id} className="card draft-card">
                 <button type="button" className="item" onClick={() => navigate(`/expenses/${expense.id}`)}>
-                  <span className="tile" aria-hidden="true"><Icon /></span>
+                  <ExpenseTile title={expenseTitle(expense)} emoji={expense.emoji} />
                   <span className="row-main">
-                    <span className="row-title">{expenseTitle(expense)}</span>
-                    <span className="row-sub">{longDayText(expense.expenseDate)}</span>
+                    <span className="row-title">{titleWithoutEmoji(expenseTitle(expense))}</span>
+                    <span className="row-sub"><Badge tone="draft">Draft</Badge> {longDayText(expense.expenseDate)}</span>
                   </span>
                   <span className="row-end">
                     <span className="row-amount">{money(expense.total, expense.currency)}</span>
@@ -380,6 +411,9 @@ export function Drafts() {
                     ) : null}
                   </span>
                 </button>
+                <p className="draft-origin">
+                  {expense.receiptFileId ? 'Read from a receipt' : 'Waiting for approval'} · added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)}
+                </p>
                 {needsRate || expense.currencyNeedsReview || expense.notice ? (
                   <div className="draft-notes">
                     <span className="badges">
@@ -391,7 +425,7 @@ export function Drafts() {
                 ) : null}
                 <div className="draft-actions">
                   <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => navigate(`/expenses/${expense.id}/edit`)}>
-                    Finish
+                    Review and approve
                   </button>
                   <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => setAsking(expense)}>
                     Discard

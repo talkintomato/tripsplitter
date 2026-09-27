@@ -48,6 +48,7 @@ export function expenseView(over: Partial<ExpenseView> = {}): ExpenseView {
     fxRateSource: 'home',
     splitType: 'even',
     receiptFileId: 'file-abc',
+    emoji: null,
     status: 'confirmed',
     statusBeforeRemoval: null,
     version: 3,

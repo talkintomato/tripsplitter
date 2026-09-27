@@ -10,10 +10,12 @@ import {
   removeItem,
   replaceItem,
   toggleIncluded,
-  toggleOnItem,
+  countOf,
+  stepOnItem,
+  whoText as itemWho,
 } from './changes';
 import { ItemSheet } from './ItemSheet';
-import { Check, More, Plus } from '../components/icons';
+import { Check, Minus, More, Plus } from '../components/icons';
 import { Avatar } from '../components/ui';
 import { MoneyInput } from './MoneyInput';
 import './items.css';
@@ -62,15 +64,11 @@ export function ItemsSplit(props: SplitBodyProps) {
   const newTotal = props.corrections?.total ?? null;
   const noTotal = total === 0;
 
-  const whoText = (item: ExpenseItemInput): string => {
-    const ids = assignedTo(item, includedIds);
-    if (ids.length === 0) return 'Everyone';
-    return ids.map((id) => nameOf(id)).join(', ');
-  };
+  const whoText = (item: ExpenseItemInput): string => itemWho(item, includedIds, nameOf);
 
   const tapItem = (index: number): void => {
     if (painting === null) setOpen(index);
-    else update(toggleOnItem(state.items, index, painting));
+    else update(stepOnItem(state.items, index, painting, 1));
   };
 
   const openItem = typeof open === 'number' ? state.items[open] : undefined;
@@ -118,6 +116,7 @@ export function ItemsSplit(props: SplitBodyProps) {
               <strong>Tap a name, then tap everything that person had.</strong>
             )}
           </p>
+          {painting !== null ? <p className="field-hint paint-hint">Each tap adds one. Use − on a line to take one away.</p> : null}
           {state.items.length > 0 && people.length > 0 ? (
             <div className="paint-people" role="group" aria-label="Pick a person">
               {people.map((member) => {
@@ -144,7 +143,8 @@ export function ItemsSplit(props: SplitBodyProps) {
         ) : (
           <ul className={`list-card items-list ${painting !== null ? 'painting' : ''}`}>
             {state.items.map((item, index) => {
-              const mine = painting !== null && assignedTo(item, includedIds).includes(painting);
+              const count = painting !== null && assignedTo(item, includedIds).includes(painting) ? countOf(item, painting) : 0;
+              const mine = count > 0;
               const label = `${item.label}${(item.quantity ?? 1) !== 1 ? ` ×${item.quantity}` : ''}`;
               const shared = assignedTo(item, includedIds).length === 0;
               return (
@@ -152,7 +152,7 @@ export function ItemsSplit(props: SplitBodyProps) {
                   <button type="button" className="item-main" {...(painting !== null ? { 'aria-pressed': mine } : {})} onClick={() => tapItem(index)}>
                     {painting !== null ? (
                       <span className={`item-mark ${mine ? 'on' : ''}`} aria-hidden="true">
-                        {mine ? <Check size={14} /> : null}
+                        {count > 1 ? count : mine ? <Check size={14} /> : null}
                       </span>
                     ) : null}
                     <span className="item-text">
@@ -161,8 +161,13 @@ export function ItemsSplit(props: SplitBodyProps) {
                     </span>
                     <span className="row-amount">{money(item.amount, currency)}</span>
                   </button>
+                  {painting !== null && mine ? (
+                    <button type="button" className="item-side" aria-label={`One less ${item.label} for ${painterName}`} onClick={() => update(stepOnItem(state.items, index, painting, -1))}>
+                      <Minus size={16} />
+                    </button>
+                  ) : null}
                   {painting !== null ? (
-                    <button type="button" className="item-edit" aria-label={`Change ${item.label}`} onClick={() => setOpen(index)}>
+                    <button type="button" className="item-side item-edit" aria-label={`Change ${item.label}`} onClick={() => setOpen(index)}>
                       <More size={18} />
                     </button>
                   ) : null}
@@ -175,7 +180,7 @@ export function ItemsSplit(props: SplitBodyProps) {
         <button type="button" className="btn btn-secondary btn-block" onClick={() => setOpen('new')}>
           <Plus size={18} /> Add an item
         </button>
-        {state.items.length > 0 && painting === null ? <p className="field-hint center">Tap an item to change it or to tick several people.</p> : null}
+        {state.items.length > 0 && painting === null ? <p className="field-hint center">Tap an item to change it, or to set how many each person had.</p> : null}
       </section>
 
       {mismatch ? (
@@ -252,6 +257,8 @@ export function ItemsSplit(props: SplitBodyProps) {
           {...(openItem !== undefined ? { item: openItem } : {})}
           people={people}
           currency={currency}
+          client={props.client}
+          payerId={state.payerId}
           onCancel={() => setOpen(null)}
           onDone={(item, another) => {
             update(typeof open === 'number' ? replaceItem(state.items, open, item) : addItem(state.items, item));

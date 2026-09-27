@@ -70,7 +70,8 @@ export interface ApiClient {
   resetLink(): Promise<ResetLinkResponse>;
   addMember(body: AddMemberBody): Promise<MemberResponse>;
   claimMember(memberId: number): Promise<ClaimResponse>;
-  listActivity(options?: { tripId?: number; before?: number }): Promise<ActivityResponse>;
+  /** With `entity`: only the entries about that one expense or settlement. */
+  listActivity(options?: { tripId?: number; before?: number; entity?: { type: 'expense' | 'settlement'; id: number } }): Promise<ActivityResponse>;
 
   listTrips(): Promise<TripsResponse>;
   createTrip(body?: CreateTripBody): Promise<TripResponse>;
@@ -160,7 +161,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     resetLink: () => request('POST', '/api/group/reset-link'),
     addMember: (body) => request('POST', '/api/members', body),
     claimMember: (memberId) => request('POST', `/api/members/${memberId}/claim`),
-    listActivity: (o = {}) => request('GET', `/api/activity${query({ tripId: o.tripId, before: o.before })}`),
+    listActivity: (o = {}) => request('GET', `/api/activity${query({ tripId: o.tripId, before: o.before, entityType: o.entity?.type, entityId: o.entity?.id })}`),
 
     listTrips: () => request('GET', '/api/trips'),
     createTrip: (body) => request('POST', '/api/trips', body ?? {}),

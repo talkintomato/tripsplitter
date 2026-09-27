@@ -328,3 +328,85 @@
   width: 100%;
   margin-bottom: var(--s2);
 }
+
+.paint-hint {
+  padding: 0 var(--s1);
+}
+
+.item-side {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+}
+
+.item-side:active {
+  background: var(--seg-track);
+}
+
+.item-mark {
+  font-size: var(--fs-12);
+  font-weight: 700;
+}
+
+.quick-actions {
+  display: flex;
+  gap: var(--s2);
+}
+
+.count-row .stepper button,
+.count-row .stepper input {
+  height: 44px;
+}
+
+.count-row .stepper button {
+  width: 44px;
+}
+
+.count-line {
+  font-size: var(--fs-15);
+  color: var(--text);
+}
+
+.count-line > * + * {
+  margin-top: var(--s1);
+}
+
+.count-warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* "How many" and "Line total" sit side by side at the same 48 px height. */
+.item-figures {
+  align-items: end;
+}
+
+.amount-box.amount-box-sm {
+  min-height: 48px;
+  height: 48px;
+}
+
+.amount-box.amount-box-sm input {
+  min-height: 0;
+  height: 100%;
+}
+
+.item-quantity input {
+  height: 48px;
+  text-align: center;
+}
+
+.amount-box.amount-box-sm input[type='text'] {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  min-height: 0;
+  height: 100%;
+}

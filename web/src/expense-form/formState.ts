@@ -1,5 +1,8 @@
 import { currencyDecimals, toMinorUnits } from '../../../src/core/currencies';
 import type { ExpenseInput, ExpenseItemInput, ExpenseView, Member, ShareInput, SplitType } from '../api/types';
+
+/** What a saved expense holds that the form reads: an expense from the API, or one kept in an activity entry. */
+export type SavedExpense = Pick<ExpenseView, 'description' | 'merchant' | 'total' | 'currency' | 'expenseDate' | 'payerId' | 'splitType' | 'shares' | 'items' | 'tax' | 'taxIncluded' | 'tip' | 'serviceCharge' | 'discount' | 'currencyNeedsReview' | 'fxRate' | 'fxRateSource'> & { emoji?: string | null };
 import { amountText, today } from '../format';
 
 /**
@@ -34,6 +37,10 @@ export interface ExpenseFormState {
   currencyNeedsReview: boolean;
   /** The member selected or confirmed a currency this session. */
   currencyChecked: boolean;
+  /** The emoji chosen as the expense's picture, or null. */
+  emoji: string | null;
+  /** True once the member changed the emoji in this session. Only then is it sent. */
+  emojiChanged?: boolean;
 }
 
 export type FormPatch = Partial<ExpenseFormState>;
@@ -59,11 +66,12 @@ export function newExpenseState(options: { members: ReadonlyArray<Member>; meId:
     currency: options.currency,
     currencyNeedsReview: false,
     currencyChecked: false,
+    emoji: null,
   };
 }
 
 /** The form filled from a saved expense. */
-export function stateFromExpense(expense: ExpenseView): ExpenseFormState {
+export function stateFromExpense(expense: SavedExpense): ExpenseFormState {
   const included = expense.shares.filter((s) => s.itemId === null);
   return {
     description: expense.description,
@@ -88,6 +96,7 @@ export function stateFromExpense(expense: ExpenseView): ExpenseFormState {
     currency: expense.currency,
     currencyNeedsReview: expense.currencyNeedsReview,
     currencyChecked: false,
+    emoji: expense.emoji ?? null,
   };
 }
 
@@ -135,6 +144,7 @@ export function toExpenseInput(state: ExpenseFormState, total: number): ExpenseI
     shares,
     ...(state.currencyChanged || state.currencyChecked ? { currency: state.currency } : {}),
     ...(state.rateOverride !== undefined ? { rateOverride: state.rateOverride } : {}),
+    ...(state.emojiChanged ? { emoji: state.emoji } : {}),
   };
 }
 

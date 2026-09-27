@@ -266,7 +266,7 @@ describe('the preview of an item split', () => {
     const h = harness();
     for (const over of [{ tip: -1 }, { total: -5 }, { currency: 'CHF' }, { expenseDate: 'yesterday' }, { items: [{ label: 'Beer', amount: -450 }] }, { items: [{ label: 'Beer', amount: 450, quantity: 0 }] }]) {
       const preview = await unchanged(h, () => h.ana.post(PREVIEW, casaPepe(h, over)));
-      const created = await unchanged(h, () => h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, { ...casaPepe(h, over), status: 'draft' }));
+      const created = await unchanged(h, () => h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, casaPepe(h, over)));
       expect(created.status).toBe(400);
       expect([preview.status, preview.body]).toEqual([400, created.body]);
     }
@@ -377,5 +377,26 @@ describe('a receipt draft', () => {
     const refused = await unchanged(h, () => h.ana.post(`/api/expenses/${draft.id}/confirm`, { version: 2 }));
     expect(refused.status).toBe(400);
     expect(refused.body.error.problems).toEqual([expect.objectContaining({ code: 'total_mismatch', difference: -845 })]);
+  });
+});
+
+describe('counts on an item', () => {
+  it('divide the line total in proportion to the weights', async () => {
+    const h = harness();
+    // 16.00 shared 2 : 1 between Ana and Sam. By hand 10.666… and 5.333…; the foundation places the leftover cent.
+    const body = dinnerBody(h.a, {
+      total: 1600,
+      splitType: 'items',
+      shares: [{ memberId: h.a.ana.id }, { memberId: h.a.sam.id }],
+      items: [{ label: 'Gyoza', quantity: 3, amount: 1600, shares: [{ memberId: h.a.ana.id, weight: 2 }, { memberId: h.a.sam.id, weight: 1 }] }],
+    });
+    const preview = await h.ana.post('/api/expenses/preview', body);
+    expect(preview.status).toBe(200);
+    const amounts = preview.body.amounts as Record<number, number>;
+    expect(amounts[h.a.ana.id]! + amounts[h.a.sam.id]!).toBe(1600);
+    expect([amounts[h.a.ana.id], amounts[h.a.sam.id]]).toEqual([1067, 533]);
+    const saved = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, body);
+    expect(saved.body.expense.amounts).toEqual(amounts);
+    expect(saved.body.expense.shares.filter((s: { itemId: number | null }) => s.itemId !== null).map((s: { weight: number }) => s.weight)).toEqual([2, 1]);
   });
 });

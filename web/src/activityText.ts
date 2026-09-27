@@ -21,6 +21,44 @@ function settlementText(value: unknown, members: ReadonlyArray<Member>, trips: R
 
 const text = (value: Loose, key: string): string => (value && typeof value[key] === 'string' ? (value[key] as string) : '');
 
+const isReceiptDraft = (after: Loose): boolean => text(after, 'status') === 'draft' && typeof after?.receiptFileId === 'string' && after.receiptFileId !== '';
+
+/**
+ * What happened to one expense or payment, in a few words, for the history on its own detail, where its name
+ * would only repeat the title. The Activity screen says the same with the name: see `activityText`.
+ */
+export function historyText(entry: ActivityEntry): string {
+  const after = record(entry.after);
+  switch (entry.action) {
+    case 'expense.create':
+      return isReceiptDraft(after) ? 'Read from a receipt' : text(after, 'status') === 'draft' ? 'Started as a draft' : 'Added';
+    case 'expense.save':
+      return 'Edited';
+    case 'expense.confirm':
+      return 'Approved';
+    case 'expense.discard':
+      return 'Discarded';
+    case 'expense.delete':
+      return 'Deleted';
+    case 'expense.restore':
+      return 'Restored';
+    case 'expense.rate_change':
+      return 'Exchange rate changed with the trip rate';
+    case 'expense.member_merged':
+      return 'Updated after two people were joined into one';
+    case 'settlement.create':
+      return 'Recorded';
+    case 'settlement.undo':
+      return 'Undone';
+    case 'settlement.restore':
+      return 'Restored';
+    case 'settlement.member_merged':
+      return 'Updated after two people were joined into one';
+    default:
+      return String(entry.action);
+  }
+}
+
 /** One line for an activity entry, without the name of who did it. */
 export function activityText(entry: ActivityEntry, members: ReadonlyArray<Member>, trips: ReadonlyArray<Trip>): string {
   const before = record(entry.before);
@@ -28,11 +66,11 @@ export function activityText(entry: ActivityEntry, members: ReadonlyArray<Member
   const latest = after ?? before;
   switch (entry.action) {
     case 'expense.create':
-      return text(after, 'status') === 'draft' ? `started a draft: ${expenseText(after)}` : `added ${expenseText(after)}`;
+      return isReceiptDraft(after) ? `read a receipt: ${expenseText(after)}` : text(after, 'status') === 'draft' ? `started a draft: ${expenseText(after)}` : `added ${expenseText(after)}`;
     case 'expense.save':
       return `edited ${expenseText(after)}`;
     case 'expense.confirm':
-      return `finished the draft ${expenseText(after)}`;
+      return `approved the draft ${expenseText(after)}`;
     case 'expense.discard':
       return `discarded the draft ${expenseText(after)}`;
     case 'expense.delete':

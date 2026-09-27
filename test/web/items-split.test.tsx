@@ -46,7 +46,7 @@ async function openReceipt(over: Partial<ExpenseView> = {}) {
   return result;
 }
 
-const save = () => screen.getByRole('button', { name: 'Finish and save' });
+const save = () => screen.getByRole('button', { name: 'Approve and save' });
 const person = (name: string) => within(screen.getByRole('group', { name: 'Pick a person' })).getByRole('button', { name: new RegExp(`^${name}`) });
 const line = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}`) });
 const pays = () => within(screen.getByRole('list', { name: 'Each person pays' })).getAllByRole('listitem').map((li) => li.textContent);
@@ -80,10 +80,11 @@ describe('paint mode', () => {
     await waitFor(() => expect(pays()).toEqual(['Ana20.86 SGD', 'Leo1.22 SGD', 'Sam26.37 SGD']));
     expect(person('Sam')).toHaveTextContent('26.37 SGD');
 
-    // A second tap takes the person off the item again.
+    // A second tap adds one more; the minus on the line takes one away.
     await user.click(line('Paella'));
-    expect(within(line('Paella')).getByText('Sam')).toBeInTheDocument();
-    await user.click(line('Paella'));
+    expect(within(line('Paella')).getByText('Ana ×2, Sam')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'One less Paella for Ana' }));
+    expect(within(line('Paella')).getByText('Ana, Sam')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Finished' }));
     expect(screen.getByText('Tap a name, then tap everything that person had.')).toBeInTheDocument();
     await waitFor(() => expect(pays()).toEqual(['Ana20.86 SGD', 'Leo1.22 SGD', 'Sam26.37 SGD']));
@@ -105,8 +106,8 @@ describe('paint mode', () => {
       tip: 500,
       shares: [{ memberId: ANA.id }, { memberId: SAM.id }, { memberId: LEO.id }],
       items: [
-        { label: 'Paella', quantity: 2, amount: 3200, shares: [{ memberId: SAM.id }, { memberId: ANA.id }] },
-        { label: 'Beer', quantity: 1, amount: 450, shares: [{ memberId: SAM.id }] },
+        { label: 'Paella', quantity: 2, amount: 3200, shares: [{ memberId: SAM.id, weight: 1 }, { memberId: ANA.id, weight: 1 }] },
+        { label: 'Beer', quantity: 1, amount: 450, shares: [{ memberId: SAM.id, weight: 1 }] },
         { label: 'Bread', quantity: 1, amount: 300, shares: [] },
       ],
     });
@@ -134,19 +135,60 @@ describe('paint mode', () => {
 });
 
 describe('an item', () => {
-  it('opens a list of the people included when tapped, and can be shared by several', async () => {
+  it('opens a counter for each person included when tapped, and can be shared by several', async () => {
     const { client, user } = await openReceipt();
     await user.click(line('Bread'));
     const sheet = screen.getByRole('dialog', { name: 'Change this item' });
-    expect(within(sheet).getAllByRole('checkbox').map((box) => (box.closest('label') as HTMLElement).textContent)).toEqual(['Ana', 'Leo', 'Sam']);
-    expect(within(sheet).getByText('Nobody ticked: everyone shares it.')).toBeInTheDocument();
-    await user.click(within(sheet).getByRole('checkbox', { name: 'Ana' }));
-    await user.click(within(sheet).getByRole('checkbox', { name: 'Leo' }));
-    expect(within(sheet).getByText('2 people share it equally.')).toBeInTheDocument();
+    expect(within(sheet).getAllByText(/./, { selector: '.person-name' }).map((name) => name.textContent)).toEqual(['Ana', 'Leo', 'Sam']);
+    expect(within(sheet).getByText('Nobody chosen: shared equally by everyone.')).toBeInTheDocument();
+    for (const name of ['Ana', 'Leo', 'Sam']) {
+      expect(within(sheet).getByLabelText(`How many ${name} had`)).toHaveValue('0');
+      expect(within(sheet).getByRole('button', { name: `One less for ${name}` })).toBeDisabled();
+    }
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Ana' }));
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Leo' }));
+    expect(within(sheet).getByText('Ana 1 part · Leo 1 part')).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(within(line('Bread')).getByText('Ana, Leo')).toBeInTheDocument();
-    await waitFor(() => expect(lastPreview(client).items![2]!.shares).toEqual([{ memberId: ANA.id }, { memberId: LEO.id }]));
+    await waitFor(() => expect(lastPreview(client).items![2]!.shares).toEqual([{ memberId: ANA.id, weight: 1 }, { memberId: LEO.id, weight: 1 }]));
+  });
+
+  it('sends counts as weights, compares them with the quantity, and shows what each person pays for the line', async () => {
+    const { client, user } = await openReceipt();
+    await user.click(line('Paella ×2'));
+    const sheet = screen.getByRole('dialog', { name: 'Change this item' });
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Sam' }));
+    expect(within(sheet).getByText(/1 of 2 assigned/)).toBeInTheDocument();
+    expect(within(sheet).getByText('1 not assigned yet')).toBeInTheDocument();
+    expect(within(sheet).getByText('The full 32.00 SGD is split between the people chosen here.')).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Sam' }));
+    expect(within(sheet).getByText('2 of 2 assigned')).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Ana' }));
+    expect(within(sheet).getByText('3 assigned, the receipt shows 2')).toBeInTheDocument();
+    // Sam had 2 parts and Ana 1 of the 32.00: the server says 21.33 and 10.67.
+    const row = (name: string) => within(sheet).getByText(name, { selector: '.person-name' }).closest('.person') as HTMLElement;
+    expect(await within(row('Sam')).findByText('21.33 SGD')).toBeInTheDocument();
+    expect(within(row('Ana')).getByText('10.67 SGD')).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Done' }));
+    expect(within(line('Paella ×2')).getByText('Ana, Sam ×2')).toBeInTheDocument();
+    await waitFor(() => expect(lastPreview(client).items![0]!.shares).toEqual([{ memberId: ANA.id, weight: 1 }, { memberId: SAM.id, weight: 2 }]));
+
+    // Everyone 1 each, and Clear, which leaves it shared by everyone.
+    await user.click(line('Paella ×2'));
+    const again = screen.getByRole('dialog', { name: 'Change this item' });
+    expect(within(again).getByLabelText('How many Sam had')).toHaveValue('2');
+    await user.click(within(again).getByRole('button', { name: 'Everyone 1 each' }));
+    for (const name of ['Ana', 'Leo', 'Sam']) expect(within(again).getByLabelText(`How many ${name} had`)).toHaveValue('1');
+    await user.click(within(again).getByRole('button', { name: 'Clear' }));
+    expect(within(again).getByText('Nobody chosen: shared equally by everyone.')).toBeInTheDocument();
+    await user.click(within(again).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(lastPreview(client).items![0]!.shares).toEqual([]));
+  });
+
+  it('loads a saved count of 2 as 2', async () => {
+    setup({ expense: receipt({ status: 'confirmed', splitType: 'items', shares: [...expenseView().shares, { ...on(10, SAM.id, 50), weight: 2 }, on(11, ANA.id, 50)] }) });
+    expect(within(line('Paella ×2')).getByText('Ana, Sam ×2')).toBeInTheDocument();
   });
 
   it('keeps its line total when the quantity changes', async () => {
@@ -172,13 +214,13 @@ describe('an item', () => {
     let sheet = screen.getByRole('dialog', { name: 'Add an item' });
     await user.type(within(sheet).getByLabelText('What was it?'), 'Flan');
     await user.type(within(sheet).getByLabelText('Line total'), '6,5');
-    await user.click(within(sheet).getByRole('checkbox', { name: 'Leo' }));
+    await user.click(within(sheet).getByRole('button', { name: 'One more for Leo' }));
     await user.click(within(sheet).getByRole('button', { name: 'Add and enter another' }));
     // The sheet stays open, empty, for the next line.
     sheet = screen.getByRole('dialog', { name: 'Add an item' });
     expect(within(sheet).getByLabelText('What was it?')).toHaveValue('');
     expect(within(sheet).getByLabelText('Line total')).toHaveValue('');
-    expect(within(sheet).getByRole('checkbox', { name: 'Leo' })).not.toBeChecked();
+    expect(within(sheet).getByLabelText('How many Leo had')).toHaveValue('0');
     await user.type(within(sheet).getByLabelText('What was it?'), 'Coffee');
     await user.type(within(sheet).getByLabelText('Line total'), '3');
     await user.click(within(sheet).getByRole('button', { name: 'Add item' }));
@@ -210,7 +252,7 @@ describe('an item', () => {
       expect(lastPreview(client).items).toEqual([
         { label: 'Paella', quantity: 2, amount: 3200, shares: [] },
         { label: 'Bread', quantity: 1, amount: 300, shares: [] },
-        { label: 'Flan', quantity: 1, amount: 650, shares: [{ memberId: LEO.id }] },
+        { label: 'Flan', quantity: 1, amount: 650, shares: [{ memberId: LEO.id, weight: 1 }] },
         { label: 'Espresso', quantity: 1, amount: 280, shares: [] },
       ]),
     );
@@ -231,7 +273,7 @@ describe('an item', () => {
     expect(within(screen.getByRole('group', { name: 'Pick a person' })).queryByRole('button', { name: /^Leo/ })).not.toBeInTheDocument();
     await waitFor(() => expect(pays()).toEqual(['Ana21.47 SGD', 'Sam26.98 SGD']));
     expect(lastPreview(client)).toMatchObject({ shares: [{ memberId: ANA.id }, { memberId: SAM.id }] });
-    expect(lastPreview(client).items![1]!.shares).toEqual([{ memberId: SAM.id }]);
+    expect(lastPreview(client).items![1]!.shares).toEqual([{ memberId: SAM.id, weight: 1 }]);
   });
 });
 
@@ -371,7 +413,7 @@ describe('Save', () => {
 
     // A draft may still be put aside as it is.
     client.saveExpense.mockResolvedValue(written(receipt()));
-    await user.click(screen.getByRole('button', { name: 'Save draft for later' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes, approve later' }));
     expect(client.saveExpense).toHaveBeenCalledTimes(1);
     expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('confirm');
   });
@@ -462,7 +504,7 @@ describe('Save', () => {
       payerId: SAM.id,
       total: 1200,
       splitType: 'items',
-      items: [{ label: 'Laksa', quantity: 1, amount: 1200, shares: [{ memberId: LEO.id }] }],
+      items: [{ label: 'Laksa', quantity: 1, amount: 1200, shares: [{ memberId: LEO.id, weight: 1 }] }],
     });
     expect(onSaved).toHaveBeenCalledWith(saved);
   });

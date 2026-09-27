@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Trip } from '../api/types';
+import type { Settlement, Trip } from '../api/types';
+import { History } from '../components/History';
 import { ExpenseList } from '../components/ExpenseRow';
 import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Grid, LinkIcon, More, Pencil, People, Plus, Restore } from '../components/icons';
 import { ResetLinkConfirm } from '../components/ResetLink';
 import { ActionError, Badge, Banner, Confirm, Empty, ErrorState, GroupsBack, IconButton, Loading, MenuItem, Screen, Section, Segmented, Sheet } from '../components/ui';
-import { dayText, money, myBalanceText } from '../format';
+import { dayText, money, myBalanceText, nameOf, whenText } from '../format';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
 import { BalancesPanel } from './Balances';
@@ -121,6 +122,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [done, setDone] = useState<string | null>(null);
+  const [payment, setPayment] = useState<number | null>(null);
 
   const leading = props.root ? groupsBack : undefined;
   const back = props.root ? false : true;
@@ -225,7 +227,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
                 {checkCurrency > 0 ? <Badge tone="warn">{checkCurrency === 1 ? 'Check currency' : `${checkCurrency} to check currency`}</Badge> : null}
               </span>
             ) : (
-              <span className="row-sub wrap">Drafts do not count until they are finished.</span>
+              <span className="row-sub wrap">Drafts do not count until they are approved.</span>
             )}
           </span>
           <span className="chevron" aria-hidden="true"><ChevronRight /></span>
@@ -239,6 +241,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
             settlements={payments}
             currency={currency}
             empty={ended ? 'This trip has no expenses.' : 'No expenses yet. Add the first one.'}
+            onSettlement={(settlement) => setPayment(settlement.id)}
           />
         </div>
       ) : (
@@ -290,8 +293,47 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
           <p>No more expenses can be added or changed. Payments can still be recorded, and the trip can be reopened later.</p>
         </Confirm>
       ) : null}
+      {payment !== null ? (() => {
+        const settlement = balances.settlements.find((s) => s.id === payment);
+        return settlement ? (
+          <PaymentSheet
+            settlement={settlement}
+            currency={currency}
+            busy={busy}
+            onClose={() => setPayment(null)}
+            onUndo={() => void change(() => client.undoSettlement(settlement.id, settlement.version))}
+            onRestore={() => void change(() => client.restoreSettlement(settlement.id, settlement.version))}
+          />
+        ) : null;
+      })() : null}
       {asking === 'reset' ? <ResetLinkConfirm onCancel={() => setAsking(null)} onDone={(message) => { setAsking(null); setDone(message); }} /> : null}
     </Screen>
+  );
+}
+
+/** One payment: who paid whom, who recorded it and when, its history, and Undo or Restore. */
+function PaymentSheet(props: { settlement: Settlement; currency: string; busy: boolean; onClose(): void; onUndo(): void; onRestore(): void }) {
+  const { group } = useApp();
+  const { settlement } = props;
+  const who = (id: number): string => (id === group.me.id ? 'You' : nameOf(group.members, id));
+  const to = settlement.toMemberId === group.me.id ? 'you' : nameOf(group.members, settlement.toMemberId);
+  return (
+    <Sheet label="Payment" onClose={props.onClose}>
+      <h2 className="sheet-title">{who(settlement.fromMemberId)} paid {to} {money(settlement.amount, props.currency)}</h2>
+      <p className="sheet-body">
+        Recorded by {settlement.createdBy === group.me.id ? 'you' : nameOf(group.members, settlement.createdBy)} · {whenText(settlement.createdAt)}
+        {settlement.status === 'undone' ? ' · undone' : ''}
+      </p>
+      <History type="settlement" id={settlement.id} version={settlement.version} />
+      <div className="sheet-actions">
+        {settlement.status === 'active' ? (
+          <button type="button" className="btn btn-danger btn-block" disabled={props.busy} onClick={props.onUndo}>Undo this payment</button>
+        ) : settlement.fromMemberId !== settlement.toMemberId ? (
+          <button type="button" className="btn btn-primary btn-block" disabled={props.busy} onClick={props.onRestore}>Restore this payment</button>
+        ) : null}
+        <button type="button" className="btn btn-ghost btn-block" onClick={props.onClose}>Close</button>
+      </div>
+    </Sheet>
   );
 }
 

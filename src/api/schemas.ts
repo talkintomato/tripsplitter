@@ -33,6 +33,7 @@ const expenseFields = {
   rateOverride: z.string().nullable().optional(),
   splitType: z.enum(['even', 'portions', 'items']),
   receiptFileId: z.string().nullable().optional(),
+  emoji: z.string().max(32).nullable().optional(),
   items: z.array(item).optional(),
   shares: z.array(share),
 };

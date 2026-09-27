@@ -25,7 +25,7 @@ export function PortionsSplit({ state, update, members, amounts, currency, disab
               <span className="person-name" id={`portion-name-${member.id}`}>
                 {member.displayName}
               </span>
-              <span className="person-amount">{value > 0 ? (amount !== undefined ? money(amount, currency) : '…') : member.id === meId ? 'You are left out' : 'Left out'}</span>
+              <span className="person-amount">{value > 0 ? (amount !== undefined ? money(amount, currency) : `${value} ${value === 1 ? 'portion' : 'portions'}`) : member.id === meId ? 'You are left out' : 'Left out'}</span>
             </span>
             <span className="stepper">
               <button type="button" aria-label={`Fewer portions for ${member.displayName}`} disabled={value <= 0} onClick={() => set(member.id, value - 1)}>

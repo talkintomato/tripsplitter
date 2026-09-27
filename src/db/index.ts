@@ -24,3 +24,4 @@ export * from './settlements.js';
 export { getTripBalances, type TripBalances } from './balances.js';
 export * from './activity.js';
 export * from './receiptReads.js';
+export * from './agent.js';

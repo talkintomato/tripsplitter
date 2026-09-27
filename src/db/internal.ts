@@ -73,6 +73,7 @@ export const mapExpense = mapper<Expense>((r) => ({
   fxRateSource: r.fx_rate_source,
   splitType: r.split_type,
   receiptFileId: r.receipt_file_id,
+  emoji: r.emoji ?? null,
   status: r.status,
   statusBeforeRemoval: r.status_before_removal,
   version: r.version,
@@ -315,6 +316,17 @@ export function cleanText(value: unknown, what: string, options: { max?: number;
   const max = options.max ?? 200;
   if (text.length > max) throw new ValidationError('invalid_input', `The ${what} is too long. The limit is ${max} characters.`);
   return text;
+}
+
+const ONE_EMOJI = /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u;
+
+/** One emoji, or null to have none. Anything else is refused. */
+export function cleanEmoji(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' || value.length > 32 || !ONE_EMOJI.test(value.trim())) {
+    throw new ValidationError('invalid_input', 'The picture of an expense must be one emoji.');
+  }
+  return value.trim();
 }
 
 export function cleanOptionalText(value: unknown, what: string, max = 200): string | null {

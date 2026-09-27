@@ -160,12 +160,12 @@ describe('foreign currency', () => {
 
   it('cannot confirm a draft with no rate', async () => {
     const h = harness();
-    const created = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a, { currency: 'JPY', total: 11240 }), status: 'draft' });
-    expect(created.status).toBe(201);
-    expect(h.rateLookups).toEqual([['SGD', 'JPY']]);
+    // A receipt draft in a currency the trip has no rate for, as the receipt reader leaves it.
+    const draft = createExpense(h.db, h.a.asSam, dinner(h.a, { currency: 'JPY', total: 11240, status: 'draft' }));
+    const created = await h.sam.get(`/api/expenses/${draft.id}`);
+    expect(created.status).toBe(200);
     expect(created.body.expense).toMatchObject({ status: 'draft', fxRate: null, fxRateSource: 'missing', notice: RATE_MISSING_NOTICE, homeTotal: null });
     expect(created.body.expense.problems.map((p: { code: string }) => p.code)).toEqual(['rate_missing']);
-    expect(created.body.rateSet).toBeNull();
 
     const before = fingerprint(h.db);
     const refused = await h.sam.post(`/api/expenses/${created.body.expense.id}/confirm`, { version: 1 });
@@ -176,32 +176,65 @@ describe('foreign currency', () => {
     expect(h.sent()).toEqual([]);
   });
 
-  it('keeps an expense as a draft when it was to be confirmed and no rate is found', async () => {
+  it('refuses a new expense when no rate is found, and writes nothing', async () => {
     const h = harness();
-    const reply = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'JPY', total: 11240 }));
-    expect(reply.status).toBe(201);
-    expect(reply.body.keptAsDraft).toBe(true);
-    expect(reply.body.expense).toMatchObject({ status: 'draft', fxRateSource: 'missing', notice: RATE_MISSING_NOTICE });
+    const body = dinnerBody(h.a, { currency: 'JPY', total: 11240 });
+    const before = fingerprint(h.db);
+    const reply = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, body);
+    expect(reply.status).toBe(400);
+    expect(reply.body.error.code).toBe('rate_missing');
+    expect(reply.body.error.message).toMatch(/exchange rate for JPY/);
+    expect(reply.body.error.problems).toEqual([expect.objectContaining({ field: 'fxRate', code: 'rate_missing' })]);
+    expect(h.rateLookups).toEqual([['SGD', 'JPY']]);
+    // No expense, no trip rate, no activity.
+    expect(fingerprint(h.db)).toBe(before);
     expect(h.sent()).toEqual([]);
     expect(getTrip(h.db, h.a.asAna, h.a.trip.id).homeCurrencyLocked).toBe(false);
 
-    const again = await h.sam.put(`/api/expenses/${reply.body.expense.id}`, { ...dinnerBody(h.a, { total: 11000 }), version: 1, confirm: true });
+    // Once the trip has a rate, the same request is saved.
+    setTripRate(h.db, h.a.asAna, h.a.trip.id, 'JPY', '112.4', 'member');
+    const again = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, body);
+    expect(again.status).toBe(201);
+    expect(again.body).toMatchObject({ keptAsDraft: false, rateSet: null, expense: { status: 'confirmed', fxRateSource: 'trip', homeTotal: 10000 } });
+  });
+
+  it('refuses a request to create a draft, and writes nothing', async () => {
+    const h = harness();
+    const before = fingerprint(h.db);
+    const reply = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a), status: 'draft' });
+    expect(reply.status).toBe(400);
+    expect(reply.body.error).toMatchObject({ code: 'invalid_input', message: 'Expenses are saved straight away. Drafts come from receipt photos.' });
+    expect(fingerprint(h.db)).toBe(before);
+    expect(h.sent()).toEqual([]);
+    // Saying confirmed, or nothing, is what saving is.
+    expect((await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a), status: 'confirmed' })).status).toBe(201);
+  });
+
+  it('keeps a receipt draft a draft when it is saved, and when it is approved but no rate is found', async () => {
+    const h = harness();
+    const draft = createExpense(h.db, h.a.asSam, dinner(h.a, { currency: 'JPY', total: 11240, status: 'draft' }));
+    const saved = await h.sam.put(`/api/expenses/${draft.id}`, { ...dinnerBody(h.a, { total: 11100 }), version: 1 });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({ keptAsDraft: false, expense: { status: 'draft', total: 11100, currency: 'JPY', version: 2 } });
+
+    const again = await h.sam.put(`/api/expenses/${draft.id}`, { ...dinnerBody(h.a, { total: 11000 }), version: 2, confirm: true });
     expect(again.status).toBe(200);
-    expect(again.body).toMatchObject({ keptAsDraft: true, expense: { status: 'draft', total: 11000, currency: 'JPY', version: 2 } });
+    expect(again.body).toMatchObject({ keptAsDraft: true, expense: { status: 'draft', total: 11000, currency: 'JPY', version: 3 } });
     expect(h.sent()).toEqual([]);
   });
 
   it('looks up a rate, makes it the trip\'s rate and announces it once', async () => {
     const h = harness();
     h.rates.JPY = '112.4';
-    const reply = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a, { currency: 'JPY', total: 11240 }), status: 'draft' });
+    const reply = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'JPY', total: 11240 }));
     expect(reply.status).toBe(201);
     expect(reply.body.rateSet).toEqual({ currency: 'JPY', rate: '112.4', origin: 'suggested' });
-    expect(reply.body.expense).toMatchObject({ status: 'draft', fxRate: '112.4', fxRateSource: 'trip', homeTotal: 10000, notice: null, problems: [] });
+    expect(reply.body.expense).toMatchObject({ status: 'confirmed', fxRate: '112.4', fxRateSource: 'trip', homeTotal: 10000, notice: null, problems: [] });
     expect(listTripRates(h.db, h.a.asAna, h.a.trip.id)).toMatchObject([{ currency: 'JPY', rate: '112.4', origin: 'suggested' }]);
-    expect(h.notices).toEqual([
-      { name: 'tripRateChanged', notice: { chatId: h.a.group.chatId, actorName: 'Sam', homeCurrency: 'SGD', currency: 'JPY', rate: '112.4', origin: 'suggested', expensesChanged: 1 } },
-    ]);
+    expect(h.notices.map((n) => n.name)).toEqual(['tripRateChanged', 'expenseSaved']);
+    expect(h.notices[0]).toEqual(
+      { name: 'tripRateChanged', notice: { chatId: h.a.group.chatId, actorName: 'Sam', homeCurrency: 'SGD', currency: 'JPY', rate: '112.4', origin: 'suggested', expensesChanged: 0 } },
+    );
 
     // The next expense in that currency uses the trip's rate without a lookup.
     h.clear();
@@ -234,15 +267,17 @@ describe('foreign currency', () => {
     const h = harness();
     h.rates.JPY = '-3';
     const bad = await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'JPY' }));
-    expect(bad.body).toMatchObject({ keptAsDraft: true, expense: { fxRateSource: 'missing' } });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('rate_missing');
     expect(listTripRates(h.db, h.a.asAna, h.a.trip.id)).toEqual([]);
     expect((await h.sam.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { currency: 'CHF' }))).body.error.code).toBe('unsupported_currency');
   });
 
   it('never reads the rate or its source from a request', async () => {
     const h = harness();
-    const reply = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a, { currency: 'JPY' }), fxRate: '100', fxRateSource: 'trip', status: 'draft' });
-    expect(reply.body.expense).toMatchObject({ fxRate: null, fxRateSource: 'missing' });
+    h.rates.JPY = '112.4';
+    const reply = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, { ...dinnerBody(h.a, { currency: 'JPY' }), fxRate: '100', fxRateSource: 'expense' });
+    expect(reply.body.expense).toMatchObject({ fxRate: '112.4', fxRateSource: 'trip' });
   });
 });
 
@@ -251,7 +286,8 @@ describe('notices for expenses', () => {
     const h = harness();
     const path = `/api/trips/${h.a.trip.id}/expenses`;
 
-    const draft = await h.ana.post(path, { ...dinnerBody(h.a), status: 'draft' });
+    // A receipt draft, made the way the receipt reader makes it.
+    const draft = { body: { expense: createExpense(h.db, h.a.asAna, dinner(h.a, { status: 'draft' })) } };
     expect(h.sent()).toEqual([]);
     const savedDraft = await h.ana.put(`/api/expenses/${draft.body.expense.id}`, { ...dinnerBody(h.a, { total: 1200 }), version: 1 });
     expect(savedDraft.body.expense.version).toBe(2);
@@ -383,9 +419,10 @@ it('recovers a failed lookup with a member trip rate and saves the next expense 
   try {
   const path = `/api/trips/${h.a.trip.id}/expenses`;
   const body = dinnerBody(h.a, { currency: 'JPY', total: 11240 });
+  // A receipt draft in JPY, for which the lookup finds nothing.
   const first = await h.ana.post(path, body);
-  expect(first.body.keptAsDraft).toBe(true);
-  const draft = first.body.expense;
+  expect(first.body.error.code).toBe('rate_missing');
+  const draft = createExpense(h.db, h.a.asAna, dinner(h.a, { currency: 'JPY', total: 11240, status: 'draft' }));
   const rates = `/api/trips/${h.a.trip.id}/rates/JPY`;
   const preview = await h.ana.post(`${rates}/preview`, { rate: '112.4' });
   const applied = await h.ana.put(rates, { rate: '112.4', snapshot: preview.body.snapshot });
@@ -399,4 +436,17 @@ it('recovers a failed lookup with a member trip rate and saves the next expense 
   expect(second.body.expense).toMatchObject({ status: 'confirmed', fxRateSource: 'trip', notice: null });
   expect(h.rateLookups).toHaveLength(1);
   } finally { h.db.close(); }
+});
+
+describe('the emoji of an expense', () => {
+  it('is saved, returned, kept when left out, and refused when it is not one emoji', async () => {
+    const h = harness();
+    const created = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { emoji: '🍜' }));
+    expect(created.body.expense.emoji).toBe('🍜');
+    const saved = await h.ana.put(`/api/expenses/${created.body.expense.id}`, { ...dinnerBody(h.a, { total: 1200 }), version: 1 });
+    expect(saved.body.expense.emoji).toBe('🍜');
+    const bad = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, dinnerBody(h.a, { emoji: 'noodles' }));
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('invalid_input');
+  });
 });

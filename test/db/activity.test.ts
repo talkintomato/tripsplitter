@@ -159,3 +159,18 @@ describe('each operation writes the activity entries documented for it', () => {
     expect(entries).toEqual([]);
   });
 });
+
+describe('the activity of one record', () => {
+  it('lists only the entries about that expense or settlement, and refuses a record of another group', async () => {
+    const { seedTwo } = await import('./helpers.js');
+    const { a, b, db } = seedTwo();
+    const mine = createExpense(db, a.asAna, { tripId: a.trip.id, payerId: a.ana.id, description: 'Dinner', merchant: null, expenseDate: '2026-09-27', total: 1000, splitType: 'even', shares: [{ memberId: a.ana.id }] });
+    createExpense(db, a.asAna, { tripId: a.trip.id, payerId: a.ana.id, description: 'Taxi', merchant: null, expenseDate: '2026-09-27', total: 500, splitType: 'even', shares: [{ memberId: a.ana.id }] });
+    deleteExpense(db, a.asAna, mine.id, mine.version);
+    expect(listActivity(db, a.asAna, { entity: { type: 'expense', id: mine.id } }).map((e) => e.action)).toEqual(['expense.delete', 'expense.create']);
+    const paid = createSettlement(db, a.asAna, { tripId: a.trip.id, fromMemberId: a.sam.id, toMemberId: a.ana.id, amount: 100 });
+    expect(listActivity(db, a.asAna, { entity: { type: 'settlement', id: paid.id } }).map((e) => e.entityId)).toEqual([paid.id]);
+    expect(() => listActivity(db, b.asAna, { entity: { type: 'expense', id: mine.id } })).toThrow();
+    db.close();
+  });
+});

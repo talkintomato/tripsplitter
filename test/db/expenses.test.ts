@@ -483,3 +483,22 @@ describe('an expense in a foreign currency', () => {
     expect(error.problems.map((p) => p.code)).toEqual(['currency_needs_review', 'rate_missing']);
   });
 });
+
+describe('the emoji of an expense', () => {
+  it('is set, kept when left out, removed with null, and must be one emoji', async () => {
+    const { seed, dinner, sameAs } = await import('./helpers.js');
+    const { createExpense, saveExpense } = await import('../../src/db/index.js');
+    const s = seed();
+    const created = createExpense(s.db, s.asAna, dinner(s, { emoji: '🍜' }));
+    expect(created.emoji).toBe('🍜');
+    const kept = saveExpense(s.db, s.asAna, created.id, 1, sameAs(s, dinner(s, { total: 1200 })));
+    expect(kept.emoji).toBe('🍜');
+    const flag = saveExpense(s.db, s.asAna, created.id, 2, { ...sameAs(s, dinner(s)), emoji: '🇯🇵' });
+    expect(flag.emoji).toBe('🇯🇵');
+    const cleared = saveExpense(s.db, s.asAna, created.id, 3, { ...sameAs(s, dinner(s)), emoji: null });
+    expect(cleared.emoji).toBeNull();
+    for (const bad of ['ab', '🍜🍣', 'x🍜']) expect(() => createExpense(s.db, s.asAna, dinner(s, { emoji: bad }))).toThrow('one emoji');
+    expect(createExpense(s.db, s.asAna, dinner(s)).emoji).toBeNull();
+    s.db.close();
+  });
+});

@@ -78,3 +78,4 @@ export const Bed = (p: IconProps) => <Icon {...p}><path d="M3 15.5v-9M3 12.5h14v
 export const Ticket = (p: IconProps) => <Icon {...p}><path d="M3.5 6.5h13v2a1.5 1.5 0 0 0 0 3v2h-13v-2a1.5 1.5 0 0 0 0-3v-2ZM11.5 6.5v7" /></Icon>;
 export const Cart = (p: IconProps) => <Icon {...p}><path d="M3 4h2l1.6 8h8.2L16.5 6.5H6" /><circle cx="7.5" cy="15.5" r="1.2" /><circle cx="14" cy="15.5" r="1.2" /></Icon>;
 export const Glass = (p: IconProps) => <Icon {...p}><path d="M5.5 3.5h9l-1 5.5a3.5 3.5 0 0 1-7 0l-1-5.5ZM10 12.5v4M7 16.5h6" /></Icon>;
+export const Smile = (p: IconProps) => <Icon {...p}><circle cx="10" cy="10" r="7" /><path d="M7 11.5c.7 1 1.8 1.6 3 1.6s2.3-.6 3-1.6" /><circle cx="7.6" cy="8.2" r=".7" fill="currentColor" /><circle cx="12.4" cy="8.2" r=".7" fill="currentColor" /></Icon>;

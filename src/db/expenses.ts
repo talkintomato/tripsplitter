@@ -8,6 +8,7 @@ import {
   assertRate,
   assertTripOpen,
   assertVersionNumber,
+  cleanEmoji,
   cleanOptionalText,
   cleanText,
   loadExpense,
@@ -156,8 +157,8 @@ export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): 
         .prepare(
           `INSERT INTO expense (trip_id, created_by, payer_id, description, merchant, expense_date, total, tax, tax_included,
              tip, service_charge, discount, currency, currency_needs_review, fx_rate, fx_rate_source, split_type,
-             receipt_file_id, status, version, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)`,
+             receipt_file_id, emoji, status, version, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)`,
         )
         .run(
           trip.id,
@@ -178,6 +179,7 @@ export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): 
           resolved.source,
           assertSplitType(input.splitType),
           cleanOptionalText(input.receiptFileId, 'receipt reference', 500),
+          cleanEmoji(input.emoji),
           stamp,
           stamp,
         ).lastInsertRowid,
@@ -279,7 +281,7 @@ export function saveExpense(db: Db, scope: Scope, expenseId: number, expectedVer
     db.prepare(
       `UPDATE expense SET payer_id = ?, description = ?, merchant = ?, expense_date = ?, total = ?, tax = ?, tax_included = ?,
          tip = ?, service_charge = ?, discount = ?, currency = ?, currency_needs_review = ?, fx_rate = ?, fx_rate_source = ?,
-         split_type = ?, receipt_file_id = ?, version = version + 1, updated_at = ?
+         split_type = ?, receipt_file_id = ?, emoji = ?, version = version + 1, updated_at = ?
        WHERE id = ?`,
     ).run(
       payer.id,
@@ -298,6 +300,7 @@ export function saveExpense(db: Db, scope: Scope, expenseId: number, expectedVer
       resolved.source,
       assertSplitType(input.splitType),
       input.receiptFileId === undefined ? before.receiptFileId : cleanOptionalText(input.receiptFileId, 'receipt reference', 500),
+      input.emoji === undefined ? before.emoji : cleanEmoji(input.emoji),
       nowIso(),
       expenseId,
     );

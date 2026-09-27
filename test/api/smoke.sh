@@ -79,10 +79,16 @@ check 'PUT expense' 200 'v.expense.total===1200 && v.expense.version===2' PUT "/
 check 'PUT with an old version' 409 'v.error.code==="stale" && v.error.current.version===2' PUT "/api/expenses/$ID" "${EXPENSE%\}},\"version\":1}"
 check 'GET expenses' 200 'v.expenses.length===1' GET "/api/trips/$TRIP/expenses"
 
-FOREIGN="${EXPENSE%\}},\"currency\":\"JPY\",\"total\":11240,\"status\":\"draft\"}"
-check 'POST a draft in JPY looks up a rate' 201 'v.expense.status==="draft" && v.expense.fxRateSource==="trip" && v.rateSet.currency==="JPY" && v.expense.homeTotal>0' POST "/api/trips/$TRIP/expenses" "$FOREIGN"
+check 'POST asking for a draft is refused' 400 'v.error.code==="invalid_input" && /receipt photos/.test(v.error.message)' POST "/api/trips/$TRIP/expenses" "${EXPENSE%\}},\"status\":\"draft\"}"
+check 'a refused draft saves nothing' 200 'v.expenses.length===1' GET "/api/trips/$TRIP/expenses"
+FOREIGN="${EXPENSE%\}},\"currency\":\"JPY\",\"total\":11240}"
+check 'POST in JPY looks up a rate' 201 'v.expense.status==="confirmed" && v.expense.fxRateSource==="trip" && v.rateSet.currency==="JPY" && v.expense.homeTotal>0' POST "/api/trips/$TRIP/expenses" "$FOREIGN"
+check 'DELETE it again' 200 'v.expense.status==="deleted"' POST "/api/expenses/$(last 'v.expense.id')/delete" '{"version":1}'
+# Drafts come from receipt photos. The dev server makes one the way the receipt reader does.
+RECEIPT="{\"payerId\":$SAM,\"description\":\"\",\"merchant\":\"Ichiran\",\"expenseDate\":\"2026-09-27\",\"currency\":\"JPY\",\"total\":11240,\"splitType\":\"even\",\"shares\":[{\"memberId\":$ME},{\"memberId\":$SAM},{\"memberId\":$PRIYA}]}"
+check 'a receipt draft (dev only)' 201 'v.expense.status==="draft" && v.expense.fxRateSource==="trip"' POST /dev/receipt-draft "$RECEIPT"
 DRAFT="$(last 'v.expense.id')"; DRAFT_VERSION="$(last 'v.expense.version')"
-check 'GET drafts' 200 'v.expenses.length===1 && v.expenses[0].currency==="JPY"' GET "/api/trips/$TRIP/expenses?status=draft"
+check 'GET drafts' 200 'v.expenses.length===1 && v.expenses[0].currency==="JPY" && v.expenses[0].homeTotal>0' GET "/api/trips/$TRIP/expenses?status=draft"
 check 'POST confirm' 200 'v.expense.status==="confirmed"' POST "/api/expenses/$DRAFT/confirm" "{\"version\":$DRAFT_VERSION}"
 check 'POST delete' 200 'v.expense.status==="deleted"' POST "/api/expenses/$DRAFT/delete" "{\"version\":$(last 'v.expense.version')}"
 check 'POST restore' 200 'v.expense.status==="confirmed"' POST "/api/expenses/$DRAFT/restore" "{\"version\":$(last 'v.expense.version')}"
