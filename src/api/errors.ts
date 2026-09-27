@@ -31,6 +31,10 @@ function body(error: ApiErrorBody['error']): ApiErrorBody {
 export function handleError(db: Db, error: unknown, c: Context<ApiEnv>): Response {
   if (error instanceof AccessError) return c.json(body({ code: error.code, message: error.message }), error.status);
   if (error instanceof InitDataError) {
+    // The reason and the field names only. The values are personal and are never logged.
+    const header = c.req.header('Authorization') ?? '';
+    const fields = [...new URLSearchParams(header.replace(/^tma\s+/i, '')).keys()];
+    console.warn(`Sign-in refused: ${error.reason}. Header length ${header.length}, fields: ${fields.join(',') || 'none'}.`);
     return c.json(body({ code: 'unauthorized', message: 'Could not sign you in. Close this and open it again from the group.' }), 401);
   }
   if (error instanceof LaunchError) return c.json(body({ code: 'unauthorized', message: OPEN_FROM_GROUP_MESSAGE }), 401);
