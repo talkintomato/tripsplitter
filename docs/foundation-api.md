@@ -37,7 +37,7 @@ Tests get a database with `openDatabase(':memory:')` and a config with `buildCon
 
 | Export | Description |
 |---|---|
-| `interface Config` | `botToken`, `botUsername`, `miniAppName`, `allowedChatIds: number[]`, `linkSecret`, `databasePath`, `openaiApiKey: string \| undefined`, `receiptModel`, `receiptDailyCap: number`, `port: number`, `nodeEnv: 'development' \| 'test' \| 'production'`, `devFakeUser: DevFakeUser \| undefined`, `webhookUrl: string \| undefined`, `webhookSecret: string \| undefined` |
+| `interface Config` | `botToken`, `botUsername`, `miniAppName`, `allowedChatIds: number[]`, `linkSecret`, `databasePath`, `openaiApiKey: string \| undefined`, `receiptModel`, `receiptDailyCap: number`, `receiptGlobalDailyCap: number`, `port: number`, `nodeEnv: 'development' \| 'test' \| 'production'`, `devFakeUser: DevFakeUser \| undefined`, `webhookUrl: string \| undefined`, `webhookSecret: string \| undefined` |
 | `interface DevFakeUser` | `{ id: number; firstName: string; lastName?: string; username?: string }`. Same shape as `TelegramUser`. |
 | `loadConfig(env?: Record<string, string \| undefined>): Config` | Reads and checks the environment, `process.env` by default. Throws `ConfigError` naming every missing or invalid variable. |
 | `buildConfig(overrides?: Partial<Config>): Config` | A config for tests, without any environment variable. `nodeEnv` is `test`, `databasePath` is `:memory:`. |
@@ -45,7 +45,7 @@ Tests get a database with `openDatabase(':memory:')` and a config with `buildCon
 | `receiptReadingEnabled(config: Config): boolean` | True when `OPENAI_API_KEY` is set. |
 | `isChatIdListed(config: Config, chatId: number): boolean` | True when this exact ID is in `ALLOWED_CHAT_IDS`. Earlier IDs of an upgraded chat are not looked at; PRD 1's `isAllowedChat` does that with `group.previousChatIds`. |
 
-Variables: `NODE_ENV` (default `development`), `BOT_TOKEN`, `BOT_USERNAME` (no `@`), `MINI_APP_NAME`, `ALLOWED_CHAT_IDS`, `LINK_SECRET` (at least 32 characters), `DATABASE_PATH` (default `./data/tripsplitter.db`), `OPENAI_API_KEY` (optional), `RECEIPT_MODEL` (default `gpt-6-luna`), `RECEIPT_DAILY_CAP` (default 30), `PORT` (default 3000), `WEBHOOK_URL` (optional), `WEBHOOK_SECRET` (16 to 256 letters, digits, `_` or `-`; required when `WEBHOOK_URL` is set), `DEV_FAKE_USER` (JSON such as `{"id":1,"first_name":"Dev"}`; loading fails when it is set in production). A blank value counts as not set.
+Variables: `NODE_ENV` (default `development`), `BOT_TOKEN`, `BOT_USERNAME` (no `@`), `MINI_APP_NAME`, `ALLOWED_CHAT_IDS`, `LINK_SECRET` (at least 32 characters), `DATABASE_PATH` (default `./data/tripsplitter.db`), `OPENAI_API_KEY` (optional), `RECEIPT_MODEL` (default `gpt-6-luna`), `RECEIPT_DAILY_CAP` (default 30), `RECEIPT_GLOBAL_DAILY_CAP` (default 300; 0 disables the overall limit), `PORT` (default 3000), `WEBHOOK_URL` (optional), `WEBHOOK_SECRET` (16 to 256 letters, digits, `_` or `-`; required when `WEBHOOK_URL` is set), `DEV_FAKE_USER` (JSON such as `{"id":1,"first_name":"Dev"}`; loading fails when it is set in production). A blank value counts as not set.
 
 ## Money maths: `src/core/`
 
@@ -410,7 +410,7 @@ To restore from the Activity screen, read `entityType` and `entityId` from the e
 
 | Operation | Activity |
 |---|---|
-| `reserveReceiptRead(db: Db, groupId: number, cap: number, now: Date): boolean`<br>Counts the group's reservations for the Singapore day of `now` and adds one when the count is below `cap`. Returns whether it did. Takes a group ID, not a scope. | none |
+| `reserveReceiptRead(db: Db, groupId: number, cap: number, now: Date, globalCap?: number): boolean`<br>In one immediate transaction, counts the group's reservations for the Singapore day of `now` and adds one when the count is below `cap` and the total across all groups is below `globalCap`. Omitting `globalCap`, or passing 0, disables only the overall limit; a per-group `cap` of 0 still refuses every read. Reservations include retries and failed reads. Returns whether it reserved a read. Takes a group ID, not a scope. | none |
 | `countReceiptReads(db: Db, groupId: number, now: Date): number` | |
 
 ## Access: `src/api/auth.ts`

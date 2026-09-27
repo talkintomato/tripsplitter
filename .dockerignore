@@ -1,0 +1,16 @@
+.git
+node_modules
+web/node_modules
+dist
+web/dist
+.env
+.env.*
+*.db
+*.db-*
+data
+backups
+.verification
+.claude
+.agents
+agents
+test

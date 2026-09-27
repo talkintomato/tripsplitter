@@ -188,7 +188,7 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
       return await reader(image);
     } catch (error) {
       if (!(error instanceof ReceiptReadError) || !error.retryable) throw error;
-      if (!reserveReceiptRead(db, groupId, config.receiptDailyCap, now())) throw error;
+      if (!reserveReceiptRead(db, groupId, config.receiptDailyCap, now(), config.receiptGlobalDailyCap)) throw error;
       return await reader(image);
     }
   }
@@ -206,7 +206,7 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
       return;
     }
     const who = identify(message.chat, from);
-    if (!reserveReceiptRead(db, who.group.id, config.receiptDailyCap, now())) {
+    if (!reserveReceiptRead(db, who.group.id, config.receiptDailyCap, now(), config.receiptGlobalDailyCap)) {
       await ctx.api.sendMessage(chatId, TEXT.limitReached, reply);
       return;
     }

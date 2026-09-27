@@ -16,6 +16,7 @@ import { loadConfig, type Config } from '../config.js';
 import { encodeLaunch, type Notifier, type RateSuggester } from '../core/index.js';
 import { ensureGroup, openDatabase, type Db } from '../db/index.js';
 import { createApi } from './index.js';
+import { registerHealth } from './health.js';
 
 const DEV_CHAT_ID = -1000000000001;
 
@@ -83,6 +84,7 @@ export function devLaunch(config: Config, db: Db): string {
 
 export function createDevApp(config: Config, db: Db, webRoot = resolve('web/dist')): Hono {
   const app = new Hono();
+  registerHealth(app, db);
   app.get('/dev/launch', (c) => {
     const launch = devLaunch(config, db);
     return c.json({ launch, url: `http://localhost:${config.port}/?startapp=${launch}` });

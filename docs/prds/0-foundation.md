@@ -28,7 +28,8 @@ Read the shared decisions in [README.md](README.md) first. They bind this build.
 | `DATABASE_PATH` | SQLite file | `./data/tripsplitter.db` |
 | `OPENAI_API_KEY` | Key for receipt reading | optional; receipt reading is off without it |
 | `RECEIPT_MODEL` | Model ID for receipt reading | `gpt-6-luna` |
-| `RECEIPT_DAILY_CAP` | Model calls per group per day | `30` |
+| `RECEIPT_DAILY_CAP` | Model calls per group per Singapore day | `30` |
+| `RECEIPT_GLOBAL_DAILY_CAP` | Model calls across all groups per Singapore day; `0` disables the overall limit | `300` |
 | `PORT` | HTTP port | `3000` |
 | `WEBHOOK_URL` | Public base URL. Unset means long polling. | unset |
 | `WEBHOOK_SECRET` | Secret path segment and header value for the webhook | required when `WEBHOOK_URL` is set |

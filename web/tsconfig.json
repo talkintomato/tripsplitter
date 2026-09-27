@@ -16,5 +16,5 @@
     "types": ["vite/client", "node"],
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts", "../test/web"]
+  "include": ["src", "vite.config.ts", "../test/web", "../test/currency-ui"]
 }

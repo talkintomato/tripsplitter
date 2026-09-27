@@ -101,6 +101,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalString,
   RECEIPT_MODEL: z.preprocess(blankToUndefined, z.string().default('gpt-6-luna')),
   RECEIPT_DAILY_CAP: positiveInt(30),
+  RECEIPT_GLOBAL_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(300)),
   PORT: positiveInt(3000),
   NODE_ENV: z.preprocess(blankToUndefined, z.enum(['development', 'test', 'production']).default('development')),
   DEV_FAKE_USER: fakeUser,
@@ -141,6 +142,8 @@ export interface Config {
   receiptModel: string;
   /** RECEIPT_DAILY_CAP */
   receiptDailyCap: number;
+  /** RECEIPT_GLOBAL_DAILY_CAP. Zero disables the overall limit. */
+  receiptGlobalDailyCap: number;
   /** PORT */
   port: number;
   /** NODE_ENV */
@@ -194,6 +197,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     openaiApiKey: e.OPENAI_API_KEY,
     receiptModel: e.RECEIPT_MODEL,
     receiptDailyCap: e.RECEIPT_DAILY_CAP,
+    receiptGlobalDailyCap: e.RECEIPT_GLOBAL_DAILY_CAP,
     port: e.PORT,
     nodeEnv: e.NODE_ENV,
     devFakeUser: e.DEV_FAKE_USER,
@@ -229,6 +233,7 @@ function buildUnchecked(overrides: Partial<Config>): Config {
     openaiApiKey: undefined,
     receiptModel: 'gpt-6-luna',
     receiptDailyCap: 30,
+    receiptGlobalDailyCap: 300,
     port: 3000,
     nodeEnv: 'test',
     devFakeUser: undefined,

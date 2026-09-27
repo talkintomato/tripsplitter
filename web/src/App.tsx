@@ -6,6 +6,9 @@ import { Activity } from './screens/Activity';
 import { Balances } from './screens/Balances';
 import { AddExpense, Drafts, EditExpense, ExpenseDetail } from './screens/Expense';
 import { Home, PastTrips, TripScreen } from './screens/Home';
+import { Currencies } from './screens/Currencies';
+import { ChangeRate } from './screens/ChangeRate';
+import { TripSetup } from './screens/TripSetup';
 import { Members } from './screens/Members';
 import { AppProvider, type AppState } from './state';
 import { getInitData, getStartParam, prepare } from './telegram';
@@ -116,8 +119,11 @@ export function App(props: AppProps) {
   return (
     <AppProvider value={state}>
       <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
-        <Routes>
+        {group.activeTrip && !group.activeTrip.setupDone ? <TripSetup tripId={group.activeTrip.id} automatic /> : <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/trips/:tripId/setup" element={<TripSetup />} />
+          <Route path="/trips/:tripId/currencies" element={<Currencies />} />
+          <Route path="/trips/:tripId/rates/:currency" element={<ChangeRate />} />
           <Route path="/past-trips" element={<PastTrips />} />
           <Route path="/trips/:tripId" element={<TripScreen />} />
           <Route path="/trips/:tripId/add" element={<AddExpense />} />
@@ -128,7 +134,7 @@ export function App(props: AppProps) {
           <Route path="/members" element={<Members />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Home />} />
-        </Routes>
+        </Routes>}
       </MemoryRouter>
     </AppProvider>
   );

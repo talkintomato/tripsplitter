@@ -170,6 +170,8 @@ function TripHome(props: { tripId: number; root: boolean }) {
         </div>
       </div>
 
+      <Link className="button button-quiet" to={`/trips/${trip.id}/currencies`}>Trip settings · Currencies and name</Link>
+
       {drafts.length > 0 ? (
         <Link className="row row-card" to={`/trips/${trip.id}/drafts`}>
           <span className="row-main">

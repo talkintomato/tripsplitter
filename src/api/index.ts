@@ -7,6 +7,7 @@ import { handleError } from './errors.js';
 import { registerExpenseRoutes } from './routes/expenses.js';
 import { registerGroupRoutes } from './routes/group.js';
 import { registerTripRoutes } from './routes/trips.js';
+import { registerRateRoutes } from './routes/rates.js';
 
 export type { ApiDeps, ApiEnv } from './context.js';
 export type * from './types.js';
@@ -32,6 +33,7 @@ export function createApi(config: Config, db: Db, deps: ApiDeps): Hono<ApiEnv> {
 
   registerGroupRoutes(app, services);
   registerTripRoutes(app, services);
+  registerRateRoutes(app, services);
   registerExpenseRoutes(app, services);
 
   app.all('/api/*', (c) => c.json({ error: { code: 'not_found', message: 'That does not exist.' } }, 404));

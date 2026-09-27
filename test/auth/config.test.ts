@@ -29,6 +29,7 @@ describe('loadConfig', () => {
       openaiApiKey: undefined,
       receiptModel: 'gpt-6-luna',
       receiptDailyCap: 30,
+      receiptGlobalDailyCap: 300,
       port: 3000,
       nodeEnv: 'development',
       devFakeUser: undefined,
@@ -46,6 +47,7 @@ describe('loadConfig', () => {
       OPENAI_API_KEY: 'placeholder-key',
       RECEIPT_MODEL: 'some-model',
       RECEIPT_DAILY_CAP: '5',
+      RECEIPT_GLOBAL_DAILY_CAP: '50',
       PORT: '8080',
       WEBHOOK_URL: 'https://trips.example.com',
       WEBHOOK_SECRET: 'abcdefghijklmnop_-123',
@@ -57,6 +59,7 @@ describe('loadConfig', () => {
       openaiApiKey: 'placeholder-key',
       receiptModel: 'some-model',
       receiptDailyCap: 5,
+      receiptGlobalDailyCap: 50,
       port: 8080,
       webhookUrl: 'https://trips.example.com',
       webhookSecret: 'abcdefghijklmnop_-123',
@@ -141,7 +144,7 @@ describe('.env.example', () => {
     expect(names.sort()).toEqual(
       [
         'NODE_ENV', 'BOT_TOKEN', 'BOT_USERNAME', 'MINI_APP_NAME', 'ALLOWED_CHAT_IDS', 'LINK_SECRET', 'DATABASE_PATH',
-        'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
+        'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
       ].sort(),
     );
     expect(text).not.toMatch(/sk-[A-Za-z0-9]/);
