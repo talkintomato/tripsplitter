@@ -58,7 +58,7 @@ export function BalancesPanel(props: { tripId: number; data: BalancesResponse; o
             {payments.map((payment) => (
               <li key={`${payment.fromMemberId}-${payment.toMemberId}`} className="card pay-card">
                 <p className="pay-line">
-                  <Avatar name={nameOf(group.members, payment.fromMemberId)} size="sm" />
+                  <Avatar name={nameOf(group.members, payment.fromMemberId)} id={payment.fromMemberId} size="sm" />
                   <span className="pay-who">
                     <strong>{who(payment.fromMemberId)}</strong> {payment.fromMemberId === group.me.id ? 'pay' : 'pays'}{' '}
                     <strong>{payment.toMemberId === group.me.id ? 'you' : nameOf(group.members, payment.toMemberId)}</strong>
@@ -80,7 +80,7 @@ export function BalancesPanel(props: { tripId: number; data: BalancesResponse; o
         <ul className="list-card">
           {rows.map((row) => (
             <li key={row.id} className="item">
-              <Avatar name={row.name} />
+              <Avatar name={row.name} id={row.id} />
               <span className="row-main">
                 <span className="row-title">{row.id === group.me.id ? `${row.name} (you)` : row.name}</span>
               </span>

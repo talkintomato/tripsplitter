@@ -161,7 +161,7 @@ export function ItemSheet(props: ItemSheetProps) {
               const mine = n > 0 && each?.[member.id] !== undefined ? each[member.id]! : undefined;
               return (
                 <div key={member.id} className={`person count-row ${n > 0 ? '' : 'person-out'}`}>
-                  <Avatar name={member.displayName} />
+                  <Avatar name={member.displayName} id={member.id} />
                   <span className="person-name-block">
                     <span className="person-name">{member.displayName}</span>
                     {n > 0 ? <span className="person-amount">{mine !== undefined ? money(mine, currency) : ' '}</span> : null}

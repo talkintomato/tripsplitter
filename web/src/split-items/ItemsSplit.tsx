@@ -89,7 +89,7 @@ export function ItemsSplit(props: SplitBodyProps) {
             {members.map((member) => (
               <label key={member.id} className={`person ${state.included.includes(member.id) ? '' : 'person-out'}`}>
                 <input type="checkbox" className="tick" checked={state.included.includes(member.id)} onChange={() => update(toggleIncluded(state, member.id))} />
-                <Avatar name={member.displayName} />
+                <Avatar name={member.displayName} id={member.id} />
                 <span className="person-name">{member.displayName}</span>
               </label>
             ))}
@@ -240,7 +240,7 @@ export function ItemsSplit(props: SplitBodyProps) {
           <ul className={`people-card shares ${pending ? 'stale' : ''}`} aria-label="Each person pays">
             {people.map((member) => (
               <li key={member.id} className="person">
-                <Avatar name={member.displayName} />
+                <Avatar name={member.displayName} id={member.id} />
                 <span className="person-name">{member.displayName}</span>
                 <span className="person-amount">{amounts[member.id] !== undefined ? money(amounts[member.id]!, currency) : '—'}</span>
               </li>

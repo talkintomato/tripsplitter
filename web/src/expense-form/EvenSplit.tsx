@@ -32,7 +32,7 @@ export function EvenSplit({ state, update, members, amounts, currency, disabled,
         return (
           <label key={member.id} className={`person ${on ? '' : 'person-out'}`}>
             <input type="checkbox" className="tick" checked={on} onChange={() => toggle(member.id)} />
-            <Avatar name={member.displayName} />
+            <Avatar name={member.displayName} id={member.id} />
             <span className="person-name">{member.displayName}</span>
             {member.id === meId ? <span className="you-tag">you</span> : null}
             <span className="person-amount">{on && amounts?.[member.id] !== undefined ? money(amounts[member.id]!, currency) : ''}</span>

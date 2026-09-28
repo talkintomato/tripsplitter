@@ -1,6 +1,8 @@
 import type { Hono } from 'hono';
 import { DEFAULT_HOME_CURRENCY, encodeLaunch, launchUrl } from '../../core/index.js';
 import {
+  ACTIVITY_KINDS,
+  type ActivityKind,
   addManualMember,
   claimMember,
   getActiveTrip,
@@ -34,6 +36,8 @@ import type {
 import { toGroupInfo } from '../views.js';
 
 export const ACTIVITY_PAGE_SIZE = 50;
+/** The smallest and largest page a caller may ask for with `limit`. */
+const ACTIVITY_LIMIT_RANGE = [1, 50] as const;
 
 /** The record an entry is about, when restoring it from that entry makes sense now. */
 function restoreTarget(db: Db, scope: Scope, entry: Activity, seen: Set<string>): RestoreTarget | null {
@@ -131,13 +135,24 @@ export function registerGroupRoutes(app: Hono<ApiEnv>, { config, db, deps }: Ser
     if (entityType !== undefined && entityType !== '' && entityType !== 'expense' && entityType !== 'settlement') {
       throw new ValidationError('invalid_input', '"entityType" must be expense or settlement.');
     }
+    const kind = c.req.query('kind');
+    if (kind !== undefined && kind !== '' && !(ACTIVITY_KINDS as readonly string[]).includes(kind)) {
+      throw new ValidationError('invalid_input', `"kind" must be one of: ${ACTIVITY_KINDS.join(', ')}.`);
+    }
+    const actor = positiveQuery(c.req.query('actor'), 'actor');
+    const limit = positiveQuery(c.req.query('limit'), 'limit') ?? ACTIVITY_PAGE_SIZE;
+    if (limit < ACTIVITY_LIMIT_RANGE[0] || limit > ACTIVITY_LIMIT_RANGE[1]) {
+      throw new ValidationError('invalid_input', `"limit" must be between ${ACTIVITY_LIMIT_RANGE[0]} and ${ACTIVITY_LIMIT_RANGE[1]}.`);
+    }
     const rows = listActivity(db, scope, {
+      ...(kind ? { kind: kind as ActivityKind } : {}),
+      ...(actor !== undefined ? { actorMemberId: actor } : {}),
       ...(tripId !== undefined ? { tripId } : {}),
       ...(before !== undefined ? { before } : {}),
       ...(entityId !== undefined ? { entity: { type: entityType as 'expense' | 'settlement', id: entityId } } : {}),
-      limit: ACTIVITY_PAGE_SIZE + 1,
+      limit: limit + 1,
     });
-    const page = rows.slice(0, ACTIVITY_PAGE_SIZE);
+    const page = rows.slice(0, limit);
     const names = new Map(listMembers(db, scope, { includeMerged: true }).map((m) => [m.id, m.displayName]));
     const seen = new Set<string>();
     const entries: ActivityEntry[] = page.map((entry) => ({
@@ -146,7 +161,7 @@ export function registerGroupRoutes(app: Hono<ApiEnv>, { config, db, deps }: Ser
       restore: restoreTarget(db, scope, entry, seen),
     }));
     const last = page[page.length - 1];
-    const response: ActivityResponse = { entries, nextBefore: rows.length > ACTIVITY_PAGE_SIZE && last ? last.id : null };
+    const response: ActivityResponse = { entries, nextBefore: rows.length > limit && last ? last.id : null };
     return c.json(response);
   });
 }

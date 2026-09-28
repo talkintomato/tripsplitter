@@ -10,7 +10,7 @@ import { useApp } from '../state';
 function MemberRow(props: { member: Member; me: boolean; note: string; action?: React.ReactNode }) {
   return (
     <li className="item">
-      <Avatar name={props.member.displayName} size="lg" />
+      <Avatar name={props.member.displayName} id={props.member.id} size="lg" />
       <span className="row-main">
         <span className="row-title">
           {props.member.displayName}

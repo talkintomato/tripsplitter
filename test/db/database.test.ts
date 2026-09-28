@@ -129,7 +129,9 @@ describe('what src/db exports', () => {
     for (const name of names) {
       expect(name).not.toMatch(/^(insert|update|delete|remove|write)(Row|Table|Record|Activity)?$/i);
     }
-    expect(names.filter((n) => /activity/i.test(n))).toEqual(['listActivity']);
+    // The list of filter kinds is a constant; the only function is the read-only listing.
+    expect(names.filter((n) => /activity/i.test(n)).sort()).toEqual(['ACTIVITY_KINDS', 'listActivity']);
+    expect(typeof (dbModule as Record<string, unknown>).ACTIVITY_KINDS).not.toBe('function');
     for (const required of [
       'ensureGroup', 'migrateChat', 'findGroupByChatId', 'setIntroMessage', 'resetLink',
       'upsertTelegramMember', 'setMemberActive', 'addManualMember', 'claimMember', 'listMembers',

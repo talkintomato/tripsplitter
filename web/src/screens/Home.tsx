@@ -3,8 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Settlement, Trip } from '../api/types';
 import { History } from '../components/History';
 import { ExpenseList } from '../components/ExpenseRow';
-import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Grid, LinkIcon, More, Pencil, People, Plus, Restore } from '../components/icons';
-import { ResetLinkConfirm } from '../components/ResetLink';
+import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Gear, Pencil, People, Plus, Restore } from '../components/icons';
 import { ActionError, Badge, Banner, Confirm, Empty, ErrorState, GroupsBack, IconButton, Loading, MenuItem, Screen, Section, Segmented, Sheet } from '../components/ui';
 import { dayText, money, myBalanceText, nameOf, whenText } from '../format';
 import { useApp } from '../state';
@@ -108,7 +107,7 @@ export function TripList(props: { trips: Trip[] }) {
 }
 
 function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
-  const { client, group, refresh, allGroups } = useApp();
+  const { client, group, refresh } = useApp();
   const navigate = useNavigate();
   const groupsBack = useGroupsBack();
   const { tripId } = props;
@@ -118,7 +117,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
   }, `trip-${tripId}`);
   const [tab, setTab] = useState<Tab>(props.tab ?? 'expenses');
   const [menu, setMenu] = useState(false);
-  const [asking, setAsking] = useState<'end' | 'reset' | null>(null);
+  const [asking, setAsking] = useState<'end' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [done, setDone] = useState<string | null>(null);
@@ -126,7 +125,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
 
   const leading = props.root ? groupsBack : undefined;
   const back = props.root ? false : true;
-  const menuButton = <IconButton label="More" icon={More} onClick={() => setMenu(true)} />;
+  const menuButton = <IconButton label="Trip settings" icon={Gear} onClick={() => setMenu(true)} />;
 
   if (loaded.error !== undefined && loaded.data === undefined) {
     return (
@@ -177,7 +176,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
   return (
     <Screen
       title={trip.name}
-      subtitle={group.group.title}
       back={back}
       leading={leading}
       actions={menuButton}
@@ -263,7 +261,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
             <MenuItem icon={Coins} label="Currencies and rates" onClick={go(`/trips/${trip.id}/currencies`)} />
             {ended ? null : <MenuItem icon={Pencil} label="Rename trip" onClick={go(`/trips/${trip.id}/currencies`)} />}
             {props.root ? <MenuItem icon={Archive} label="Past trips" onClick={go('/past-trips')} /> : null}
-            {allGroups ? <MenuItem icon={Grid} label="All my groups" onClick={() => { setMenu(false); allGroups(); }} /> : null}
           </ul>
           <div className="menu-divider" />
           <ul className="menu">
@@ -276,7 +273,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
             ) : (
               <MenuItem icon={Flag} label="End trip" tone="danger" onClick={() => { setMenu(false); setAsking('end'); }} />
             )}
-            <MenuItem icon={LinkIcon} label="Reset link" tone="danger" onClick={() => { setMenu(false); setAsking('reset'); }} />
           </ul>
         </Sheet>
       ) : null}
@@ -306,7 +302,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
           />
         ) : null;
       })() : null}
-      {asking === 'reset' ? <ResetLinkConfirm onCancel={() => setAsking(null)} onDone={(message) => { setAsking(null); setDone(message); }} /> : null}
     </Screen>
   );
 }

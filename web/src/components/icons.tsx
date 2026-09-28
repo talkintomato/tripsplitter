@@ -33,6 +33,13 @@ export const Plus = (p: IconProps) => <Icon {...p}><path d="M10 4.5v11M4.5 10h11
 export const Minus = (p: IconProps) => <Icon {...p}><path d="M4.5 10h11" /></Icon>;
 export const Close = (p: IconProps) => <Icon size={p.size ?? 20}><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" /></Icon>;
 export const Check = (p: IconProps) => <Icon size={p.size ?? 14}><path d="m4.5 10.5 3.5 3.5 7.5-8" /></Icon>;
+export const Gear = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="10" r="2.6" />
+    <path d="M10 2.8v1.9M10 15.3v1.9M17.2 10h-1.9M4.7 10H2.8M15.1 4.9l-1.35 1.35M6.25 13.75 4.9 15.1M15.1 15.1l-1.35-1.35M6.25 6.25 4.9 4.9" />
+    <circle cx="10" cy="10" r="5.4" />
+  </Icon>
+);
 export const More = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="4.5" cy="10" r="1.1" fill="currentColor" stroke="none" />

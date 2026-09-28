@@ -91,11 +91,44 @@ export function IconButton(props: { label: string; icon: IconComponent; onClick(
   );
 }
 
-export function Loading(props: { what?: string }) {
+/**
+ * A skeleton of what is coming, in place of a spinner: grey shapes where the rows will be, with a slow shimmer.
+ * `list` for lists of people or expenses, `detail` for one expense, `cards` for rows of cards such as groups.
+ * Screen readers hear "Loading …" once.
+ */
+export function Loading(props: { what?: string; shape?: 'list' | 'detail' | 'cards'; rows?: number }) {
+  const shape = props.shape ?? 'list';
+  const rows = props.rows ?? (shape === 'cards' ? 3 : 5);
   return (
-    <div className="state" role="status">
-      <span className="spinner" aria-hidden="true" />
-      <p>Loading{props.what ? ` ${props.what}` : ''}…</p>
+    <div className={`skeleton skeleton-${shape}`} role="status" aria-busy="true">
+      <span className="visually-hidden">Loading{props.what ? ` ${props.what}` : ''}…</span>
+      {shape === 'detail' ? (
+        <div aria-hidden="true">
+          <span className="sk sk-line" style={{ width: '45%' }} />
+          <span className="sk sk-title" />
+          <span className="sk sk-line" style={{ width: '35%' }} />
+          <div className="sk-card">
+            {Array.from({ length: 4 }, (_, i) => <SkeletonRow key={i} />)}
+          </div>
+        </div>
+      ) : (
+        <div className={shape === 'cards' ? 'sk-cards' : 'sk-card'} aria-hidden="true">
+          {Array.from({ length: rows }, (_, i) => <SkeletonRow key={i} card={shape === 'cards'} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkeletonRow(props: { card?: boolean }) {
+  return (
+    <div className={`sk-row ${props.card ? 'sk-row-card' : ''}`}>
+      <span className={`sk ${props.card ? 'sk-tile' : 'sk-circle'}`} />
+      <span className="sk-lines">
+        <span className="sk sk-line" style={{ width: '62%' }} />
+        <span className="sk sk-line sk-line-sm" style={{ width: '38%' }} />
+      </span>
+      {props.card ? null : <span className="sk sk-amount" />}
     </div>
   );
 }
@@ -190,8 +223,25 @@ export function initials(name: string): string {
  * A person's initials in a circle. The letters are drawn by CSS from a data attribute, so they are not part of
  * the text of the row, and a screen reader reads the name next to it once.
  */
-export function Avatar(props: { name: string; size?: 'sm' | 'md' | 'lg' }) {
-  return <span className={`avatar avatar-${props.size ?? 'md'}`} data-initials={initials(props.name)} aria-hidden="true" />;
+/** Ten colours, in an order where neighbours differ, so members added one after another get contrasting colours. */
+const AVATAR_ORDER = [0, 5, 2, 7, 4, 9, 1, 6, 3, 8];
+
+/** A person's colour: fixed for a member for good, taken from their ID so it never changes when they are renamed. */
+export function avatarColour(id: number | undefined, name: string): number {
+  if (id !== undefined && Number.isSafeInteger(id) && id > 0) return AVATAR_ORDER[id % AVATAR_ORDER.length]!;
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0;
+  return AVATAR_ORDER[hash % AVATAR_ORDER.length]!;
+}
+
+export function Avatar(props: { name: string; id?: number; size?: 'sm' | 'md' | 'lg' }) {
+  return (
+    <span
+      className={`avatar avatar-${props.size ?? 'md'} avatar-c${avatarColour(props.id, props.name)}`}
+      data-initials={initials(props.name)}
+      aria-hidden="true"
+    />
+  );
 }
 
 /** A sheet that slides up from the bottom, over a dimmed page. Tapping outside or Escape closes it. */
@@ -315,8 +365,9 @@ export function Segmented<T extends string>(props: {
 /** The way back to the list of groups, as the bar's back control. */
 export function GroupsBack(props: { onClick(): void }) {
   return (
-    <button type="button" className="icon-btn" onClick={props.onClick} aria-label="All my groups">
-      <ChevronLeft />
+    <button type="button" className="back-link" onClick={props.onClick} aria-label="All my groups">
+      <ChevronLeft size={20} />
+      <span>Groups</span>
     </button>
   );
 }

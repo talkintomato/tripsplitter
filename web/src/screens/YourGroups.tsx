@@ -23,7 +23,7 @@ export function YourGroups(props: { client: ApiClient; onOpen(launch: string): v
       <header className="brand">
         <h1>Your groups</h1>
       </header>
-      {loaded.loading ? <Loading what="groups" /> : loaded.error !== undefined ? (
+      {loaded.loading ? <Loading what="groups" shape="cards" /> : loaded.error !== undefined ? (
         <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} />
       ) : loaded.data ? loaded.data.groups.length === 0 ? (
         <Empty icon={People}>You're not in any groups yet. Add @{loaded.data.botUsername} to a Telegram group to start.</Empty>

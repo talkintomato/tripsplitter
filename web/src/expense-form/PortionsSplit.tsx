@@ -20,7 +20,7 @@ export function PortionsSplit({ state, update, members, amounts, currency, disab
         const amount = amounts?.[member.id];
         return (
           <div key={member.id} className={`person ${value > 0 ? '' : 'person-out'}`}>
-            <Avatar name={member.displayName} />
+            <Avatar name={member.displayName} id={member.id} />
             <span className="person-name-block">
               <span className="person-name" id={`portion-name-${member.id}`}>
                 {member.displayName}

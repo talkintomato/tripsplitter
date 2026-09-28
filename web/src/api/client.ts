@@ -27,6 +27,9 @@ import type {
   TripsResponse,
 } from './types';
 
+/** Kinds of activity the Activity screen can filter by. */
+export type ActivityKind = 'expenses' | 'payments' | 'people' | 'trip';
+
 /** A request the server refused, or that never reached it. `message` is fit to show. */
 export class ApiError extends Error {
   /** 0 when the server could not be reached. */
@@ -71,7 +74,7 @@ export interface ApiClient {
   addMember(body: AddMemberBody): Promise<MemberResponse>;
   claimMember(memberId: number): Promise<ClaimResponse>;
   /** With `entity`: only the entries about that one expense or settlement. */
-  listActivity(options?: { tripId?: number; before?: number; entity?: { type: 'expense' | 'settlement'; id: number } }): Promise<ActivityResponse>;
+  listActivity(options?: { tripId?: number; before?: number; entity?: { type: 'expense' | 'settlement'; id: number }; kind?: ActivityKind; actor?: number; limit?: number }): Promise<ActivityResponse>;
 
   listTrips(): Promise<TripsResponse>;
   createTrip(body?: CreateTripBody): Promise<TripResponse>;
@@ -161,7 +164,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     resetLink: () => request('POST', '/api/group/reset-link'),
     addMember: (body) => request('POST', '/api/members', body),
     claimMember: (memberId) => request('POST', `/api/members/${memberId}/claim`),
-    listActivity: (o = {}) => request('GET', `/api/activity${query({ tripId: o.tripId, before: o.before, entityType: o.entity?.type, entityId: o.entity?.id })}`),
+    listActivity: (o = {}) => request('GET', `/api/activity${query({ tripId: o.tripId, before: o.before, entityType: o.entity?.type, entityId: o.entity?.id, kind: o.kind, actor: o.actor, limit: o.limit })}`),
 
     listTrips: () => request('GET', '/api/trips'),
     createTrip: (body) => request('POST', '/api/trips', body ?? {}),

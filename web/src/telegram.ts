@@ -63,6 +63,30 @@ export function prepare(): void {
   } catch {
     // Not in Telegram.
   }
+  goFullscreen();
+}
+
+/**
+ * Full screen on phones, where there is room to gain; left alone on desktop, where a full-screen window is in the way.
+ * Needs Telegram 8.0. Swiping down to close is turned off (7.7) so that scrolling a list or a sheet never closes the app;
+ * Telegram's own Close button still does.
+ */
+function goFullscreen(): void {
+  try {
+    if (!inTelegram()) return;
+    const app = WebApp as unknown as {
+      platform?: string;
+      isVersionAtLeast?(version: string): boolean;
+      isFullscreen?: boolean;
+      requestFullscreen?(): void;
+      disableVerticalSwipes?(): void;
+    };
+    if (app.platform !== 'ios' && app.platform !== 'android') return;
+    if (app.isVersionAtLeast?.('7.7')) app.disableVerticalSwipes?.();
+    if (app.isVersionAtLeast?.('8.0') && !app.isFullscreen) app.requestFullscreen?.();
+  } catch {
+    // An older Telegram: stay in the normal, expanded view.
+  }
 }
 
 /**

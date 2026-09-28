@@ -40,7 +40,7 @@ export function AddExpense() {
   if (trip.data === undefined) {
     return (
       <Screen title="Add expense">
-        <Loading />
+        <Loading shape="detail" />
       </Screen>
     );
   }
@@ -86,7 +86,7 @@ export function EditExpense() {
   if (loaded.data === undefined) {
     return (
       <Screen title="Edit expense">
-        <Loading />
+        <Loading shape="detail" />
       </Screen>
     );
   }
@@ -148,7 +148,7 @@ export function ExpenseDetail() {
   if (loaded.data === undefined) {
     return (
       <Screen title="Expense">
-        <Loading />
+        <Loading shape="detail" />
       </Screen>
     );
   }
@@ -242,7 +242,7 @@ export function ExpenseDetail() {
 
       <section className="card tree" aria-label="Who paid and who owes">
         <p className="tree-root">
-          <Avatar name={nameOf(group.members, expense.payerId)} />
+          <Avatar name={nameOf(group.members, expense.payerId)} id={expense.payerId} />
           <span>
             <strong>{name(expense.payerId)}</strong> paid {money(expense.total, expense.currency)}
           </span>
@@ -262,7 +262,7 @@ export function ExpenseDetail() {
               const portions = expense.splitType === 'portions' ? `${share.weight} ${share.weight === 1 ? 'portion' : 'portions'}` : null;
               return (
                 <li key={share.memberId}>
-                  <Avatar name={nameOf(group.members, share.memberId)} size="sm" />
+                  <Avatar name={nameOf(group.members, share.memberId)} id={share.memberId} size="sm" />
                   <span className="row-main">
                     <span className="row-title">{name(share.memberId)}</span>
                     <span className="row-sub">{[portions, payer ? 'own share' : share.memberId === group.me.id ? 'owe' : 'owes'].filter(Boolean).join(' · ')}</span>

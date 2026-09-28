@@ -14,7 +14,22 @@ export interface ListActivityOptions {
    * by other operations that changed it, such as a trip rate change or a member merge.
    */
   entity?: { type: 'expense' | 'settlement'; id: number };
+  /** Only one kind of entry: expenses, payments, people, or the trip and group themselves (names, rates, ending). */
+  kind?: ActivityKind;
+  /** Only entries made by this member. Entries made by TripSplitter itself are left out. */
+  actorMemberId?: number;
 }
+
+export const ACTIVITY_KINDS = ['expenses', 'payments', 'people', 'trip'] as const;
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
+
+/** The action prefixes of each kind. Every action is named `<thing>.<what happened>`. */
+const KIND_PREFIXES: Record<ActivityKind, string[]> = {
+  expenses: ['expense.'],
+  payments: ['settlement.'],
+  people: ['member.'],
+  trip: ['trip.', 'trip_rate.', 'group.'],
+};
 
 /**
  * Activity entries of the group, newest first. There is no operation that writes, changes or removes an
@@ -38,6 +53,18 @@ export function listActivity(db: Db, scope: Scope, options: ListActivityOptions 
     else loadSettlement(db, scope, id);
     where.push('entity_type = ?', 'entity_id = ?');
     params.push(type, id);
+  }
+  if (options.kind !== undefined) {
+    const prefixes = KIND_PREFIXES[options.kind];
+    if (!prefixes) throw new ValidationError('invalid_input', `The kind must be one of: ${ACTIVITY_KINDS.join(', ')}.`);
+    // The prefixes contain "_", which LIKE treats as any character, so it is escaped.
+    where.push(`(${prefixes.map(() => "action LIKE ? ESCAPE '\\'").join(' OR ')})`);
+    params.push(...prefixes.map((prefix) => `${prefix.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`));
+  }
+  if (options.actorMemberId !== undefined) {
+    if (!isId(options.actorMemberId)) throw new ValidationError('invalid_input', 'The member must be given by its ID.');
+    where.push("actor_kind = 'member'", 'actor_id = ?');
+    params.push(options.actorMemberId);
   }
   if (options.before !== undefined) {
     if (!isId(options.before)) throw new ValidationError('invalid_input', '"before" must be the ID of an activity entry.');
