@@ -1,0 +1,30 @@
+# Run TripSplitter on your own server with Docker.
+#
+#   cp .env.example .env    # fill in the values; see the README
+#   docker compose up -d --build
+#
+# The database lives in the named volume "tripsplitter-data" and survives restarts and rebuilds.
+# Telegram needs to reach the app over HTTPS: put it behind a reverse proxy (Caddy, nginx, Traefik) or a
+# tunnel, and set WEBHOOK_URL in .env to that public address. Without WEBHOOK_URL the bot uses long
+# polling, which works without a public address, but the Mini App then cannot open inside Telegram.
+#
+# Only one copy of the app may use a bot token at a time: stop any other deployment of the same bot first.
+
+services:
+  tripsplitter:
+    build: .
+    image: tripsplitter:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # These win over .env, so the container always uses its own paths.
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_PATH: /data/tripsplitter.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - tripsplitter-data:/data
+
+volumes:
+  tripsplitter-data:
