@@ -48,6 +48,10 @@ describe('openDatabase', () => {
       'currency',
       'expense',
       'expense_item',
+      'mcp_connection',
+      'mcp_pair_attempt',
+      'mcp_pairing',
+      'mcp_usage',
       'member',
       'migration',
       'receipt_read',
@@ -86,12 +90,13 @@ describe('openDatabase', () => {
       { id: 1, name: '001_init.sql' },
       { id: 2, name: '002_agent.sql' },
       { id: 3, name: '003_expense_emoji.sql' },
+      { id: 4, name: '004_mcp.sql' },
     ]);
     expect(migrate(first)).toEqual([]);
     first.close();
     const second = openDatabase(path);
     open.push(second);
-    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 3 });
+    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 4 });
   });
 
   it('applies numbered files in order, and rolls back one that fails', () => {

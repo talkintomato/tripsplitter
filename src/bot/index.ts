@@ -5,6 +5,7 @@ import type { Notifier } from '../core/index.js';
 import { findGroupByChatId, type Db } from '../db/index.js';
 import { appKeyboard, helpText } from './chat.js';
 import { groupMiddleware } from './middleware.js';
+import { registerMcpBotHandlers } from './mcp.js';
 import { createNotifier } from './notifier.js';
 import { consoleLogger, isAllowedChat, type BotLogger } from './support.js';
 
@@ -41,6 +42,8 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
     if (ctx.from?.is_bot) return;
     await ctx.reply(helpText(config), { reply_parameters: { message_id: ctx.msg.message_id }, reply_markup: appKeyboard(config, findGroupByChatId(db, ctx.chat.id), ctx.chat.type === 'private') });
   });
+  // Connecting an AI client uses /start mcp_<code>, so it must come before the plain /start.
+  if (config.mcpEnabled) registerMcpBotHandlers(bot, config, db);
   bot.chatType('private').command('start', async (ctx) => {
     if (config.webhookUrl) {
       await ctx.reply('Open Trip Split to see your groups.', {

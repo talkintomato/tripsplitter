@@ -106,6 +106,8 @@ const envSchema = z.object({
   AGENT_MODEL: z.preprocess(blankToUndefined, z.string().trim().min(1).default('gpt-6-luna')),
   AGENT_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(100)),
   AGENT_GLOBAL_DAILY_CAP: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(1000)),
+  MCP_ENABLED: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('false')),
+  MCP_DAILY_CAP_PER_CONNECTION: z.preprocess(blankToUndefined, z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(300)),
   PORT: positiveInt(3000),
   NODE_ENV: z.preprocess(blankToUndefined, z.enum(['development', 'test', 'production']).default('development')),
   DEV_FAKE_USER: fakeUser,
@@ -152,6 +154,10 @@ export interface Config {
   agentModel: string;
   agentDailyCap: number;
   agentGlobalDailyCap: number;
+  /** Serves the MCP server at /mcp and lets people connect clients through the bot. */
+  mcpEnabled: boolean;
+  /** Tool calls per MCP connection per day. */
+  mcpDailyCapPerConnection: number;
   /** PORT */
   port: number;
   /** NODE_ENV */
@@ -210,6 +216,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     agentModel: e.AGENT_MODEL,
     agentDailyCap: e.AGENT_DAILY_CAP,
     agentGlobalDailyCap: e.AGENT_GLOBAL_DAILY_CAP,
+    mcpEnabled: e.MCP_ENABLED === 'true',
+    mcpDailyCapPerConnection: e.MCP_DAILY_CAP_PER_CONNECTION,
     port: e.PORT,
     nodeEnv: e.NODE_ENV,
     devFakeUser: e.DEV_FAKE_USER,
@@ -250,6 +258,8 @@ function buildUnchecked(overrides: Partial<Config>): Config {
     agentModel: 'gpt-6-luna',
     agentDailyCap: 100,
     agentGlobalDailyCap: 1000,
+    mcpEnabled: false,
+    mcpDailyCapPerConnection: 300,
     port: 3000,
     nodeEnv: 'test',
     devFakeUser: undefined,

@@ -7,6 +7,7 @@ import type { Bot } from 'grammy';
 import type { Update } from 'grammy/types';
 import { Hono } from 'hono';
 import { createApi, type ApiDeps } from './api/index.js';
+import { createMcpApp } from './mcp/http.js';
 import { createDevApp, devLaunch } from './api/dev-server.js';
 import { registerHealth } from './api/health.js';
 import { ALLOWED_UPDATES, createBot } from './bot/index.js';
@@ -43,6 +44,7 @@ export function createHttpApp(config: Config, db: Db, deps: ApiDeps, bot: Bot, w
     });
   }
   app.all('/telegram/*', (c) => c.notFound());
+  if (config.mcpEnabled) app.route('/', createMcpApp({ db, config, suggestRate: deps.suggestRate, notifier: deps.notifier }));
   app.route('/', createApi(config, db, deps));
   app.use('/*', serveStatic({ root: webRoot }));
   app.get('/*', serveStatic({ root: webRoot, path: 'index.html' }));

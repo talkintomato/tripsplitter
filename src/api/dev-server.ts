@@ -16,6 +16,7 @@ import { loadConfig, type Config } from '../config.js';
 import { encodeLaunch, type Notifier, type RateSuggester } from '../core/index.js';
 import { createExpense, ensureGroup, getOrCreateActiveTrip, openDatabase, type CreateExpenseInput, type Db } from '../db/index.js';
 import { createApi } from './index.js';
+import { createMcpApp } from '../mcp/http.js';
 import { registerHealth } from './health.js';
 
 const DEV_CHAT_ID = -1000000000001;
@@ -104,6 +105,7 @@ export function createDevApp(config: Config, db: Db, webRoot = resolve('web/dist
       return c.json({ error: { message: error instanceof Error ? error.message : String(error) } }, 400);
     }
   });
+  if (config.mcpEnabled) app.route('/', createMcpApp({ db, config, suggestRate: devRateSuggester, notifier: createConsoleNotifier() }));
   app.route('/', createApi(config, db, { notifier: createConsoleNotifier(), suggestRate: devRateSuggester }));
   if (existsSync(webRoot)) {
     app.use('/*', serveStatic({ root: webRoot }));

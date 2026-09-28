@@ -34,6 +34,8 @@ describe('loadConfig', () => {
       agentModel: 'gpt-6-luna',
       agentDailyCap: 100,
       agentGlobalDailyCap: 1000,
+      mcpEnabled: false,
+      mcpDailyCapPerConnection: 300,
       port: 3000,
       nodeEnv: 'development',
       devFakeUser: undefined,
@@ -149,6 +151,7 @@ describe('.env.example', () => {
       [
         'NODE_ENV', 'BOT_TOKEN', 'BOT_USERNAME', 'MINI_APP_NAME', 'ALLOWED_CHAT_IDS', 'LINK_SECRET', 'DATABASE_PATH',
         'AGENT_ENABLED', 'AGENT_MODEL', 'AGENT_DAILY_CAP', 'AGENT_GLOBAL_DAILY_CAP', 'OPENAI_API_KEY', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
+        'MCP_ENABLED', 'MCP_DAILY_CAP_PER_CONNECTION',
       ].sort(),
     );
     expect(text).not.toMatch(/sk-[A-Za-z0-9]/);

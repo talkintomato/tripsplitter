@@ -146,3 +146,24 @@ function decide(db:ops.Db,input:ProposalDecision,cancel:boolean):ConfirmationRes
 export function confirmProposal(db:ops.Db,_deps:ConfirmationDeps,input:ProposalDecision):ConfirmationResult {return decide(db,input,false);}
 export const applyProposal=confirmProposal;
 export function cancelProposal(db:ops.Db,_deps:ConfirmationDeps,input:ProposalDecision):ConfirmationResult {return decide(db,input,true);}
+/**
+ * Applies planned changes straight away, without a stored proposal: the MCP server's path, where the client asks
+ * the person before calling a changing tool. Same operations, checks and notices as confirming a proposal.
+ * `versions` is what the plans were prepared from; any change to the group since then refuses them.
+ */
+export function applyPlans(db:ops.Db,scope:ops.Scope,input:{plans:PlannedAction[];versions:ProposalVersions}):ConfirmationResult {
+  try {
+    const plans=combinePlans(input.plans);
+    if(!plans.length)return {kind:'refused',reason:'There are no changes to make.'};
+    plans.sort((a,b)=>Number(b.action.kind==='set_trip_rate')-Number(a.action.kind==='set_trip_rate'));
+    return db.transaction(():ConfirmationResult=>{
+      if(JSON.stringify(proposalVersions(db,scope))!==JSON.stringify(input.versions))return {kind:'changed',text:'This changed while it was being prepared. Try again.'};
+      const notices:AgentNotice[]=[];
+      for(const plan of plans)execute(db,scope,plan.action,notices);
+      return {kind:'done',notices};
+    }).immediate();
+  } catch(error) {
+    if(error instanceof ops.StaleEditError)return {kind:'changed',text:'This changed while it was being prepared. Try again.'};
+    return {kind:'refused',reason:error instanceof ops.DomainError?error.message:'The changes could not be applied.'};
+  }
+}

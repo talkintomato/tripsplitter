@@ -25,3 +25,4 @@ export { getTripBalances, type TripBalances } from './balances.js';
 export * from './activity.js';
 export * from './receiptReads.js';
 export * from './agent.js';
+export * from './mcp.js';

@@ -1,6 +1,22 @@
 # PRD 7: MCP server and shared tools
 
-Status: proposal, not approved. Depends on PRD 6 phase A.
+Status: approved and built (phases 3 and 4), with the owner's decisions below. Depends on PRD 6 phase A.
+
+## Owner's decisions (these override the proposal text below where they differ)
+
+1. **One connection covers all of the person's groups.** There is no choosing groups when approving. A connection reaches every group its Telegram user is a member of at the time of each call; tools take `group` when there are several.
+2. **Simple tokens, not OAuth.** A client sends `Authorization: Bearer <token>`. Tokens come from the connect page (`/mcp/connect`, approved in Telegram) or from `pnpm mcp:token` for the owner's own machine.
+3. **No separate confirm step over MCP.** A changing tool is applied when it is called. The tool descriptions and the server instructions tell the client to show the person what will change and get their agreement first. The Telegram agent keeps its Allow buttons.
+4. **`@modelcontextprotocol/sdk`** is used for the protocol.
+
+## What was built
+
+- `src/db/mcp.ts` and migration `004_mcp.sql`: pairings, connections, wrong-code attempts, daily usage.
+- `src/mcp/server.ts`: the MCP server over the shared tools in `src/tools/`, plus `list_groups`. Changes go through `applyPlans` in `src/tools/proposal.ts`, the same operations and checks as confirming a proposal in Telegram.
+- `src/mcp/http.ts`: `POST /mcp` (streamable HTTP, stateless), `GET /mcp/connect` (page for people), `POST /mcp/pair`, `POST /mcp/pair/:id/token`.
+- `src/mcp/stdio.ts` (`pnpm mcp`) and `src/mcp/token.ts` (`pnpm mcp:token <telegramUserId> [name]`).
+- `src/bot/mcp.ts`: `/start mcp_<code>`, `/connect <code>`, Allow and Deny, `/connections` with Revoke.
+- Not built yet: the Connections screen in the Mini App (phase 5), `read_receipt` (phase 6), and noting the client's name in the activity log (the group chat notice says "Sam (through Claude)").
 
 ## Goal
 
