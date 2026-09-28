@@ -272,6 +272,8 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
         included.map((m) => m.id),
       );
       if (plan.kind === 'unreadable') {
+        // Only the reason, never what the photo said.
+        logError(`receipts: no draft: ${!reading.is_receipt ? 'not recognised as a receipt' : reading.total === null ? 'no total found' : 'total not usable'}`);
         await finish(TEXT.unreadable);
         return;
       }

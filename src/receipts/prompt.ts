@@ -11,7 +11,8 @@ Return what is printed
 - total is the final amount to pay, after tax, service charge and discounts. When the receipt shows both a subtotal and a total, return the total. When no total is printed, return null.
 
 Not a receipt
-- When the image is anything other than a receipt or a bill, for example a menu, a person, a view or a screenshot of a chat, return is_receipt false, with every other value null or false and an empty list of items.
+- Treat as a receipt anything that shows an amount someone paid or has to pay for something: a paper receipt, a bill, an invoice, an e-receipt, a booking or order confirmation (hotels, flights, trains, tours), a payment confirmation, or a screenshot of any of these from an email or an app. For a booking, the merchant is the hotel, airline or company, and the total is the full price to pay, including taxes and fees.
+- When the image is anything else, for example a menu, a person, a view or a screenshot of a chat, return is_receipt false, with every other value null or false and an empty list of items.
 
 Items
 - One entry per printed line, in the printed order, with the label as printed.
