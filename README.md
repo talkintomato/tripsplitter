@@ -183,3 +183,7 @@ pnpm test:fx          # live: exchange rates from Frankfurter
 ## Design and plans
 
 The product decisions are in [`docs/prds/`](docs/prds/), the design system in [`docs/design/`](docs/design/), and the original design in [`docs/designs/`](docs/designs/).
+
+## License
+
+[MIT](LICENSE)
