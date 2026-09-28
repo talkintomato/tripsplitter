@@ -12,7 +12,7 @@ const cases:Array<{name:string;args:(f:Fixture)=>unknown;summary:(f:Fixture)=>st
  {name:'add_expense',args:()=>expenseArgs,summary:()=>`➕ Add Taxi\n\n${details}`,notice:'expenseSaved',verify:f=>expect(d.listExpenses(f.db,f.scope,f.trip.id)).toHaveLength(1)},
  {name:'edit_expense',args:f=>({expenseId:expense(f).id,changes:{description:'Bus'}}),summary:()=>`✏️ Change Bus\n\nDescription: Taxi → Bus\n\nEach pays\n• Sam: 6.00 SGD\n• Alex: 6.00 SGD`,notice:'expenseEdited',verify:f=>expect(d.getExpense(f.db,f.scope,1).description).toBe('Bus')},
  {name:'approve_draft',args:f=>({expenseId:expense(f,'draft',{receiptFileId:'receipt'}).id}),summary:()=>`✅ Approve Taxi\n\n${details}`,notice:'expenseSaved',verify:f=>expect(d.getExpense(f.db,f.scope,1)).toMatchObject({status:'confirmed',receiptFileId:'receipt'})},
- {name:'discard_draft',args:f=>({expenseId:expense(f,'draft').id}),summary:()=>`✖️ Discard Taxi\n\nTotal: 12.00 SGD\nDraft remains unconfirmed; does not count toward balances.`,verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('discarded')},
+ {name:'discard_draft',args:f=>({expenseId:expense(f,'draft').id}),summary:()=>`✖️ Discard Taxi\n\nTotal: 12.00 SGD\nStill a draft: it won't count until it's approved.`,verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('discarded')},
  {name:'delete_expense',args:f=>({expenseId:expense(f).id}),summary:()=>`🗑️ Delete Taxi\n\nTotal: 12.00 SGD\n⚠️ Removes this expense from balances. It can be restored.`,notice:'expenseDeleted',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('deleted')},
  {name:'restore_expense',args:f=>{const e=expense(f);d.deleteExpense(f.db,f.scope,e.id,e.version);return {expenseId:e.id};},summary:()=>`♻️ Restore Taxi\n\nTotal: 12.00 SGD`,notice:'expenseRestored',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('confirmed')},
  {name:'record_payment',args:()=>({from:'me',to:'Alex',amount:'12',currency:'SGD'}),summary:()=>`💸 Payment · Sam → Alex\n\nAmount: 12.00 SGD`,notice:'settlementRecorded',verify:f=>expect(d.listSettlements(f.db,f.scope,f.trip.id)[0]).toMatchObject({amount:1200,createdBy:f.member.id})},
@@ -133,7 +133,7 @@ it('a different member acts under their own foundation scope',async()=>{
 it('edits an existing incomplete receipt draft without confirming it or losing its review flag',async()=>{
  const f=make();const e=expense(f,'draft',{total:0,shares:[],receiptFileId:'receipt',currencyNeedsReview:true});
  const {p,before,after}=await prepare(f,'edit_expense',{expenseId:e.id,changes:{description:'Receipt lunch'}});
- expect(after).toBe(before);expect(p.summary).toContain('Draft remains unconfirmed');
+ expect(after).toBe(before);expect(p.summary).toContain("Still a draft: it won't count until it's approved.");
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now})).toEqual({kind:'done',notices:[]});
  expect(d.getExpense(f.db,f.scope,e.id)).toMatchObject({status:'draft',currencyNeedsReview:true,receiptFileId:'receipt',description:'Receipt lunch'});
 });

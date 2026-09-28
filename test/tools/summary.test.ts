@@ -16,7 +16,7 @@ it('escapes every user-controlled field while keeping plain text untouched',asyn
   expect(html).toContain('<b>➕ Add &lt;b&gt;Tom &amp; Jerry&lt;/b&gt;</b>');
   expect(html).toContain('Merchant: &lt;Cafe&gt;');
   expect(html).toContain('• &lt;Alex &amp; Sam&gt;: 12.00 SGD');
-  expect(html).toContain('• &lt;food &amp; drink&gt;, 12.00 SGD: &lt;Alex &amp; Sam&gt;');
+  expect(html).toContain('• &lt;food &amp; drink&gt; · 12.00 SGD: &lt;Alex &amp; Sam&gt;');
   expect(html).toContain('<b>Each pays</b>');
   expect(p.summary).toBe(toPlainText(summary));
   expect(p.summary).toContain('<b>Tom & Jerry</b>');
@@ -67,7 +67,7 @@ it('shows changed shares with the old amounts and only non-zero extras on a new 
 it('renders zero-decimal foreign items, quantities, assignments and foundation home amounts',async()=>{
   const f=make();d.setTripRate(f.db,f.scope,f.trip.id,'JPY','100','member');
   const {p}=await prepare(f,'add_expense',{...expenseArgs,description:'Yakitori',currency:'JPY',amount:'1200',splitType:'items',items:[{label:'Set',quantity:2,amount:'900',people:[{name:'Sam'},{name:'Alex',weight:2}]},{label:'Tea',amount:'300'}]});
-  expect(p.summary).toBe('➕ Add Yakitori\n\nTotal: 1,200 JPY (≈ 12.00 SGD)\nPaid by you\nDate: Mon 28 Sep\nSplit by item\nRate: 1 SGD = 100 JPY · trip rate\n\nEach pays\n• Sam: 450 JPY (≈ 4.50 SGD)\n• Alex: 750 JPY (≈ 7.50 SGD)\n\nItems\n• Set ×2, 900 JPY: Sam, Alex ×2\n• Tea, 300 JPY: everyone');
+  expect(p.summary).toBe('➕ Add Yakitori\n\nTotal: 1,200 JPY (≈ 12.00 SGD)\nPaid by you\nDate: Mon 28 Sep\nSplit by item\nRate: 1 SGD = 100 JPY · trip rate\n\nEach pays\n• Sam: 450 JPY (≈ 4.50 SGD)\n• Alex: 750 JPY (≈ 7.50 SGD)\n\nItems\n• Set ×2 · 900 JPY: Sam, Alex ×2\n• Tea · 300 JPY: everyone');
 });
 it('formats Singapore dates with a year only outside the current Singapore year',()=>{
   const at=new Date('2026-12-31T16:00:00Z');
@@ -110,6 +110,6 @@ it('puts only changed items on separate lines and includes home amounts on forei
   const e=expense(f,'confirmed',{currency:'JPY',total:1200,splitType:'items',items:[{label:'Food',amount:900},{label:'Tea',amount:300}]});
   const {p}=await prepare(f,'edit_expense',{expenseId:e.id,changes:{amount:'1500',items:[{label:'Food',amount:'1200'},{label:'Tea',amount:'300'}]}});
   expect(p.summary).toContain('Total: 1,200 JPY (≈ 12.00 SGD) → 1,500 JPY (≈ 15.00 SGD)');
-  expect(p.summary).toContain('Items\n• Food, 900 JPY: everyone → Food, 1,200 JPY: everyone');
+  expect(p.summary).toContain('Who had what\n• Food · 900 JPY → Food · 1,200 JPY: everyone');
   expect(p.summary).not.toContain('Tea');
 });

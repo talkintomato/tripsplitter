@@ -220,8 +220,9 @@ it('a changed expense record refuses confirmation without a notice', async () =>
   expect(d.getExpense(h.db, scope, e.id).status).toBe('confirmed'); expect(h.notifier.expenseDeleted).not.toHaveBeenCalled();
 });
 it('posts every part of a long summary before offering confirmation', async () => {
-  const items = Array.from({ length: 30 }, () => ({ label: '🍜'.repeat(90), amount: '1', people: [{ name: 'everyone' }] }));
-  const h = make([calls(['add_expense', { ...args, amount: '30', splitType: 'items', items }]), text()]);
+  // Item names are cut to 34 characters, so it takes many items to go past one message.
+  const items = Array.from({ length: 150 }, () => ({ label: '🍜'.repeat(90), amount: '1', people: [{ name: 'everyone' }] }));
+  const h = make([calls(['add_expense', { ...args, amount: '150', splitType: 'items', items }]), text()]);
   const id = await h.mention('dinner');
   expect(h.sent().length).toBeGreaterThan(1);
   expect(h.sent().map(p => p.text.replace(/<\/?b>/g, '')).join('\n\n').replace(/\n+/g, '\n')).toBe(latest(h).summary.replace(/\n+/g, '\n'));

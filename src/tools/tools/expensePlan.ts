@@ -34,8 +34,8 @@ export async function prepareExpense(c:ToolContext, tripId:number, args:ExpenseP
   const rendered = allowIncomplete && (problems.length > 0 || input.currencyNeedsReview)
     ? { ...summaryFields({icon:'',title:expenseTitle(input),blocks:[{lines:[
         {label:'Total',value:displayAmount(input.total,input.currency!)}, `Paid by ${memberName(c,input.payerId,true)}`,
-        'Draft remains unconfirmed; does not count toward balances.',
-        ...(input.currencyNeedsReview ? ['⚠️ Check the receipt currency.'] : []), ...problems.map(p=>`⚠️ ${p.message}`),
+        DRAFT_NOTE,
+        ...(input.currencyNeedsReview ? [CURRENCY_NOTE] : []), ...problems.map(p=>`⚠️ ${p.message}`),
       ]}]}), preview: { problems } }
     : renderExpense(c,input,t,resolved.rate,resolved.source==='trip' ? `trip, ${origin}` : resolved.source);
   return {input,plans,...rendered,rate:resolved};
@@ -43,7 +43,23 @@ export async function prepareExpense(c:ToolContext, tripId:number, args:ExpenseP
 const splitLabel = (input:ExpenseInput) => input.splitType==='even' ? `Split equally between ${input.shares.length}` : input.splitType==='items' ? 'Split by item' : 'Split by portions';
 const rateLabel = (input:ExpenseInput, home:string, rate:string|null, source:string) => input.currency===home ? 'Not needed' : rate===null ? 'Not set' : `1 ${home} = ${rate} ${input.currency} · ${source==='expense'?"this expense's own rate":source.includes('suggested')?'looked up today':'trip rate'}`;
 const portions = (c:ToolContext, shares:ExpenseInput['shares']) => [...shares].sort((a,b)=>a.memberId-b.memberId).map(s=>`${memberName(c,s.memberId)} ×${s.weight??1}`).join(', ');
-const itemLines = (c:ToolContext,input:ExpenseInput) => (input.items??[]).map(i=>`${i.label}${(i.quantity??1)===1?'':` ×${i.quantity}`}, ${displayAmount(i.amount,input.currency!)}: ${i.shares?.length?i.shares.map(s=>`${memberName(c,s.memberId)}${(s.weight??1)===1?'':` ×${s.weight}`}`).join(', '):'everyone'}`);
+const DRAFT_NOTE = "Still a draft: it won't count until it's approved.";
+const CURRENCY_NOTE = '⚠️ Check the currency before approving.';
+/**
+ * An item's name as people would say it: without a leading menu code such as "153-2 " or "A12 ",
+ * and cut to 34 characters so one item stays on one line on a phone.
+ */
+export function itemName(label:string):string {
+  const plain=label.replace(/^[A-Z]?\d+[A-Z]?(?:[-.]\d+)?[.)]?\s+(?=\S)/i,'').trim()||label.trim();
+  return [...plain].length>34 ? `${[...plain].slice(0,33).join('').trimEnd()}…` : plain;
+}
+/** Who had an item: "Sam, Ana ×2", or "everyone" when nobody is assigned. */
+const whoHad = (c:ToolContext, shares:NonNullable<ExpenseInput['items']>[number]['shares']) =>
+  shares?.length ? shares.map(s=>`${memberName(c,s.memberId)}${(s.weight??1)===1?'':` ×${s.weight}`}`).join(', ') : 'everyone';
+/** "Carrot Cake (2pcs) · 3.10 SGD" */
+const itemHead = (i:NonNullable<ExpenseInput['items']>[number], currency:string) =>
+  `${itemName(i.label)}${(i.quantity??1)===1?'':` ×${i.quantity}`} · ${displayAmount(i.amount,currency)}`;
+const itemLines = (c:ToolContext,input:ExpenseInput) => (input.items??[]).map(i=>`${itemHead(i,input.currency!)}: ${whoHad(c,i.shares)}`);
 const extras = (input:ExpenseInput) => [
   ['Tax',`${displayAmount(input.tax??0,input.currency!)}${input.taxIncluded?' (in the prices)':''}`],
   ['Tip',displayAmount(input.tip??0,input.currency!)], ['Service charge',displayAmount(input.serviceCharge??0,input.currency!)], ['Discount',displayAmount(input.discount??0,input.currency!)],
@@ -75,7 +91,8 @@ export function expenseChanges(c:ToolContext,before:ExpenseDetail,input:ExpenseI
   };
   const fields=(i:ExpenseInput,rate:string|null,source:string):Record<string,string>=>({
     Description:i.description||'', Merchant:i.merchant||'None', Total:total(i,rate), Currency:i.currency!,
-    Date:displayDate(i.expenseDate,c.now), 'Paid by':memberName(c,i.payerId,personal), Split:splitLabel(i),
+    Date:displayDate(i.expenseDate,c.now), 'Paid by':memberName(c,i.payerId,personal),
+    Split:i.splitType==='even'?`equally between ${i.shares.length}`:i.splitType==='items'?'by item':'by portions',
     People:[...i.shares].sort((a,b)=>a.memberId-b.memberId).map(s=>memberName(c,s.memberId)).join(', ')||'Nobody',
     Portions:i.splitType==='portions'?portions(c,i.shares):'None', Items:itemLines(c,i).join('; ')||'None',
     ...Object.fromEntries(extras(i)), Rate:rateLabel(i,home,rate,source),
@@ -102,28 +119,44 @@ export function renderChange(c:ToolContext,existing:ExpenseDetail,input:ExpenseI
   if(!changes.length && !approve)refuse("That's already how it is.");
   const title={icon:approve?'✅':'✏️',title:`${approve?'Approve':'Change'} ${expenseTitle(input)}`};
   if(approve && (!changes.length || (existing.fxRateSource==='missing' && changes.every(line=>typeof line!=='string' && 'label' in line && line.label==='Rate'))))return {...full,...title};
-  const each=full.blocks.find(b=>b.heading==='Each pays');
-  let oldAmounts:ReturnType<typeof expenseAmounts>|undefined;
   const t=getTrip(c.db,c.scope,existing.tripId);
+  let oldAmounts:ReturnType<typeof expenseAmounts>|undefined;
   try { oldAmounts=expenseAmounts(c,inputOf(existing),t,existing.fxRate); } catch { /* Incomplete drafts have no valid shares yet. */ }
+  let next:ReturnType<typeof expenseAmounts>|undefined;
+  try { next=expenseAmounts(c,input,t,rate); } catch { /* Not splittable yet: the problems are listed instead. */ }
   const amountText=(amount:number,homeAmount:number|undefined,currency:string)=>`${displayAmount(amount,currency)}${currency!==t.homeCurrency && homeAmount!==undefined?` (≈ ${displayAmount(homeAmount,t.homeCurrency)})`:''}`;
-  const next=each?expenseAmounts(c,input,t,rate):undefined;
   const lines=next?Object.entries(next.amounts).map(([id,amount])=>{
-    const value=amountText(amount,next.homeAmounts[Number(id)],input.currency!);
+    const value=amountText(amount,next!.homeAmounts[Number(id)],input.currency!);
     const old=oldAmounts?.amounts[Number(id)];
     const previous=old===undefined?undefined:amountText(old,oldAmounts?.homeAmounts[Number(id)],existing.currency);
     return {bullet:`${memberName(c,Number(id))}: ${previous!==undefined && previous!==value?`${compactBefore(previous,value)} → `:''}${value}`};
   }):undefined;
+
+  // Items: one line per item that changed. When only who had it changed, just the item and who has it now.
   const itemChange=changes.some(l=>typeof l!=='string'&&'label' in l&&l.label==='Items');
-  const oldItems=itemLines(c,inputOf(existing)),newItems=itemLines(c,input);
-  const itemBlocks:Summary['blocks']=itemChange?[{heading:'Items',lines:Array.from({length:Math.max(oldItems.length,newItems.length)},(_,index)=>index).filter(i=>oldItems[i]!==newItems[i]).map(i=>({bullet:`${oldItems[i]??'None'} → ${newItems[i]??'Removed'}`}))}]:[];
+  const oldList=inputOf(existing).items??[], newList=input.items??[];
+  const itemBullets:Line[]=[];
+  for(let index=0;index<Math.max(oldList.length,newList.length);index++){
+    const before=oldList[index], after=newList[index];
+    if(!after){ itemBullets.push({bullet:`${itemHead(before!,existing.currency)}: removed`}); continue; }
+    if(!before){ itemBullets.push({bullet:`${itemHead(after,input.currency!)}: ${whoHad(c,after.shares)} (new)`}); continue; }
+    const sameItem=before.label===after.label && before.amount===after.amount && (before.quantity??1)===(after.quantity??1);
+    const oldWho=whoHad(c,before.shares), newWho=whoHad(c,after.shares);
+    if(sameItem && oldWho===newWho) continue;
+    if(sameItem) itemBullets.push({bullet:`${itemHead(after,input.currency!)}: ${oldWho==='everyone'?newWho:`${oldWho} → ${newWho}`}`});
+    else itemBullets.push({bullet:`${itemHead(before,existing.currency)} → ${itemHead(after,input.currency!)}: ${newWho}`});
+  }
+  const notes=full.blocks.flatMap(b=>b.lines).filter((l):l is string=>typeof l==='string'&&(l===DRAFT_NOTE||l.startsWith('⚠️')));
+  if(input.currencyNeedsReview && !notes.includes(CURRENCY_NOTE)) notes.push(CURRENCY_NOTE);
+  if(existing.status==='draft' && !approve && !notes.includes(DRAFT_NOTE)) notes.unshift(DRAFT_NOTE);
+  const main=changes.filter(l=>typeof l==='string'||!('label' in l)||l.label!=='Items');
   return {...title,blocks:[
-    {lines:changes.filter(l=>typeof l==='string'||!('label' in l)||l.label!=='Items')},
-    ...(lines?[{heading:'Each pays',lines}]:[{lines:full.blocks.flatMap(b=>b.lines).filter(l=>typeof l==='string'&&(l.includes('Draft remains')||l.startsWith('⚠️')))}]),
-    ...itemBlocks,
+    ...(main.length?[{lines:main}]:[]),
+    ...(itemChange&&itemBullets.length?[{heading:'Who had what',lines:itemBullets}]:[]),
+    ...(lines?[{heading:'Each pays',lines}]:[]),
+    ...(notes.length?[{lines:notes}]:[]),
   ]};
 }
-
 export async function changeExpense(c:ToolContext, kind:'edit_expense'|'approve_draft'|'set_expense_rate', expenseId:number, changes:ExpensePatch) {
   const existing=getExpense(c.db,c.scope,expenseId);
   if(kind==='approve_draft' ? existing.status!=='draft' : !['draft','confirmed'].includes(existing.status)) refuse(kind==='approve_draft'?'Only a receipt draft can be approved.':'Restore the expense before changing it.');
@@ -136,6 +169,6 @@ export function removalSummary(c:ToolContext, verb:string, e:ExpenseDetail):Summ
   return {icon,title:`${verb} ${expenseTitle(inputOf(e))}`,blocks:[{lines:[
     {label:'Total',value:displayAmount(e.total,e.currency)},
     ...(verb==='Delete'?['⚠️ Removes this expense from balances. It can be restored.']:[]),
-    ...(e.status==='draft'||e.status==='discarded'?['Draft remains unconfirmed; does not count toward balances.']:[]),
+    ...(e.status==='draft'||e.status==='discarded'?[DRAFT_NOTE]:[]),
   ]}]};
 }
