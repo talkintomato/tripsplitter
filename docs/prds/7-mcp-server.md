@@ -32,6 +32,17 @@ A person connects a client by approving it inside Telegram. They never type a ha
 3. The bot replies: "Connect **Claude** to TripSplitter? It will be able to read and change expenses in the groups you choose, as you." with the person's groups as tick boxes, and **Allow** and **Deny**.
 4. On Allow the server issues a token to the waiting client, tied to that Telegram user and the chosen groups.
 
+### How the code is matched
+
+The link carries the code. When the person taps it and presses Start, Telegram sends the bot `/start mcp_<code>` on their behalf. The bot finds the pairing request by that code, checks it has not expired or been used, and knows who the person is from their Telegram user ID. The person does not type anything.
+
+For a client on another device, where a link cannot be tapped and a QR code cannot be scanned, the client also shows the code in a short form such as `K7QF-2M9D`, and the person sends `/connect K7QF-2M9D` to the bot. It is matched the same way and followed by the same Allow and Deny.
+
+- Codes are random, at least 8 characters, from an alphabet without easily confused characters such as 0 and O or 1 and I.
+- A code is accepted only in a private chat with the bot, never in a group, where others would see it.
+- Allow connects only the person who pressed it, whoever started the pairing.
+- The client waits for the approval and then receives its token. The token never passes through Telegram.
+
 Why not "enter your Telegram handle and we send a code":
 
 - A bot cannot message a person who has not opened a chat with it, so the code often could not be delivered. Opening the link is what opens that chat.
