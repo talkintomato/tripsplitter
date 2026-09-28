@@ -1,7 +1,8 @@
 import * as d from '../../src/db/index.js';
 import { buildConfig } from '../../src/config.js';
 import { ScriptedAgentModel, calls, text } from './fakeModel.js';
-import { runAgentTurn, runTool, createAgentProposal, proposalVersions, type ToolContext, type PlannedAction } from '../../src/agent/index.js';
+import { runAgentTurn } from '../../src/agent/index.js';
+import { runTool, createAgentProposal, proposalVersions, type ToolContext, type PlannedAction } from '../../src/tools/index.js';
 
 export const now=new Date('2026-09-28T04:00:00Z');
 export const expenseArgs={description:'Taxi',amount:'12.00',currency:'SGD',payer:'me',date:'2026-09-28',splitType:'even',people:[{name:'everyone'}]};

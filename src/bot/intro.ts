@@ -11,8 +11,10 @@ export function introText(config: Config): string {
     '',
     `To add a receipt: post the photo with ${bot} in the caption, or reply to a photo with ${bot}.`,
     'To add anything else: tap Add expense.',
+    `Or just tell me: ${bot} taxi 24 dollars, split between everyone`,
     '',
-    "I notice who posts here so I know who is in the group. I don't store your messages, apart from any text you send with a tagged receipt, which becomes its description.",
+    "I notice who posts here so I know who is in the group. I don't store ordinary chat messages. Text with a tagged receipt becomes its description. Messages written to me are kept for the conversation, up to 8 turns, and forgotten after 30 minutes without a message.",
+    'If you write to me, I send your message to an AI service to understand it.',
     'I only look at photos tagged with my name. Tagged photos are sent to an AI service to be read, and I keep a reference to the photo, not the photo.',
   ].join('\n');
 }

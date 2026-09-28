@@ -10,6 +10,8 @@ const fake = vi.hoisted(() => ({
   catch: vi.fn(),
   running: false,
   receipt: vi.fn(),
+  agent: vi.fn(),
+  agentOff: vi.fn(),
   createApi: vi.fn(),
   suggest: vi.fn(async () => null),
   notifier: {},
@@ -22,6 +24,7 @@ vi.mock('../../src/bot/index.js', () => ({
     return { bot: { init: fake.init, api: { setWebhook: fake.setWebhook, deleteWebhook: fake.deleteWebhook }, start: fake.start, stop: fake.stop, catch: fake.catch, isRunning: () => fake.running }, notifier: fake.notifier, isAllowedChat: () => true };
   },
 }));
+vi.mock('../../src/agent/handlers.js', () => ({ registerAgentHandlers: fake.agent, registerAgentUnavailableHandlers: fake.agentOff }));
 vi.mock('../../src/receipts/index.js', () => ({ registerReceiptHandlers: fake.receipt }));
 vi.mock('../../src/fx/index.js', () => ({ createRateSuggester: () => fake.suggest }));
 vi.mock('../../src/api/index.js', async () => {
@@ -52,6 +55,9 @@ describe('one-process runtime without external calls', () => {
       expect(fake.setWebhook).not.toHaveBeenCalled();
       expect(fake.start).toHaveBeenCalledWith({ allowed_updates: updates });
       expect(fake.catch).toHaveBeenCalledOnce();
+      expect(fake.agent).not.toHaveBeenCalled();
+      expect(fake.agentOff).toHaveBeenCalledOnce();
+      expect(fake.agentOff.mock.invocationCallOrder[0]).toBeGreaterThan(fake.receipt.mock.invocationCallOrder[0]!);
       const receiptDeps = fake.receipt.mock.calls[0]![3];
       const apiDeps = fake.createApi.mock.calls[0]![2];
       expect(receiptDeps.suggestRate).toBe(fake.suggest);
@@ -78,4 +84,15 @@ describe('one-process runtime without external calls', () => {
     await expect(startApp(buildConfig())).rejects.toThrow('Could not start Telegram');
     expect(fake.db?.open).toBe(false);
   });
+});
+
+it('wires enabled agent after receipts with the same dependencies', async () => {
+  const config = buildConfig({ agentEnabled: true, openaiApiKey: 'fake', webhookUrl: 'https://example.invalid', webhookSecret: 'test-webhook-secret' });
+  const runtime = await startApp(config);
+  try {
+    expect(fake.agent).toHaveBeenCalledOnce();
+    expect(fake.agentOff).not.toHaveBeenCalled();
+    expect(fake.agent.mock.invocationCallOrder[0]).toBeGreaterThan(fake.receipt.mock.invocationCallOrder[0]!);
+    expect(fake.agent.mock.calls[0]!.slice(1)).toEqual(fake.receipt.mock.calls[0]!.slice(1));
+  } finally { await runtime.close(); }
 });

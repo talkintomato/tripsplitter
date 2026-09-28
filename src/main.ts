@@ -13,6 +13,7 @@ import { ALLOWED_UPDATES, createBot } from './bot/index.js';
 import { loadConfig, type Config } from './config.js';
 import { openDatabase, type Db } from './db/index.js';
 import { createRateSuggester } from './fx/index.js';
+import { registerAgentHandlers, registerAgentUnavailableHandlers } from './agent/handlers.js';
 import { registerReceiptHandlers } from './receipts/index.js';
 
 /** Assembles HTTP without opening a port or contacting Telegram. */
@@ -53,6 +54,8 @@ export async function startApp(config = loadConfig()): Promise<{ close(): Promis
   const { bot, notifier, isAllowedChat } = createBot(config, db);
   const suggestRate = createRateSuggester(config);
   registerReceiptHandlers(bot, config, db, { notifier, isAllowedChat, suggestRate });
+  if (config.agentEnabled) registerAgentHandlers(bot, config, db, { notifier, isAllowedChat, suggestRate });
+  else registerAgentUnavailableHandlers(bot, config, db, { isAllowedChat });
   bot.catch(() => console.error('Telegram update failed.'));
 
   // Explicit development sign-in uses the existing offline fixtures, with no external calls.

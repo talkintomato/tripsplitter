@@ -1,8 +1,9 @@
+import { runAgentTurn } from '../../src/agent/index.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as d from '../../src/db/index.js';
-import { confirmProposal, runTool, runAgentTurn } from '../../src/agent/index.js';
-import { fixture, expense, expenseArgs, fingerprint, prepare, turn, now, type Fixture } from './helpers.js';
-import { ScriptedAgentModel, calls, text } from './fakeModel.js';
+import { confirmProposal, runTool } from '../../src/tools/index.js';
+import { fixture, expense, expenseArgs, fingerprint, prepare, turn, now, type Fixture } from '../agent/helpers.js';
+import { ScriptedAgentModel, calls, text } from '../agent/fakeModel.js';
 const opened:Fixture[]=[];const make=()=>{const f=fixture();opened.push(f);return f;};
 afterEach(()=>opened.splice(0).forEach(f=>f.db.close()));
 const jpy={...expenseArgs,currency:'JPY',amount:'1200'};

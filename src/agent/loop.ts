@@ -1,10 +1,9 @@
 import { ZodError } from 'zod';
-import { memberScope, getMember, DomainError, singaporeDate, appendTurn, recentTurns, reserveAgentMessage, type Db } from '../db/index.js';
+import { memberScope, getMember, DomainError, singaporeDate, appendTurn, recentTurns, reserveAgentMessage, forgetExpiredTurns, type Db } from '../db/index.js';
 import type { Config } from '../config.js';
 import { AGENT_INSTRUCTION } from './prompt.js';
 import { asData, type AgentModelInput, type ToolResult } from './model.js';
-import { runTool, toolDefinitions } from './registry.js';
-import { createAgentProposal, proposalVersions } from './proposal.js';
+import { runTool, toolDefinitions, createAgentProposal, proposalVersions } from '../tools/index.js';
 import type { AgentDeps, PlannedAction, ToolContext } from './types.js';
 
 export interface AgentTurnInput { groupId:number;memberId:number;chatId:number;text:string;now:Date }
@@ -17,6 +16,7 @@ function safeError(error:unknown):string {
 }
 /** No logging, no provider calls except the injected model and rate suggester. */
 export async function runAgentTurn(db:Db,config:Config,deps:AgentDeps,input:AgentTurnInput):Promise<AgentTurnResult> {
+  forgetExpiredTurns(db,input.now);
   if(!config.agentEnabled)return {kind:'unavailable'};
   const scope=memberScope(input.groupId,input.memberId);
   const context:ToolContext={db,scope,suggestRate:deps.suggestRate,now:input.now};
@@ -34,7 +34,7 @@ export async function runAgentTurn(db:Db,config:Config,deps:AgentDeps,input:Agen
     let reply='I reached the tool limit. Please ask me to continue.';
     while(request.remainingToolCalls>0) {
       const response=await deps.model.respond(structuredClone(request));
-      if(response.kind==='text') {reply=response.text;break;}
+      if(response.kind==='text') {if(!response.text.trim())return {kind:'unavailable'};reply=response.text;break;}
       if(response.kind!=='tool_calls'||!Array.isArray(response.calls)||response.calls.length===0)return {kind:'unavailable'};
       // Reject an oversized batch in full: never silently propose a partial batch of changes.
       if(response.calls.length>request.remainingToolCalls) {failure='I reached the tool limit. Please ask for fewer changes at once.';break;}
@@ -50,7 +50,7 @@ export async function runAgentTurn(db:Db,config:Config,deps:AgentDeps,input:Agen
           results.push({callId:call.id,name:call.name,result:asData({refused:true,reason:failure})});
         }
       }
-      request.steps.push({calls:response.calls,results});
+      request.steps.push({calls:response.calls,results,providerOutput:response.providerOutput});
     }
     let result:AgentTurnResult;
     if(failure)result={kind:'reply',text:failure};

@@ -13,6 +13,7 @@
     "start": "node --env-file-if-exists=.env dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:agent": "vitest run --config vitest.agent.config.ts",
     "test:receipts": "vitest run --config vitest.receipts.config.ts",
     "test:fx": "vitest run --config vitest.fx.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",

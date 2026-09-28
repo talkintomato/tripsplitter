@@ -2,7 +2,8 @@ import { Bot, InlineKeyboard } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import type { Config } from '../config.js';
 import type { Notifier } from '../core/index.js';
-import type { Db } from '../db/index.js';
+import { findGroupByChatId, type Db } from '../db/index.js';
+import { appKeyboard, helpText } from './chat.js';
 import { groupMiddleware } from './middleware.js';
 import { createNotifier } from './notifier.js';
 import { consoleLogger, isAllowedChat, type BotLogger } from './support.js';
@@ -36,6 +37,10 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   const logger = options.logger ?? consoleLogger;
   const bot = new Bot(config.botToken, options.botInfo !== undefined ? { botInfo: options.botInfo } : {});
   bot.use(groupMiddleware({ api: bot.api, config, db, logger }));
+  bot.command('help', async ctx => {
+    if (ctx.from?.is_bot) return;
+    await ctx.reply(helpText(config), { reply_parameters: { message_id: ctx.msg.message_id }, reply_markup: appKeyboard(config, findGroupByChatId(db, ctx.chat.id), ctx.chat.type === 'private') });
+  });
   bot.chatType('private').command('start', async (ctx) => {
     if (config.webhookUrl) {
       await ctx.reply('Open Trip Split to see your groups.', {

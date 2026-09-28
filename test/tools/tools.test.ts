@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as d from '../../src/db/index.js';
 import { computeShares, amountsToRecord } from '../../src/core/index.js';
-import { runTool, registry, confirmProposal, type ToolContext } from '../../src/agent/index.js';
-import { fixture, expense, expenseArgs, fingerprint, prepare, turn, now, type Fixture } from './helpers.js';
+import { runTool, registry, confirmProposal, type ToolContext } from '../../src/tools/index.js';
+import { fixture, expense, expenseArgs, fingerprint, prepare, turn, now, type Fixture } from '../agent/helpers.js';
 
 const opened:Fixture[]=[];
 const make=()=>{const f=fixture();opened.push(f);return f;};

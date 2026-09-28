@@ -132,3 +132,7 @@ to set its Main Mini App. Use the same public HTTPS base address as `WEBHOOK_URL
 The profile's Open button and the private-chat `/start` button then open **Your groups**.
 Keep the named Mini App's address set to that same URL for the pinned group links.
 Without `WEBHOOK_URL`, private `/start` gives text directing people to their group's pinned message.
+
+## Chat agent settings
+
+In Railway Variables, `AGENT_ENABLED` defaults to true when `OPENAI_API_KEY` exists. Set `AGENT_ENABLED=false` and redeploy to disable chat. No key means mentions point to the Mini App. `AGENT_MODEL` defaults to `gpt-6-luna`; `AGENT_DAILY_CAP` defaults to 100 messages per group per Singapore day and `AGENT_GLOBAL_DAILY_CAP` to 1000 across groups (0 removes only the global cap). Receipt limits are independent. See [agent.md](agent.md) for privacy, confirmations and the optional live check.

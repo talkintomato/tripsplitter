@@ -1,5 +1,5 @@
 /**
- * Phase B integration contract (no Telegram or real model implementation here):
+ * Chat agent integration contract:
  *
  * AgentModel.respond(input: AgentModelInput): Promise<AgentModelOutput>
  *   receives fixed instruction, trip data, <=8 stored turns, definitions, message,
@@ -18,12 +18,14 @@
  * A replacement proposal cancels previous pending offers for this person/chat.
  * Stale checks conservatively refuse on ANY intervening group activity, including member
  * changes, since names, everyone splits, rates and trip state are preview dependencies.
- * Call forgetExpiredTurns periodically in Phase B even during idle periods.
- * No manual drafts, secret access, external calls, application logs or provider implementation.
+ * Expired turns are purged opportunistically at the start of turns.
+ * No manual drafts, secret access or conversation logging.
  */
 export * from './model.js';
 export * from './types.js';
 export * from './loop.js';
-export * from './proposal.js';
-export { registry, toolDefinitions, runTool } from './registry.js';
+export * from '../tools/index.js';
 export { AGENT_INSTRUCTION } from './prompt.js';
+
+export * from './openai.js';
+export * from './handlers.js';

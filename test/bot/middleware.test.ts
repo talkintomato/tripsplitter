@@ -145,7 +145,11 @@ describe('first set-up', () => {
     const text = String(intro.payload.text);
     expect(text).toContain('Hi, I track shared expenses for this group.');
     expect(text).toContain(`post the photo with @${BOT_USERNAME} in the caption, or reply to a photo with @${BOT_USERNAME}.`);
-    expect(text).toContain("I don't store your messages");
+    expect(text).toContain("I don't store ordinary chat messages");
+    expect(text).toContain('If you write to me, I send your message to an AI service to understand it.');
+    expect(text).toContain(`Or just tell me: @${BOT_USERNAME} taxi 24 dollars, split between everyone`);
+    expect(text).toContain('8 turns');
+    expect(text).toContain('30 minutes');
 
     const [add, balances] = buttons(intro);
     expect(add?.text).toBe('Add expense');

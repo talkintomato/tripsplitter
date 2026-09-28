@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type ToolDefinition } from './model.js';
+import { type ToolDefinition } from './types.js';
 import type { ToolContext, ToolOutcome } from './types.js';
 import get_trip from './tools/get_trip.js';
 import list_members from './tools/list_members.js';
