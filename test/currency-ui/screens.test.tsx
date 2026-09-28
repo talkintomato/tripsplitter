@@ -60,17 +60,19 @@ it('skips setup without adding any rate', async () => {
   expect(getTrip(s.db, s.asAna, s.trip.id).setupDone).toBe(true);
   expect(listTripRates(s.db, s.asAna, s.trip.id)).toEqual([]);
 });
-it('renames the trip through Home settings and asks before clearing rates for a new home currency', async () => {
+it('renames the trip by tapping its title, and asks before clearing rates for a new home currency', async () => {
   completeSetup(s.db, s.asAna, s.trip.id);
   setTripRate(s.db, s.asAna, s.trip.id, 'JPY', '100', 'member');
   const user = open();
-  // Trip settings are in the trip's menu.
-  await user.click(await screen.findByRole('button', { name: 'Trip settings' }));
-  await user.click(screen.getByRole('button', { name: 'Rename trip' }));
-  const input = await screen.findByRole('textbox', { name: 'Name' });
-  await user.clear(input); await user.type(input, 'Autumn trip');
-  await user.click(screen.getByRole('button', { name: 'Save name' }));
+  // Tapping the title turns it into a field; Enter saves.
+  await user.click(await screen.findByRole('button', { name: /^Rename trip: / }));
+  const input = await screen.findByRole('textbox', { name: 'Rename trip' });
+  await user.clear(input); await user.type(input, 'Autumn trip{Enter}');
   await waitFor(() => expect(getTrip(s.db, s.asAna, s.trip.id).name).toBe('Autumn trip'));
+  expect(await screen.findByRole('button', { name: 'Rename trip: Autumn trip' })).toBeInTheDocument();
+  // Currencies and the home currency are in the trip's settings menu.
+  await user.click(screen.getByRole('button', { name: 'Trip settings' }));
+  await user.click(screen.getByRole('button', { name: 'Currencies and rates' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Home currency' }), 'USD');
   await user.click(screen.getByRole('button', { name: 'Change home currency' }));
   expect(screen.getByText(/All trip rates and rates entered for individual expenses will be cleared/)).toBeVisible();
@@ -97,6 +99,6 @@ it('shows a refreshed preview on a stale rate and only applies after a second co
   expect(listTripRates(s.db, s.asAna, s.trip.id)[0]?.rate).toBe('100');
   expect(screen.getByText(/2 saved expenses will change/)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Confirm rate' }));
-  await screen.findByRole('heading', { name: 'Trip settings' });
+  await screen.findByRole('heading', { name: 'Currencies and rates' });
   expect(listTripRates(s.db, s.asAna, s.trip.id)[0]?.rate).toBe('120');
 });

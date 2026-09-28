@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Settlement, Trip } from '../api/types';
 import { History } from '../components/History';
 import { ExpenseList } from '../components/ExpenseRow';
-import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Gear, Pencil, People, Plus, Restore } from '../components/icons';
-import { ActionError, Badge, Banner, Confirm, Empty, ErrorState, GroupsBack, IconButton, Loading, MenuItem, Screen, Section, Segmented, Sheet } from '../components/ui';
+import { Alert, Archive, ChevronRight, Clock, Coins, Flag, Gear, People, Plus, Restore } from '../components/icons';
+import { ActionError, Badge, Banner, Confirm, EditableTitle, Empty, ErrorState, GroupsBack, IconButton, Loading, MenuItem, Screen, Section, Segmented, Sheet } from '../components/ui';
 import { dayText, money, myBalanceText, nameOf, whenText } from '../format';
 import { useApp } from '../state';
 import { useLoad } from '../useLoad';
@@ -176,6 +176,24 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
   return (
     <Screen
       title={trip.name}
+      titleSlot={
+        <EditableTitle
+          value={trip.name}
+          label="Rename trip"
+          disabled={ended}
+          onSave={async (name) => {
+            setError(undefined);
+            try {
+              await client.patchTrip(trip.id, { name });
+              await refresh();
+              await loaded.reload();
+            } catch (problem) {
+              setError(problem);
+              throw problem;
+            }
+          }}
+        />
+      }
       back={back}
       leading={leading}
       actions={menuButton}
@@ -259,7 +277,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
             <MenuItem icon={People} label="Members" onClick={go('/members')} />
             <MenuItem icon={Clock} label="Activity" hint="Changes, and restoring removed items" onClick={go('/activity')} />
             <MenuItem icon={Coins} label="Currencies and rates" onClick={go(`/trips/${trip.id}/currencies`)} />
-            {ended ? null : <MenuItem icon={Pencil} label="Rename trip" onClick={go(`/trips/${trip.id}/currencies`)} />}
             {props.root ? <MenuItem icon={Archive} label="Past trips" onClick={go('/past-trips')} /> : null}
           </ul>
           <div className="menu-divider" />

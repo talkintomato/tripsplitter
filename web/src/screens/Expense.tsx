@@ -220,7 +220,7 @@ export function ExpenseDetail() {
           <ExpenseTile title={title} emoji={expense.emoji} />
           <h2>{titleWithoutEmoji(title)}</h2>
         </div>
-        <p className="detail-amount">{money(expense.total, expense.currency)}</p>
+        <p className={`detail-amount ${money(expense.total, expense.currency).length > 13 ? 'is-long' : ''}`}>{money(expense.total, expense.currency)}</p>
         {foreign && expense.homeTotal !== null ? <p className="detail-converted">= {money(expense.homeTotal, expense.homeCurrency)}</p> : null}
         <p className="detail-meta">
           Added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)} on {dayText(localDay(expense.createdAt))}

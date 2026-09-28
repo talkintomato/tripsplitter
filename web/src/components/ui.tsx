@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, messageOf } from '../api/client';
@@ -21,6 +21,8 @@ export function Screen(props: {
   largeTitle?: boolean;
   /** Something between the title and the page, such as a status badge. */
   titleExtra?: ReactNode;
+  /** With `largeTitle`: shown in place of the plain heading, such as a title that can be renamed by tapping it. */
+  titleSlot?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
@@ -56,7 +58,7 @@ export function Screen(props: {
       </header>
       {props.largeTitle ? (
         <div className="large-title">
-          <h1>{props.title}</h1>
+          {props.titleSlot ?? <h1>{props.title}</h1>}
           {props.subtitle ? <p className="large-sub">{props.subtitle}</p> : null}
           {props.titleExtra}
         </div>
@@ -369,5 +371,85 @@ export function GroupsBack(props: { onClick(): void }) {
       <ChevronLeft size={20} />
       <span>Groups</span>
     </button>
+  );
+}
+
+/**
+ * A large title that becomes a text field when tapped. Enter or leaving the field saves; Escape puts it back.
+ * An empty name, or the same name, saves nothing. While saving, the new name is shown.
+ */
+export function EditableTitle(props: { value: string; label: string; disabled?: boolean; maxLength?: number; onSave(value: string): Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(props.value);
+  const [saving, setSaving] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const cancelled = useRef(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(props.value);
+  }, [props.value, editing]);
+  useEffect(() => {
+    if (editing) {
+      input.current?.focus();
+      input.current?.select();
+    }
+  }, [editing]);
+
+  async function finish(): Promise<void> {
+    if (cancelled.current) {
+      cancelled.current = false;
+      setDraft(props.value);
+      setEditing(false);
+      return;
+    }
+    const name = draft.trim();
+    if (name === '' || name === props.value) {
+      setDraft(props.value);
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await props.onSave(name);
+      setEditing(false);
+    } catch {
+      // The caller shows the error; the field stays open with what was typed.
+      input.current?.focus();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (props.disabled) return <h1>{props.value}</h1>;
+  if (!editing) {
+    return (
+      <h1>
+        <button type="button" className="title-edit" aria-label={`${props.label}: ${props.value}`} onClick={() => setEditing(true)}>
+          {props.value}
+        </button>
+      </h1>
+    );
+  }
+  return (
+    <form className="title-form" onSubmit={(event) => { event.preventDefault(); input.current?.blur(); }}>
+      <input
+        ref={input}
+        className="title-input"
+        aria-label={props.label}
+        value={draft}
+        maxLength={props.maxLength ?? 100}
+        disabled={saving}
+        enterKeyHint="done"
+        autoComplete="off"
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            cancelled.current = true;
+            input.current?.blur();
+          }
+        }}
+        onBlur={() => void finish()}
+      />
+    </form>
   );
 }

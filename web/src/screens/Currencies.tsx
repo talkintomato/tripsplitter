@@ -14,10 +14,10 @@ export function Currencies() {
   const tripId = Number(useParams().tripId);
   const loaded = useLoad(() => ratesApi(client).list(tripId), `currencies-${tripId}`);
   const [currency, setCurrency] = useState('JPY');
-  return <Screen title="Trip settings" back="/">
+  return <Screen title="Currencies and rates" back="/">
     {loaded.error !== undefined ? <ErrorState error={loaded.error} onRetry={() => void loaded.reload()} /> : !loaded.data ? <Loading /> : <>
       <TripSettings key={loaded.data.trip.id} trip={loaded.data.trip} onSaved={async () => { await refresh(); await loaded.reload(); }} />
-      <Section title="Currencies and rates">
+      <Section title="Foreign currencies">
         {loaded.data.rates.length === 0 ? <p className="list-empty">No foreign currencies added yet.</p> : <ul className="list-card">{loaded.data.rates.map((r) => <li className="item" key={r.currency}>
           <span className="tile" aria-hidden="true"><Coins /></span>
           <span className="row-main">
@@ -47,13 +47,12 @@ function AddCurrency({ tripId, taken, currency, onChange }: { tripId: number; ta
 
 function TripSettings({ trip, onSaved }: { trip: Trip; onSaved(): Promise<void> }) {
   const { client } = useApp();
-  const [name, setName] = useState(trip.name);
   const [home, setHome] = useState<string>(trip.homeCurrency);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [done, setDone] = useState(false);
-  async function save(body: { name?: string; homeCurrency?: string }) {
+  async function save(body: { homeCurrency: string }) {
     setBusy(true); setError(undefined); setDone(false);
     try { await client.patchTrip(trip.id, body); await onSaved(); setDone(true); }
     catch (e) { setError(e); }
@@ -61,13 +60,7 @@ function TripSettings({ trip, onSaved }: { trip: Trip; onSaved(): Promise<void> 
   }
   const ended = trip.status === 'ended';
   return <>
-    <ActionError error={error} />{done ? <Banner kind="success">Trip settings saved.</Banner> : null}
-    <Section title="Trip name">
-      <form className="card card-pad" onSubmit={(e) => { e.preventDefault(); void save({ name: name.trim() }); }}>
-        <label className="field"><span>Name</span><input value={name} maxLength={100} autoComplete="off" disabled={busy || ended} onChange={(e) => setName(e.target.value)} /></label>
-        {!ended ? <button className="btn btn-secondary btn-block" disabled={busy || !name.trim() || name.trim() === trip.name}>Save name</button> : null}
-      </form>
-    </Section>
+    <ActionError error={error} />{done ? <Banner kind="success">Home currency changed.</Banner> : null}
     <Section title="Home currency">
       <div className="card card-pad">
         <p>Balances and payments are in <strong>{trip.homeCurrency}</strong>.</p>

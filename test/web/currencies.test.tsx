@@ -30,16 +30,11 @@ function setup() {
   return { client, user: userEvent.setup() };
 }
 
-it('says that the new trip name was saved', async () => {
-  const { client, user } = setup();
-  const name = await screen.findByLabelText('Name');
-  await user.clear(name);
-  await user.type(name, 'Tokyo 2026');
-  await user.click(screen.getByRole('button', { name: 'Save name' }));
-  expect(await screen.findByText('Trip settings saved.')).toBeInTheDocument();
-  expect(client.patchTrip).toHaveBeenCalledWith(1, { name: 'Tokyo 2026' });
-  expect(screen.getByLabelText('Name')).toHaveValue('Tokyo 2026');
-  expect(screen.getByRole('button', { name: 'Save name' })).toBeDisabled();
+it('has no trip name box: the trip is renamed from its title on Home', async () => {
+  setup();
+  await screen.findByLabelText('Add currency');
+  expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save name' })).not.toBeInTheDocument();
 });
 
 it('offers to add only the currencies the trip does not have yet', async () => {
