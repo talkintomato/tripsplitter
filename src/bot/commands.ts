@@ -96,14 +96,22 @@ const add = (map: Map<number, bigint>, id: number, amount: bigint) => map.set(id
 const most = (map: Map<number, bigint>) => [...map].sort(([a, av], [b, bv]) => av === bv ? a - b : av > bv ? -1 : 1)[0];
 const memberLabel = (db: d.Db, scope: d.Scope, id: number) => scope.actor.kind === 'member' && scope.actor.memberId === id ? 'you' : d.getMember(db, scope, id).displayName;
 
+/** The expense's own emoji, or a receipt. */
+const iconOf = (e: d.ExpenseDetail) => e.emoji || '🧾';
+const titleOf = (e: d.ExpenseDetail) => e.description || e.merchant || 'Expense';
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 function todaySummary(db: d.Db, scope: d.Scope, trip: d.Trip | undefined, date: string, at: Date): Summary {
   const isToday = date === d.singaporeDate(at);
-  const summary: Summary = { icon: '', title: isToday ? 'Today' : displayDate(date, at), blocks: [] };
+  const day = displayDate(date, at);
+  const summary: Summary = { icon: isToday ? '☀️' : '📅', title: isToday ? "Today's damage" : day, blocks: [] };
   const expenses = trip ? d.listExpenses(db, scope, trip.id, { status: 'confirmed' }).filter(e => e.expenseDate === date) : [];
   const payments = trip ? d.listSettlements(db, scope, trip.id, { status: 'active' }).filter(p => d.singaporeDate(new Date(p.createdAt)) === date) : [];
   const drafts = trip ? d.listExpenses(db, scope, trip.id, { status: 'draft' }).filter(e => e.expenseDate === date).length : 0;
   const name = (id: number) => memberLabel(db, scope, id);
-  if (!expenses.length && !payments.length) summary.blocks.push({ lines: [`Nothing recorded ${isToday ? 'today' : `on ${displayDate(date, at)}`}.`] });
+  if (!expenses.length && !payments.length) {
+    summary.blocks.push({ lines: [isToday ? '🌴 A quiet day. Nothing spent yet.' : `🌴 Wallets rested on ${day}. Nothing was spent.`] });
+  }
   if (trip && (expenses.length || payments.length)) {
     let total = 0n;
     const paid = new Map<number, bigint>();
@@ -112,18 +120,21 @@ function todaySummary(db: d.Db, scope: d.Scope, trip: d.Trip | undefined, date: 
       const converted = expenseAmounts(e, trip);
       total += converted.total;
       add(paid, e.payerId, converted.total);
-      if (index < 15) lines.push({ bullet: `${e.description || e.merchant || 'Expense'} · ${displayAmount(e.total, e.currency)}${e.currency !== trip.homeCurrency ? ` (≈ ${displayAmount(converted.total, trip.homeCurrency)})` : ''} · paid by ${name(e.payerId)}` });
+      if (index < 15) lines.push(`${iconOf(e)} ${titleOf(e)} · ${displayAmount(e.total, e.currency)}${e.currency !== trip.homeCurrency ? ` (≈ ${displayAmount(converted.total, trip.homeCurrency)})` : ''} · ${name(e.payerId)}`);
     }
-    if (expenses.length > 15) lines.push(`and ${expenses.length - 15} more`);
+    if (expenses.length > 15) lines.push(`…and ${expenses.length - 15} more`);
     if (lines.length) summary.blocks.push({ lines });
-    const top = most(paid);
-    summary.blocks.push({ lines: [
-      `Total: ${displayAmount(total, trip.homeCurrency)}`,
-      ...(top ? [`Spent most: ${name(top[0])}, ${displayAmount(top[1], trip.homeCurrency)}`] : []),
-    ] });
-    if (payments.length) summary.blocks.push({ heading: 'Payments', lines: payments.map(p => ({ bullet: `${name(p.fromMemberId)} paid ${name(p.toMemberId)} ${displayAmount(p.amount, trip.homeCurrency)}` })) });
+    if (expenses.length) {
+      const top = most(paid);
+      summary.blocks.push({ lines: [
+        `💸 Total: ${displayAmount(total, trip.homeCurrency)} across ${plural(expenses.length, 'expense', 'expenses')}`,
+        ...(top ? [`👑 Big spender: ${name(top[0])} (${displayAmount(top[1], trip.homeCurrency)})`] : []),
+        ...(expenses.length >= 8 ? ['🏃 Busy day!'] : []),
+      ] });
+    }
+    if (payments.length) summary.blocks.push({ heading: '🤝 Paid back', lines: payments.map(p => ({ bullet: `${name(p.fromMemberId)} → ${name(p.toMemberId)} · ${displayAmount(p.amount, trip.homeCurrency)}` })) });
   }
-  if (drafts) summary.blocks.push({ lines: [`${drafts} ${drafts === 1 ? 'draft' : 'drafts'} waiting for approval`] });
+  if (drafts) summary.blocks.push({ lines: [`🧾 ${plural(drafts, 'receipt', 'receipts')} waiting for approval`] });
   return summary;
 }
 
@@ -133,13 +144,17 @@ function wrapSummary(db: d.Db, scope: d.Scope, trip: d.Trip): Summary {
   const money = (amount: bigint | number) => displayAmount(amount, trip.homeCurrency);
   let total = 0n;
   const paid = new Map<number, bigint>(), shares = new Map<number, bigint>();
+  const byDay = new Map<string, bigint>();
   let biggest: { expense: d.ExpenseDetail; total: bigint } | undefined;
+  let smallest: { expense: d.ExpenseDetail; total: bigint } | undefined;
   for (const expense of expenses) {
     const converted = expenseAmounts(expense, trip);
     total += converted.total;
     add(paid, expense.payerId, converted.total);
+    byDay.set(expense.expenseDate, (byDay.get(expense.expenseDate) ?? 0n) + converted.total);
     for (const [id, amount] of converted.shares) add(shares, id, amount);
     if (!biggest || converted.total > biggest.total) biggest = { expense, total: converted.total };
+    if (!smallest || converted.total < smallest.total) smallest = { expense, total: converted.total };
   }
   const dates = expenses.map(e => e.expenseDate).sort();
   const first = dates[0], last = dates.at(-1);
@@ -147,18 +162,33 @@ function wrapSummary(db: d.Db, scope: d.Scope, trip: d.Trip): Summary {
   const shortDate = (date: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(first?.slice(0, 4) !== last?.slice(0, 4) ? { year: 'numeric' as const } : {}) }).format(new Date(date)).replace('Sept', 'Sep');
   // Foundation half-up division: identical currencies cancel their minor-unit factors.
   const perDay = days ? convertToHome(total, String(days), trip.homeCurrency, trip.homeCurrency, 'half-up') : 0n;
-  const summary: Summary = { icon: '🏁', title: trip.name, blocks: [{ lines: [
-    ...(first && last ? [`${first === last ? shortDate(first) : `${shortDate(first)} – ${shortDate(last)}`} · ${days} ${days === 1 ? 'day' : 'days'}`] : ['No expenses yet.']),
-    `Total spent: ${money(total)}`, `Per day: ${money(perDay)}`, `Expenses: ${expenses.length}`,
-  ] }] };
+  const summary: Summary = { icon: '🏁', title: `${trip.name}: that's a wrap!`, blocks: [] };
+  if (!first || !last) {
+    summary.blocks.push({ lines: ['🌴 No expenses yet. The adventure hasn’t started!'] });
+  } else {
+    summary.blocks.push({ lines: [
+      `📅 ${first === last ? shortDate(first) : `${shortDate(first)} – ${shortDate(last)}`} · ${plural(days, 'day', 'days')}`,
+      `💸 ${money(total)} spent across ${plural(expenses.length, 'expense', 'expenses')}`,
+      ...(days > 1 ? [`📆 About ${money(perDay)} a day`] : []),
+    ] });
+  }
   const top = most(paid);
-  if (biggest && top) summary.blocks.push({ lines: [
-    `Biggest expense: ${biggest.expense.description || biggest.expense.merchant || 'Expense'} · ${money(biggest.total)}, paid by ${name(biggest.expense.payerId)}`,
-    `Paid the most: ${name(top[0])}, ${money(top[1])}`,
-  ] });
-  if (shares.size) summary.blocks.push({ heading: "Each person's share", lines: [...shares].sort(([a], [b]) => a - b).map(([id, amount]) => ({ bullet: `${name(id)}: ${money(amount)}` })) });
+  // The day with the most spent; the earlier day wins a tie.
+  const busiest = [...byDay].sort(([a, av], [b, bv]) => (av === bv ? a.localeCompare(b) : av > bv ? -1 : 1))[0];
+  if (biggest && top) {
+    summary.blocks.push({ heading: '🏆 Awards', lines: [
+      `👑 Biggest spender: ${name(top[0])} (${money(top[1])} paid)`,
+      `💎 Priciest moment: ${iconOf(biggest.expense)} ${titleOf(biggest.expense)} · ${money(biggest.total)}`,
+      ...(smallest && expenses.length >= 3 ? [`🪙 Smallest treat: ${iconOf(smallest.expense)} ${titleOf(smallest.expense)} · ${money(smallest.total)}`] : []),
+      ...(busiest && byDay.size >= 2 ? [`🔥 Biggest day: ${shortDate(busiest[0])} · ${money(busiest[1])}`] : []),
+    ] });
+  }
+  if (shares.size) summary.blocks.push({ heading: "🧮 Each person's share", lines: [...shares].sort(([a], [b]) => a - b).map(([id, amount]) => ({ bullet: `${name(id)}: ${money(amount)}` })) });
   const { payments } = d.getTripBalances(db, scope, trip.id);
-  summary.blocks.push(payments.length ? { heading: 'To settle up', lines: payments.map(p => ({ bullet: `${name(p.fromMemberId)} ${name(p.fromMemberId) === 'you' ? 'pay' : 'pays'} ${name(p.toMemberId)} ${money(p.amount)}` })) } : { lines: ['Everyone is settled up. 🎉'] });
+  summary.blocks.push(payments.length
+    ? { heading: '💰 Time to settle up', lines: payments.map(p => ({ bullet: `${name(p.fromMemberId)} → ${name(p.toMemberId)} · ${money(p.amount)}` })) }
+    : { lines: ['✨ All square! Everyone is settled up. 🎉'] });
+  if (first) summary.blocks.push({ lines: ['Until the next trip ✈️'] });
   return summary;
 }
 

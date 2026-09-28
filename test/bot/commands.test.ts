@@ -263,14 +263,14 @@ describe('/today', () => {
     expense(h, { status: 'draft', description: 'Draft two', total: 999999 });
     expense(h, { expenseDate: '2026-09-28', description: 'Earlier' });
     await h.send('/today');
-    expect(h.text()).toBe('<b>Today</b>\n\n• Lunch · 12.00 SGD · paid by you\n• Taxi · 24.00 SGD · paid by Sam\n\nTotal: 36.00 SGD\nSpent most: Sam, 24.00 SGD\n\n2 drafts waiting for approval');
+    expect(h.text()).toBe("<b>☀️ Today's damage</b>\n\n🧾 Lunch · 12.00 SGD · you\n🧾 Taxi · 24.00 SGD · Sam\n\n💸 Total: 36.00 SGD across 2 expenses\n👑 Big spender: Sam (24.00 SGD)\n\n🧾 2 receipts waiting for approval");
     expect(h.buttons()[0]!.text).toBe('View in app'); expect(launch(h).view).toBe('home');
   });
   it('uses the stored foreign rate and foundation half-up rounding', async () => {
     const h = make(); expense(h, { payerId: h.groups[0]!.members[0]!.id, description: 'Ramen', total: 3000, currency: 'JPY', rateOverride: '112.36' });
     await h.send('/today');
-    expect(h.text()).toContain('• Ramen · 3,000 JPY (≈ 26.70 SGD) · paid by you');
-    expect(h.text()).toContain('Total: 26.70 SGD'); expect(h.suggestRate).not.toHaveBeenCalled();
+    expect(h.text()).toContain('🧾 Ramen · 3,000 JPY (≈ 26.70 SGD) · you');
+    expect(h.text()).toContain('💸 Total: 26.70 SGD'); expect(h.suggestRate).not.toHaveBeenCalled();
   });
   it('lists active payments on their Singapore date without adding them to spending', async () => {
     const h = make(); expense(h);
@@ -278,15 +278,15 @@ describe('/today', () => {
     payment(); const undone = payment(); d.undoSettlement(h.db, h.scope, undone.id, undone.version);
     d.setClockForTests(() => new Date('2026-09-28T15:59:00Z')); payment(); d.setClockForTests(() => NOW);
     await h.send('/today');
-    expect(h.text()).toContain('Total: 24.00 SGD'); expect(h.text()).toContain('<b>Payments</b>\n• Sam paid Ana 20.00 SGD');
-    expect(h.text().match(/Sam paid Ana/g)).toHaveLength(1);
+    expect(h.text()).toContain('💸 Total: 24.00 SGD'); expect(h.text()).toContain('<b>🤝 Paid back</b>\n• Sam → Ana · 20.00 SGD');
+    expect(h.text().match(/Sam → Ana/g)).toHaveLength(1);
   });
   it('shows payments without expenses', async () => {
     const h = make(); d.createSettlement(h.db, h.scope, { tripId: h.groups[0]!.trip!.id, fromMemberId: h.groups[0]!.members[1]!.id, toMemberId: h.groups[0]!.members[2]!.id, amount: 2000 });
-    await h.send('/today'); expect(h.text()).toContain('Total: 0.00 SGD'); expect(h.text()).toContain('Sam paid Ana 20.00 SGD'); expect(h.text()).not.toContain('Nothing recorded');
+    await h.send('/today'); expect(h.text()).not.toContain('Total'); expect(h.text()).toContain('Sam → Ana · 20.00 SGD'); expect(h.text()).not.toContain('Nothing');
   });
-  it.each([['', 'today.'], [' yesterday', 'on Mon 28 Sep.'], [' 25 Sep', 'on Fri 25 Sep.'], [' 2026-09-25', 'on Fri 25 Sep.']])('reports no records for /today%s', async (arg, ending) => {
-    const h = make(); await h.send(`/today${arg}`); expect(h.text()).toContain(`Nothing recorded ${ending}`); expect(h.buttons()[0]!.text).toBe('View in app');
+  it.each([['', 'A quiet day. Nothing spent yet.'], [' yesterday', 'Wallets rested on Mon 28 Sep.'], [' 25 Sep', 'Wallets rested on Fri 25 Sep.'], [' 2026-09-25', 'Wallets rested on Fri 25 Sep.']])('reports no records for /today%s', async (arg, ending) => {
+    const h = make(); await h.send(`/today${arg}`); expect(h.text()).toContain(ending); expect(h.buttons()[0]!.text).toBe('View in app');
   });
   it.each(['yesterday', '28 Sep', '2026-09-28'])('selects the correct date for %s', async arg => {
     const h = make(); expense(h); expense(h, { expenseDate: '2026-09-28', description: 'Yesterday', total: 1234 });
@@ -297,16 +297,16 @@ describe('/today', () => {
   });
   it('mentions drafts when nothing is confirmed', async () => {
     const h = make(); expense(h, { status: 'draft' }); await h.send('/today');
-    expect(h.text()).toContain('Nothing recorded today.'); expect(h.text()).toContain('1 draft waiting for approval');
+    expect(h.text()).toContain('A quiet day. Nothing spent yet.'); expect(h.text()).toContain('1 receipt waiting for approval');
   });
   it('caps expense bullets at 15 but sums all confirmed expenses', async () => {
     const h = make(); for (let i = 0; i < 19; i++) expense(h, { description: `Expense ${i}`, total: 100 });
-    await h.send('/today'); expect(h.text().match(/• /g)).toHaveLength(15); expect(h.text()).toContain('and 4 more'); expect(h.text()).toContain('Total: 19.00 SGD');
+    await h.send('/today'); expect(h.text().match(/🧾 Expense/g)).toHaveLength(15); expect(h.text()).toContain('…and 4 more'); expect(h.text()).toContain('💸 Total: 19.00 SGD across 19 expenses'); expect(h.text()).toContain('🏃 Busy day!');
     expect(h.text()).toContain('Expense 18'); expect(h.text()).not.toContain('Expense 0 ·');
   });
   it('does not fall back to an ended trip or create a new trip', async () => {
     const h = make(); expense(h); d.endTrip(h.db, h.scope, h.groups[0]!.trip!.id);
-    await h.send('/today'); expect(h.text()).toContain('Nothing recorded today.'); expect(d.getActiveTrip(h.db, h.scope)).toBeUndefined();
+    await h.send('/today'); expect(h.text()).toContain('A quiet day. Nothing spent yet.'); expect(d.getActiveTrip(h.db, h.scope)).toBeUndefined();
   });
 });
 
@@ -316,7 +316,7 @@ describe('/wrap', () => {
     expense(h, { expenseDate: '2026-10-02', total: 6000, description: 'Hotel', payerId: h.groups[0]!.members[2]!.id });
     expense(h, { status: 'draft', expenseDate: '2026-01-01', total: 999999 });
     await h.send('/wrap');
-    expect(h.text()).toBe('<b>🏁 Trip 0</b>\n\n25 Sep – 2 Oct · 8 days\nTotal spent: 84.00 SGD\nPer day: 10.50 SGD\nExpenses: 2\n\nBiggest expense: Hotel · 60.00 SGD, paid by Ana\nPaid the most: Ana, 60.00 SGD\n\n<b>Each person\'s share</b>\n• You: 28.00 SGD\n• Sam: 28.00 SGD\n• Ana: 28.00 SGD\n\n<b>To settle up</b>\n• You pay Ana 28.00 SGD\n• Sam pays Ana 4.00 SGD');
+    expect(h.text()).toBe("<b>🏁 Trip 0: that's a wrap!</b>\n\n📅 25 Sep – 2 Oct · 8 days\n💸 84.00 SGD spent across 2 expenses\n📆 About 10.50 SGD a day\n\n<b>🏆 Awards</b>\n👑 Biggest spender: Ana (60.00 SGD paid)\n💎 Priciest moment: 🧾 Hotel · 60.00 SGD\n🔥 Biggest day: 2 Oct · 60.00 SGD\n\n<b>🧮 Each person's share</b>\n• You: 28.00 SGD\n• Sam: 28.00 SGD\n• Ana: 28.00 SGD\n\n<b>💰 Time to settle up</b>\n• You → Ana · 28.00 SGD\n• Sam → Ana · 4.00 SGD\n\nUntil the next trip ✈️");
     expect(h.buttons()[0]!.text).toBe('Settle up in app'); expect(launch(h).view).toBe('balances');
   });
   it('uses the most recently ended trip and creates none', async () => {
@@ -326,23 +326,23 @@ describe('/wrap', () => {
     d.renameTrip(h.db, h.scope, second.id, 'Newer trip'); d.endTrip(h.db, h.scope, second.id);
     d.reopenTrip(h.db, h.scope, first.id);
     d.setClockForTests(() => new Date(NOW.getTime() + 1000)); d.endTrip(h.db, h.scope, first.id);
-    await h.send('/wrap'); expect(h.text()).toContain('<b>🏁 Trip 0</b>'); expect(h.text()).toContain('Expenses: 1');
+    await h.send('/wrap'); expect(h.text()).toContain("<b>🏁 Trip 0: that's a wrap!</b>"); expect(h.text()).toContain('spent across 1 expense');
     expect(d.getActiveTrip(h.db, h.scope)).toBeUndefined();
   });
   it('prefers an active trip to ended history', async () => {
     const h = make(); expense(h); d.endTrip(h.db, h.scope, h.groups[0]!.trip!.id);
     const active = d.getOrCreateActiveTrip(h.db, h.scope).trip; d.renameTrip(h.db, h.scope, active.id, 'Current');
-    await h.send('/wrap'); expect(h.text()).toContain('🏁 Current'); expect(h.text()).toContain('Expenses: 0'); expect(h.text()).not.toContain('24.00');
+    await h.send('/wrap'); expect(h.text()).toContain('🏁 Current'); expect(h.text()).toContain('No expenses yet'); expect(h.text()).not.toContain('24.00');
   });
   it('reports everyone settled after payments without changing spending or shares', async () => {
     const h = make(); expense(h);
     for (const p of d.getTripBalances(h.db, h.scope, h.groups[0]!.trip!.id).payments) d.createSettlement(h.db, h.scope, { tripId: h.groups[0]!.trip!.id, ...p });
-    await h.send('/wrap'); expect(h.text()).toContain('Everyone is settled up. 🎉'); expect(h.text()).toContain('Total spent: 24.00 SGD'); expect(h.text()).toContain('You: 8.00 SGD'); expect(h.text()).not.toContain('To settle up');
+    await h.send('/wrap'); expect(h.text()).toContain('Everyone is settled up. 🎉'); expect(h.text()).toContain('💸 24.00 SGD spent'); expect(h.text()).toContain('You: 8.00 SGD'); expect(h.text()).not.toContain('Time to settle up');
   });
   it('converts foreign expenses, divides days with foundation rounding, and preserves converted shares', async () => {
     const h = make(); expense(h, { total: 3000, currency: 'JPY', rateOverride: '112.36', expenseDate: '2026-09-25' });
     expense(h, { total: 1, expenseDate: '2026-09-26' });
-    await h.send('/wrap'); expect(h.text()).toContain('Total spent: 26.71 SGD'); expect(h.text()).toContain('Per day: 13.36 SGD'); expect(h.text()).toContain('Biggest expense: Taxi · 26.70 SGD'); expect(h.text()).toContain('Sam: 8.93 SGD'); expect(h.suggestRate).not.toHaveBeenCalled();
+    await h.send('/wrap'); expect(h.text()).toContain('💸 26.71 SGD spent'); expect(h.text()).toContain('📆 About 13.36 SGD a day'); expect(h.text()).toContain('💎 Priciest moment: 🧾 Taxi · 26.70 SGD'); expect(h.text()).toContain('Sam: 8.93 SGD'); expect(h.suggestRate).not.toHaveBeenCalled();
   });
   it('escapes long names and descriptions, chunks safely, and places the button only at the end', async () => {
     const h = make();
