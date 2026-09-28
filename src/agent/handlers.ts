@@ -80,7 +80,8 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
       });
       const reply_parameters = { message_id: messageId, allow_sending_without_reply: true };
       if (result.kind === 'proposal') {
-        const keyboard = new InlineKeyboard().text(result.confirmLabel, proposalCallback('yes', result.proposalId))
+        // The same three buttons for every proposal; the summary above says what Approve will do.
+        const keyboard = new InlineKeyboard().text('Approve', proposalCallback('yes', result.proposalId))
           .text('Change', proposalCallback('change', result.proposalId)).text('Cancel', proposalCallback('cancel', result.proposalId));
         const chunks = telegramChunks(result.structuredSummary);
         for (const [index, chunk] of chunks.entries()) await ctx.reply(chunk, { reply_parameters, parse_mode: 'HTML',

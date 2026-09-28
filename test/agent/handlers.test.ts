@@ -74,9 +74,9 @@ it('posts a code-built proposal and three bounded callbacks; commits and notifie
   const h = make(proposalScript());
   const id = await h.mention('taxi');
   expect(h.sent().at(-1)).toMatchObject({ text: expect.stringContaining('24.00 SGD'), parse_mode: 'HTML', reply_parameters: { message_id: id } });
-  expect(h.buttons().map(b => b.text)).toEqual(['Add it', 'Change', 'Cancel']);
+  expect(h.buttons().map(b => b.text)).toEqual(['Approve', 'Change', 'Cancel']);
   for (const button of h.buttons()) expect(Buffer.byteLength(button.callback_data!)).toBeLessThanOrEqual(64);
-  const p = latest(h), data = h.data('Add it');
+  const p = latest(h), data = h.data('Approve');
   expect(d.listExpenses(h.db, d.systemScope(p.groupId), h.groups[0]!.trip!.id)).toEqual([]);
   await h.tap(data);
   expect(d.getProposal(h.db, p.id)!.status).toBe('done');
@@ -126,7 +126,7 @@ it('Change continues the same conversation and replaces the cancelled proposal',
 });
 it('delivers every notice once even if the Telegram edit or an earlier notifier fails', async () => {
   const h = make([calls(['add_expense', args], ['record_payment', { from: 'Sam Tan', to: 'Ana', amount: '12', currency: 'SGD' }]), text()]);
-  await h.mention('taxi and payment'); const data = h.data('Confirm changes');
+  await h.mention('taxi and payment'); const data = h.data('Approve');
   h.failing.add('editMessageText'); h.failing.add('answerCallbackQuery');
   vi.mocked(h.notifier.expenseSaved).mockRejectedValueOnce(new Error('failed'));
   await h.tap(data);
@@ -234,10 +234,10 @@ it('posts every part of a long summary before offering confirmation', async () =
     expect(sent.reply_parameters.message_id).toBe(id);
   }
   expect(h.sent().slice(0, -1).every(p => !p.reply_markup)).toBe(true);
-  expect(h.buttons().map(b => b.text)).toEqual(['Add it', 'Change', 'Cancel']);
+  expect(h.buttons().map(b => b.text)).toEqual(['Approve', 'Change', 'Cancel']);
 });
 it('serializes concurrent confirmation taps so notices are handed off once', async () => {
-  const h = make(proposalScript()); await h.mention('taxi'); const data = h.data('Add it');
+  const h = make(proposalScript()); await h.mention('taxi'); const data = h.data('Approve');
   await Promise.all([h.tap(data), h.tap(data)]);
   expect(h.notifier.expenseSaved).toHaveBeenCalledOnce(); alert(h, 'Already done.');
 });
@@ -292,7 +292,7 @@ it('agent /group choice is used by receipts, and receipt choice is used by the a
 it('agent approval of a private receipt notifies its group once', async () => {
   const h = make([calls(['approve_draft', { expenseId: 1 }]), text()]);
   await h.send('', { text: undefined, photo: [{ file_id: 'p', file_unique_id: 'p', width: 10, height: 10 }] }, ANA, ANA.id);
-  await h.privateText('approve the receipt'); const data = h.data('Approve it');
+  await h.privateText('approve the receipt'); const data = h.data('Approve');
   await h.tap(data, ANA, ANA.id); await h.tap(data, ANA, ANA.id);
   expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT, expenseId: 1 }));
 });
