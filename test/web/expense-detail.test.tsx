@@ -27,7 +27,7 @@ function open(expense: ExpenseView, entries: ActivityEntry[] = []) {
   client.getExpense.mockResolvedValue({ expense });
   client.getTrip.mockResolvedValue({ trip });
   client.listActivity.mockResolvedValue({ entries, nextBefore: null });
-  render(<AppProvider value={{ client, group, refresh: vi.fn(), setGroup: vi.fn() }}><MemoryRouter initialEntries={['/expenses/7']}><Routes><Route path="/expenses/:id" element={<ExpenseDetail />} /></Routes></MemoryRouter></AppProvider>);
+  render(<AppProvider value={{ client, group, refresh: vi.fn(), setGroup: vi.fn() }}><MemoryRouter initialEntries={['/expenses/7']}><Routes><Route path="/expenses/:id" element={<ExpenseDetail />} /><Route path="/expenses/:id/edit" element={<p>Edit form</p>} /></Routes></MemoryRouter></AppProvider>);
   return client;
 }
 
@@ -80,11 +80,16 @@ it("lists the expense's own history, three at first and all on request, with wha
   expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
 });
 
-it('shows a single entry alone, and says a receipt draft was read from a receipt', async () => {
-  const draft = expenseView({ status: 'draft', receiptFileId: 'file-abc' });
-  open(draft, [entry('expense.create', { after: draft })]);
+it('opens a draft straight in the form, with no detail page', async () => {
+  open(expenseView({ status: 'draft', receiptFileId: 'file-abc' }));
+  expect(await screen.findByText('Edit form')).toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: 'History' })).not.toBeInTheDocument();
+});
+
+it('shows a single entry alone, and says a discarded draft was read from a receipt', async () => {
+  const draft = expenseView({ status: 'discarded', receiptFileId: 'file-abc' });
+  open(draft, [entry('expense.create', { after: { ...draft, status: 'draft' } })]);
   const history = await screen.findByRole('list', { name: 'History' });
   expect(within(history).getByText('Read from a receipt')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Review and approve' })).toBeInTheDocument();
 });

@@ -362,16 +362,8 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
       await finish(TEXT.unavailable);
       return;
     }
-    // A failed private edit must not suppress the group's notice for an already committed draft.
-    try { await finish(text, keyboard); } finally {
-      if (message.chat.type === 'private') {
-        try {
-          await ctx.api.sendMessage(who.group.chatId,
-            `${who.member.displayName} added a receipt to approve: ${draft.merchant || draft.description || 'Receipt'}, ${formatAmount(draft.total, draft.currency)}`,
-            { reply_markup: new InlineKeyboard().url('Open', expenseUrl(who.group, draft.id)) });
-        } catch (error) { logError(`receipts: could not post the draft notice: ${errorName(error)}`); }
-      }
-    }
+    // Nothing is posted to the group for a draft: the group hears about it once it is confirmed (expenseSaved).
+    await finish(text, keyboard);
   }
 
   function expenseUrl(group: Group, expenseId: number): string {

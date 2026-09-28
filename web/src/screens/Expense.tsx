@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import type { ExpenseView } from '../api/types';
 import { ActionError, Avatar, Badge, Banner, Confirm, Empty, ErrorState, IconButton, Loading, Screen, Section } from '../components/ui';
@@ -70,11 +70,14 @@ export function AddExpense() {
 }
 
 export function EditExpense() {
-  const { client, group } = useApp();
+  const { client, group, refresh } = useApp();
   const navigate = useNavigate();
   const id = Number(useParams().id);
   const openRate = (useLocation().state as { openRate?: boolean } | null)?.openRate === true;
   const loaded = useExpense(id);
+  const [discarding, setDiscarding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(undefined);
 
   if (loaded.error !== undefined) {
     return (
@@ -92,8 +95,33 @@ export function EditExpense() {
   }
   const { expense, trip } = loaded.data;
   const editable = trip.status === 'active' && (expense.status === 'draft' || expense.status === 'confirmed');
+  // A draft opens straight here, so this is also where it can be thrown away.
+  const discardButton = editable && expense.status === 'draft'
+    ? <IconButton label="Discard" icon={Trash} tone="danger" disabled={busy} onClick={() => setDiscarding(true)} />
+    : undefined;
+  async function discard(): Promise<void> {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await client.discardExpense(expense.id, expense.version);
+      await refresh();
+      navigate(-1);
+    } catch (problem) {
+      setError(problem);
+      await loaded.reload();
+    } finally {
+      setBusy(false);
+      setDiscarding(false);
+    }
+  }
   return (
-    <Screen title={expense.status === 'draft' ? 'Approve draft' : 'Edit expense'} subtitle={trip.name}>
+    <Screen title={expense.status === 'draft' ? 'Approve draft' : 'Edit expense'} subtitle={trip.name} actions={discardButton}>
+      <ActionError error={error} onClose={() => setError(undefined)} />
+      {discarding ? (
+        <Confirm title="Discard this draft?" confirmLabel="Discard" danger busy={busy} onCancel={() => setDiscarding(false)} onConfirm={() => void discard()}>
+          <p>It won't count toward balances. You can restore it from Activity.</p>
+        </Confirm>
+      ) : null}
       {editable ? (
         <ExpenseForm
           key={expense.id}
@@ -153,6 +181,9 @@ export function ExpenseDetail() {
     );
   }
   const { expense, trip } = loaded.data;
+  // A draft has nothing to review before it is finished, so it always opens straight in the form.
+  // (Compared as a string so the draft branches below stay typed; they remain as a fallback.)
+  if ((expense.status as string) === 'draft') return <Navigate to={`/expenses/${expense.id}/edit`} replace />;
   const open = trip.status === 'active';
   const foreign = expense.currency !== expense.homeCurrency;
   const included = expense.shares.filter((s) => s.itemId === null);

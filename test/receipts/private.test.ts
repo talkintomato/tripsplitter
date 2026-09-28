@@ -44,11 +44,8 @@ it.each([undefined, 'https://trip.example/app?existing=1'])('one group: private 
   const url = new URL(webhookUrl ? open.web_app!.url : open.url!);
   expect(decodeLaunch(url.searchParams.get('startapp')!, h.config.linkSecret)).toEqual({ groupId: s.group.id, linkVersion: s.group.linkVersion, view: 'expense', expenseId: draft.id });
   if (webhookUrl) { expect(url.origin).toBe('https://trip.example'); expect(url.searchParams.get('existing')).toBe('1'); }
-  expect(notices(h)).toHaveLength(1);
-  expect(notices(h)[0]!.payload.text).toBe('Ana added a receipt to approve: Casa Pepe, 84.50 SGD');
-  const groupButton = (notices(h)[0]!.payload.reply_markup as { inline_keyboard: Button[][] }).inline_keyboard[0]![0]!;
-  expect(groupButton.text).toBe('Open'); expect(groupButton.url).toContain('https://t.me/');
-  expect(decodeLaunch(new URL(groupButton.url!).searchParams.get('startapp')!, h.config.linkSecret).expenseId).toBe(draft.id);
+  // The group hears nothing about a draft; it is told once the draft is confirmed.
+  expect(notices(h)).toHaveLength(0);
   expect(h.notifier.expenseSaved).not.toHaveBeenCalled();
 });
 
@@ -69,7 +66,7 @@ it('several groups: waits for selection, then consumes once and remembers the ch
   const data = choice(h, s.group.id);
   await Promise.all([h.tap(data, ANA, ANA.id), h.tap(data, ANA, ANA.id)]);
   expect(h.downloadPhoto).toHaveBeenCalledExactlyOnceWith('photo-large');
-  expect(h.readReceipt).toHaveBeenCalledOnce(); expect(drafts()).toHaveLength(1); expect(notices(h)).toHaveLength(1);
+  expect(h.readReceipt).toHaveBeenCalledOnce(); expect(drafts()).toHaveLength(1); expect(notices(h)).toHaveLength(0);
   expect(drafts()[0]!.description).toBe('Lunch');
   expect(chosenGroup(db, ANA.id, ANA.id)?.groupId).toBe(s.group.id);
   await privatePhoto(h); expect(h.readReceipt).toHaveBeenCalledTimes(2);
@@ -122,7 +119,7 @@ it.each([ANA.id, CHAT_A])('approval from chat %s saves and sends the group notic
   const other = seedGroup(db, CHAT_B, 'Other trip');
   rememberChosenGroup(db, other.asAna, ANA.id, NOW);
   await Promise.all([h.tap(data, ANA, chatId), h.tap(data, ANA, chatId)]);
-  expect(drafts()[0]!.status).toBe('confirmed'); expect(notices(h)).toHaveLength(1);
+  expect(drafts()[0]!.status).toBe('confirmed'); expect(notices(h)).toHaveLength(0);
   expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT_A, groupId: s.group.id, actorName: 'Ana', expenseId: drafts()[0]!.id, total: 8450 }));
   expect(h.edits().at(-1)!.payload.chat_id).toBe(chatId);
 });
@@ -194,7 +191,7 @@ it('selection and approval continue if Telegram cannot acknowledge or edit their
   const data = choice(h, s.group.id);
   h.failing.add('answerCallbackQuery'); h.failing.add('editMessageText');
   await h.tap(data, ANA, ANA.id);
-  expect(h.readReceipt).toHaveBeenCalledOnce(); expect(notices(h)).toHaveLength(1);
+  expect(h.readReceipt).toHaveBeenCalledOnce(); expect(notices(h)).toHaveLength(0);
   const draft = drafts()[0]!;
   await h.tap(`rcpt:${draft.id}:${draft.version}`, ANA, ANA.id);
   expect(drafts()[0]!.status).toBe('confirmed');

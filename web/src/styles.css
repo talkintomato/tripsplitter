@@ -2845,3 +2845,6 @@ div.person {
 /* Long amounts, such as 1,245,000 IDR, step down so they stay on one line. */
 .detail-amount.is-long { font-size: 22px; }
 .detail-amount + .detail-converted, .detail-converted { font-size: var(--fs-15); }
+
+/* The Expenses tab card holds only the two totals. */
+.summary .stats:first-child { margin-top: 0; border-top: 0; padding-top: 0; }

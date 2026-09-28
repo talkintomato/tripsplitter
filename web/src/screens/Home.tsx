@@ -212,19 +212,25 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
         ]}
       />
 
-      <div className="card summary">
-        <p className={`summary-balance ${mine > 0 ? 'owed' : mine < 0 ? 'owes' : ''}`}>{myBalanceText(mine, currency)}</p>
-        <div className="stats">
-          <div className="stat">
-            <span className="stat-label">My expenses</span>
-            <span className="stat-value">{money(balances.summary.myExpenses, currency)}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-label">Total expenses</span>
-            <span className="stat-value">{money(balances.summary.totalExpenses, currency)}</span>
+      {/* Expenses tab: what was spent. Balances tab: where the person stands. */}
+      {tab === 'expenses' ? (
+        <div className="card summary">
+          <div className="stats">
+            <div className="stat">
+              <span className="stat-label">My expenses</span>
+              <span className="stat-value">{money(balances.summary.myExpenses, currency)}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Total expenses</span>
+              <span className="stat-value">{money(balances.summary.totalExpenses, currency)}</span>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="card summary">
+          <p className={`summary-balance ${mine > 0 ? 'owed' : mine < 0 ? 'owes' : ''}`}>{myBalanceText(mine, currency)}</p>
+        </div>
+      )}
 
       {ended ? <p className="hint small center">This trip has ended. Payments can still be recorded.</p> : null}
       {done ? <Banner kind="success" onClose={() => setDone(null)}>{done}</Banner> : null}
