@@ -232,16 +232,15 @@ export function ExpenseDetail() {
       <ActionError error={error} onClose={() => setError(undefined)} />
       {STATUS_TEXT[expense.status] ? <Banner kind={expense.status === 'draft' ? 'info' : 'warn'}>{STATUS_TEXT[expense.status]}. It does not count toward balances.</Banner> : null}
       {expense.notice ? <Banner kind="warn">{expense.notice}</Banner> : null}
-      {expense.status === 'draft' && expense.currencyNeedsReview ? <Banner kind="warn">The currency was read from the receipt. Check it when you finish this draft.</Banner> : null}
 
       <div className="detail-head">
-        {expense.status !== 'confirmed' || needsRate || expense.currencyNeedsReview ? (
+        {expense.status !== 'confirmed' || needsRate ? (
           <div className="badges">
             {expense.status === 'draft' ? <Badge tone="draft">Draft</Badge> : null}
             {expense.status === 'deleted' ? <Badge tone="neg">Deleted</Badge> : null}
             {expense.status === 'discarded' ? <Badge tone="neutral">Discarded</Badge> : null}
             {needsRate ? <Badge tone="warn">Needs rate</Badge> : null}
-            {expense.currencyNeedsReview ? <Badge tone="warn">Check currency</Badge> : null}
+            
           </div>
         ) : null}
         {expense.status === 'draft' ? (
@@ -445,11 +444,11 @@ export function Drafts() {
                 <p className="draft-origin">
                   {expense.receiptFileId ? 'Read from a receipt' : 'Waiting for approval'} · added by {expense.createdBy === group.me.id ? 'you' : nameOf(group.members, expense.createdBy)}
                 </p>
-                {needsRate || expense.currencyNeedsReview || expense.notice ? (
+                {needsRate || expense.notice ? (
                   <div className="draft-notes">
                     <span className="badges">
                       {needsRate ? <Badge tone="warn">Needs rate</Badge> : null}
-                      {expense.currencyNeedsReview ? <Badge tone="warn">Check currency</Badge> : null}
+                      
                     </span>
                     {expense.notice ? <p className="field-hint">{expense.notice}</p> : null}
                   </div>

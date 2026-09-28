@@ -17,7 +17,6 @@ export function ratePlan(c:ToolContext, tripId:number, currency:string, rate:str
 export async function prepareExpense(c:ToolContext, tripId:number, args:ExpensePatch, existing?:ExpenseDetail, allowIncomplete = false) {
   const t=getTrip(c.db,c.scope,tripId); openTrip(t);
   const input=makeInput(c,args,existing);
-  if(input.currencyNeedsReview && !allowIncomplete) refuse('Which currency is on the receipt? Confirm its currency first.');
   const tripRate=listTripRates(c.db,c.scope,t.id).find(r=>r.currency===input.currency);
   let resolved=resolveRate({expenseCurrency:input.currency!,homeCurrency:t.homeCurrency,expenseOverride:input.rateOverride,tripRate:tripRate?.rate});
   const plans:PlannedAction[]=[];
@@ -31,7 +30,7 @@ export async function prepareExpense(c:ToolContext, tripId:number, args:ExpenseP
   }
   const split = splitInput(input);
   const problems = validateExpense(split.expense, split.items, split.shares);
-  const rendered = allowIncomplete && (problems.length > 0 || input.currencyNeedsReview)
+  const rendered = allowIncomplete && problems.length > 0
     ? { ...summaryFields({icon:'',title:expenseTitle(input),blocks:[{lines:[
         {label:'Total',value:displayAmount(input.total,input.currency!)}, `Paid by ${memberName(c,input.payerId,true)}`,
         DRAFT_NOTE,
@@ -44,7 +43,7 @@ const splitLabel = (input:ExpenseInput) => input.splitType==='even' ? `Split equ
 const rateLabel = (input:ExpenseInput, home:string, rate:string|null, source:string) => input.currency===home ? 'Not needed' : rate===null ? 'Not set' : `1 ${home} = ${rate} ${input.currency} · ${source==='expense'?"this expense's own rate":source.includes('suggested')?'looked up today':'trip rate'}`;
 const portions = (c:ToolContext, shares:ExpenseInput['shares']) => [...shares].sort((a,b)=>a.memberId-b.memberId).map(s=>`${memberName(c,s.memberId)} ×${s.weight??1}`).join(', ');
 const DRAFT_NOTE = "Still a draft: it won't count until it's approved.";
-const CURRENCY_NOTE = '⚠️ Check the currency before approving.';
+const CURRENCY_NOTE = 'Currency read from the receipt. Change it if it’s wrong.';
 /**
  * An item's name as people would say it: without a leading menu code such as "153-2 " or "A12 ",
  * and cut to 34 characters so one item stays on one line on a phone.
@@ -96,7 +95,6 @@ export function expenseChanges(c:ToolContext,before:ExpenseDetail,input:ExpenseI
     People:[...i.shares].sort((a,b)=>a.memberId-b.memberId).map(s=>memberName(c,s.memberId)).join(', ')||'Nobody',
     Portions:i.splitType==='portions'?portions(c,i.shares):'None', Items:itemLines(c,i).join('; ')||'None',
     ...Object.fromEntries(extras(i)), Rate:rateLabel(i,home,rate,source),
-    'Currency checked':i.currencyNeedsReview?'No':'Yes',
   });
   const a=fields(old,before.fxRate,before.fxRateSource),b=fields(input,fxRate,source);
   const shareKey=(shares:ExpenseInput['shares'],weights=false)=>JSON.stringify([...shares].sort((a,b)=>a.memberId-b.memberId).map(s=>[s.memberId,...(weights?[s.weight??1]:[])]));
@@ -147,7 +145,7 @@ export function renderChange(c:ToolContext,existing:ExpenseDetail,input:ExpenseI
     else itemBullets.push({bullet:`${itemHead(before,existing.currency)} → ${itemHead(after,input.currency!)}: ${newWho}`});
   }
   const notes=full.blocks.flatMap(b=>b.lines).filter((l):l is string=>typeof l==='string'&&(l===DRAFT_NOTE||l.startsWith('⚠️')));
-  if(input.currencyNeedsReview && !notes.includes(CURRENCY_NOTE)) notes.push(CURRENCY_NOTE);
+  if(input.currencyNeedsReview && !approve && !notes.includes(CURRENCY_NOTE)) notes.push(CURRENCY_NOTE);
   if(existing.status==='draft' && !approve && !notes.includes(DRAFT_NOTE)) notes.unshift(DRAFT_NOTE);
   const main=changes.filter(l=>typeof l==='string'||!('label' in l)||l.label!=='Items');
   return {...title,blocks:[

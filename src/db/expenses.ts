@@ -105,10 +105,8 @@ function cleanOverride(rateOverride: string | null | undefined, currency: string
 
 /** Everything that stops the expense from counting toward balances, in the order a member should fix it. */
 function confirmProblems(detail: ExpenseDetail): ExpenseProblem[] {
+  // The currency read from a receipt is not a problem: confirming accepts it (the flag is cleared then).
   const problems: ExpenseProblem[] = [];
-  if (detail.currencyNeedsReview) {
-    problems.push({ field: 'currency', code: 'currency_needs_review', message: 'Check the currency of this expense before saving it.' });
-  }
   if (detail.fxRateSource === 'missing' || detail.fxRate === null) {
     problems.push({ field: 'fxRate', code: 'rate_missing', message: 'This needs an exchange rate before it can be saved.' });
   }
@@ -132,7 +130,7 @@ function assertConfirmable(detail: ExpenseDetail): void {
  * still be acceptable.
  * Throws `NotFoundError` for a trip of another group, `PermissionError` for the system actor, and
  * `ValidationError`: `trip_ended`, `unsupported_currency`, `member_not_in_group`,
- * `invalid_input`, and for a confirmed expense `currency_needs_review`, `rate_missing`, `invalid_expense`.
+ * `invalid_input`, and for a confirmed expense `rate_missing`, `invalid_expense`.
  * Activity: `expense.create`.
  */
 export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): ExpenseDetail {
@@ -174,7 +172,8 @@ export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): 
           assertAmount(input.serviceCharge ?? 0, 'service charge'),
           assertAmount(input.discount ?? 0, 'discount'),
           currency,
-          assertFlag(input.currencyNeedsReview ?? false, 'currencyNeedsReview') ? 1 : 0,
+          // Only a draft keeps the flag; a confirmed expense has its currency accepted.
+          assertFlag(input.currencyNeedsReview ?? false, 'currencyNeedsReview') && status !== 'confirmed' ? 1 : 0,
           resolved.rate,
           resolved.source,
           assertSplitType(input.splitType),
@@ -258,19 +257,16 @@ export function saveExpense(db: Db, scope: Scope, expenseId: number, expectedVer
     if (input.rateOverride !== undefined) override = cleanOverride(input.rateOverride, currency, trip);
     else override = before.fxRateSource === 'expense' && currency === before.currency ? before.fxRate : null;
     const resolved = resolveForTrip(db, trip, currency, override);
-    const needsReview =
+    const asked =
       input.currencyNeedsReview !== undefined
         ? assertFlag(input.currencyNeedsReview, 'currencyNeedsReview')
         : input.currency !== undefined
           ? false
           : before.currencyNeedsReview;
+    // A confirmed expense has its currency accepted, so the flag only ever stays on a draft.
+    const needsReview = before.status === 'confirmed' ? false : asked;
     if (before.status === 'confirmed') {
-      // A confirmed expense cannot be left without a checked currency or without a rate.
-      if (needsReview) {
-        throw new ValidationError('currency_needs_review', 'Check the currency of this expense before saving it.', {
-          problems: [{ field: 'currency', code: 'currency_needs_review', message: 'Check the currency of this expense before saving it.' }],
-        });
-      }
+      // A confirmed expense cannot be left without a rate.
       if (resolved.source === 'missing') {
         throw new ValidationError('rate_missing', 'This needs an exchange rate before it can be saved.', {
           problems: [{ field: 'fxRate', code: 'rate_missing', message: 'This needs an exchange rate before it can be saved.' }],
@@ -354,12 +350,11 @@ function changeStatus(
       db.prepare('UPDATE trip SET home_currency_locked = 1 WHERE id = ?').run(trip.id);
     }
     const removed = to === 'discarded' || to === 'deleted' ? before.status : null;
-    db.prepare('UPDATE expense SET status = ?, status_before_removal = ?, version = version + 1, updated_at = ? WHERE id = ?').run(
-      to,
-      removed,
-      nowIso(),
-      expenseId,
-    );
+    // Confirming accepts the currency read from a receipt, so its review flag is cleared.
+    db.prepare(
+      `UPDATE expense SET status = ?, status_before_removal = ?, version = version + 1, updated_at = ?,
+         currency_needs_review = CASE WHEN ? = 'confirmed' THEN 0 ELSE currency_needs_review END WHERE id = ?`,
+    ).run(to, removed, nowIso(), to, expenseId);
     const after = loadExpense(db, scope, expenseId);
     writeActivity(db, scope, {
       tripId: trip.id,
@@ -377,7 +372,7 @@ function changeStatus(
  * Draft to confirmed, so it counts toward balances. Locks the trip's home currency.
  * Throws, in this order: `NotFoundError`; `PermissionError`; `ValidationError` `trip_ended`;
  * `ValidationError` `invalid_status` unless the expense is a draft; `StaleEditError` carrying the current
- * expense; `ValidationError` `currency_needs_review`; `rate_missing`; `invalid_expense` with the problems
+ * expense; `ValidationError` `rate_missing`; `invalid_expense` with the problems
  * of `validateExpense`. `problems` on the error lists everything found, not only the first.
  * Activity: `expense.confirm`.
  */

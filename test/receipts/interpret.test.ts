@@ -143,7 +143,7 @@ describe('draftMessage', () => {
       'Total: 1,200 JPY',
       'Paid by Ana',
       "⚠️ I couldn't match the items to the total, so check them.",
-      '⚠️ Check the currency before saving.',
+      'Currency read from the receipt. Change it if it’s wrong.',
       "⚠️ Couldn't look up an exchange rate. Open to set it.",
       '⚠️ This looks like one already added: Ichiran, 1,200 JPY, by Sam.',
     ]);

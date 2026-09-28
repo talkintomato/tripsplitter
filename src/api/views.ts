@@ -12,9 +12,6 @@ import { RATE_MISSING_NOTICE, type ExpenseView, type GroupInfo, type MyStake, ty
 /** Everything that stops the expense from being confirmed, in the order a member should fix it. */
 export function expenseProblems(detail: ExpenseDetail): ExpenseProblem[] {
   const problems: ExpenseProblem[] = [];
-  if (detail.currencyNeedsReview) {
-    problems.push({ field: 'currency', code: 'currency_needs_review', message: 'Check the currency of this expense before saving it.' });
-  }
   if (detail.fxRateSource === 'missing' || detail.fxRate === null) {
     problems.push({ field: 'fxRate', code: 'rate_missing', message: RATE_MISSING_NOTICE });
   }

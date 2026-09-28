@@ -11,7 +11,7 @@ export const TEXT = {
   unreadable: "I couldn't read a receipt in that photo. Tap Add expense to enter it by hand.",
   unavailable: "Receipt reading isn't available right now. Tap Add expense to enter it by hand.",
   itemsDropped: "I couldn't match the items to the total, so check them.",
-  checkCurrency: 'Check the currency before saving.',
+  checkCurrency: 'Currency read from the receipt. Change it if it’s wrong.',
   rateMissing: "Couldn't look up an exchange rate. Open to set it.",
   splitEvenly: 'Split evenly',
   openToSplit: 'Open to split',
@@ -50,9 +50,9 @@ export function draftMessage(input: DraftMessageInput): string {
   if (input.itemCount > 0) lines.push(input.itemCount === 1 ? '1 item' : `${input.itemCount} items`);
   if (input.itemsDropped) lines.push(`⚠️ ${TEXT.itemsDropped}`);
   if (input.unsupportedCurrency) {
-    lines.push(`⚠️ ${TEXT.checkCurrency} The receipt shows ${input.unsupportedCurrency}, which isn't supported.`);
+    lines.push(`⚠️ The receipt shows ${input.unsupportedCurrency}, which isn't supported, so ${input.currency} is used. Change it if it’s wrong.`);
   } else if (input.currencyNeedsReview) {
-    lines.push(`⚠️ ${TEXT.checkCurrency}`);
+    lines.push(TEXT.checkCurrency);
   }
   if (input.rateMissing) lines.push(`⚠️ ${TEXT.rateMissing}`);
   if (input.duplicate) {

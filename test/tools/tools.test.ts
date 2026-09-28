@@ -137,10 +137,9 @@ it('edits an existing incomplete receipt draft without confirming it or losing i
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now})).toEqual({kind:'done',notices:[]});
  expect(d.getExpense(f.db,f.scope,e.id)).toMatchObject({status:'draft',currencyNeedsReview:true,receiptFileId:'receipt',description:'Receipt lunch'});
 });
-it('only explicit currency confirmation clears a receipt review flag',async()=>{
+it('approving a receipt draft accepts the currency read from it, and clears the review flag',async()=>{
  const f=make();const e=expense(f,'draft',{currencyNeedsReview:true});
- await expect(runTool(f.context,'approve_draft',{expenseId:e.id})).rejects.toThrow('currency');
- const {p}=await prepare(f,'approve_draft',{expenseId:e.id,changes:{currency:'SGD'}});
+ const {p}=await prepare(f,'approve_draft',{expenseId:e.id});
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now}).kind).toBe('done');
  expect(d.getExpense(f.db,f.scope,e.id)).toMatchObject({status:'confirmed',currencyNeedsReview:false});
 });

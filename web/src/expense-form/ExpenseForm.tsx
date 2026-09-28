@@ -117,7 +117,6 @@ export function ExpenseForm(props: ExpenseFormProps) {
         : null;
   const peopleProblem = includedShares(state).length === 0 ? 'Choose at least one person.' : null;
   const typeProblem = Body === null ? 'Choose how to split: evenly or by portions.' : null;
-  const currencyProblem = state.currencyNeedsReview && !state.currencyChecked ? `Check the currency first: is this in ${currency}?` : null;
   const rateNeededProblem = rateNeeded ? `Set the exchange rate for ${currency} to save this expense.` : null;
   const unreadable = total === null ? amountProblem : null;
   // With the server's answer: Save is off while the answer is missing or reports a problem.
@@ -132,8 +131,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
         : (server.result?.problems[0]?.message ?? null);
   const blocked = entry.serverPreview === true && (unreadable !== null || serverProblem !== null);
   const firstProblem = asksServer
-    ? (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? rateNeededProblem ?? serverProblem)
-    : (amountProblem ?? typeProblem ?? peopleProblem ?? currencyProblem ?? rateNeededProblem ?? shown.problems[0]?.message ?? null);
+    ? (amountProblem ?? typeProblem ?? peopleProblem ?? rateNeededProblem ?? serverProblem)
+    : (amountProblem ?? typeProblem ?? peopleProblem ?? rateNeededProblem ?? shown.problems[0]?.message ?? null);
 
   /**
    * `save`: saves a new expense or an edit, and approves a receipt draft. `draft`: only for a receipt draft being
@@ -206,9 +205,14 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const ownRate = (state.rateOverride !== undefined && state.rateOverride !== null) || (state.rateOverride === undefined && fx?.fxRateSource === 'expense');
   const hasMore = Extras !== null;
   const moreSummary = 'Tax, tip, service charge, discount';
+
   const showMore = hasMore && moreOpen;
   const rateTripId = typeof props.tripId === 'number' ? props.tripId : (expense?.tripId ?? null);
-  const rateSource = fx?.fxRateSource === 'expense' ? "This expense's own rate" : 'Trip rate';
+  const rateSource = fx?.fxRateSource === 'expense'
+    ? "This expense's own rate"
+    : fx?.fxRateSource === 'suggested'
+      ? 'Live rate · saved as the trip rate'
+      : 'Trip rate';
   const rateAction = rateNeeded || !rate ? 'Set' : 'Change';
 
   // Why Save is off. A problem the split already shows next to its field is only pointed to here.
@@ -230,6 +234,36 @@ export function ExpenseForm(props: ExpenseFormProps) {
     event.preventDefault();
     amountRef.current?.focus();
   };
+
+  const moreOptions = hasMore ? (
+        <div className="disclosure">
+          <button type="button" className="disclosure-btn" aria-expanded={showMore} aria-controls="more-options" onClick={() => setMoreOpen((open) => !open)}>
+            <span className="row-main">
+              <span className="row-title">More options</span>
+              <span className="row-sub wrap">{moreSummary}</span>
+            </span>
+            <span className="disclosure-chevron" aria-hidden="true"><ChevronDown size={18} /></span>
+          </button>
+          {showMore ? (
+            <div className="disclosure-panel" id="more-options">
+              {Extras !== null && Body !== null ? (
+                <Extras
+                  state={state}
+                  update={update}
+                  members={people}
+                  total={total}
+                  currency={currency}
+                  amounts={shown.amounts}
+                  problems={shown.problems}
+                  disabled={busy !== null}
+                  client={client}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null;
+  const moreInsideSplit = state.splitType === 'items' && Body !== null;
 
   return (
     <form className="form expense-form" onSubmit={onSubmit} noValidate>
@@ -406,14 +440,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
       {roundingNote ? <p className="field-hint" role="status">{roundingNote}</p> : null}
 
       {state.currencyNeedsReview ? (
-        <div className="banner banner-warn">
-          <div className="banner-body">
-            <p>Check the currency read from the receipt. Choose a currency above or confirm {currency}.</p>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => update({ currencyChecked: true, currencyNeedsReview: false })}>
-              Confirm {currency}
-            </button>
-          </div>
-        </div>
+        <p className="field-hint">The currency was read from the receipt. Change it above if it's wrong.</p>
       ) : null}
 
       <div className="pickers">
@@ -479,6 +506,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
             disabled={busy !== null}
             client={client}
             meId={props.meId}
+            {...(moreInsideSplit ? { beforeShares: moreOptions } : {})}
             {...(asksServer
               ? { pending: server.status === 'loading', previewError: server.status === 'failed' ? server.error : undefined, retryPreview: server.retry }
               : {})}
@@ -487,34 +515,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
         {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link-btn small" onClick={server.retry}>Try preview again</button> : null}
       </div>
 
-      {hasMore ? (
-        <div className="disclosure">
-          <button type="button" className="disclosure-btn" aria-expanded={showMore} aria-controls="more-options" onClick={() => setMoreOpen((open) => !open)}>
-            <span className="row-main">
-              <span className="row-title">More options</span>
-              <span className="row-sub wrap">{moreSummary}</span>
-            </span>
-            <span className="disclosure-chevron" aria-hidden="true"><ChevronDown size={18} /></span>
-          </button>
-          {showMore ? (
-            <div className="disclosure-panel" id="more-options">
-              {Extras !== null && Body !== null ? (
-                <Extras
-                  state={state}
-                  update={update}
-                  members={people}
-                  total={total}
-                  currency={currency}
-                  amounts={shown.amounts}
-                  problems={shown.problems}
-                  disabled={busy !== null}
-                  client={client}
-                />
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {/* By item: More options sits above what each person pays, since tax, tip and discount change it. */}
+      {moreInsideSplit ? null : moreOptions}
 
       {server.status === 'loading' ? <p role="status" className="visually-hidden">Updating amounts…</p> : null}
       <div className="action-bar">

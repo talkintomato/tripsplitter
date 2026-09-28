@@ -400,21 +400,21 @@ describe('currency', () => {
     const h = harness({ db, reader: async () => reading({ currency: 'MYR', currency_certain: true }), suggestRate: async () => '3.3' });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'MYR', currencyNeedsReview: false, total: 8450 });
-    expect(h.finalText()).not.toContain(`⚠️ ${TEXT.checkCurrency}`);
+    expect(h.finalText()).not.toContain(TEXT.checkCurrency);
   });
 
   it('supported and not certain: that currency, to be reviewed', async () => {
     const h = harness({ db, reader: async () => reading({ currency: 'USD', currency_certain: false }), suggestRate: async () => '0.78' });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'USD', currencyNeedsReview: true, total: 8450 });
-    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.checkCurrency}`);
+    expect(h.finalText().split('\n')).toContain(TEXT.checkCurrency);
   });
 
   it('not shown: home currency, to be reviewed', async () => {
     const h = harness({ db, reader: async () => reading({ currency: null, currency_certain: false }) });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, total: 8450, fxRateSource: 'home' });
-    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.checkCurrency}`);
+    expect(h.finalText().split('\n')).toContain(TEXT.checkCurrency);
   });
 
   it('not supported: home currency, to be reviewed, and the message names what was printed', async () => {
@@ -423,7 +423,7 @@ describe('currency', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, total: 8450, fxRateSource: 'home' });
     expect(draft.items).toHaveLength(3);
-    expect(h.finalText().split('\n')).toContain("⚠️ Check the currency before saving. The receipt shows CHF, which isn't supported.");
+    expect(h.finalText().split('\n')).toContain("⚠️ The receipt shows CHF, which isn't supported, so SGD is used. Change it if it’s wrong.");
   });
 
   it('not supported, with decimals, in a trip whose home currency has none', async () => {
@@ -615,15 +615,12 @@ describe('Split evenly', () => {
     expect(fingerprint(db)).toBe(before);
   });
 
-  it('currency needs review', async () => {
+  it('a guessed currency does not hold back Split evenly: confirming accepts it', async () => {
     const h = harness({ db, reader: async () => reading({ currency: null, currency_certain: false }) });
     await h.sendPhoto('@tripsplitter_test_bot');
-    const before = fingerprint(db);
     await h.tap(splitEvenlyData(h));
 
-    expect(h.answers().at(-1)!.payload.text).toBe('Check the currency first. Tap Open to split.');
-    expect(fingerprint(db)).toBe(before);
-    expect(onlyExpense().status).toBe('draft');
+    expect(onlyExpense()).toMatchObject({ status: 'confirmed', currencyNeedsReview: false });
   });
 
   it('rate missing, and the lookup now succeeds: the expense is confirmed', async () => {

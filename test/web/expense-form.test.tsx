@@ -291,19 +291,14 @@ describe('a draft', () => {
     expect(client.saveExpense.mock.calls[0]![1]).not.toHaveProperty('confirm');
   });
 
-  it('with a guessed currency asks for it to be checked', async () => {
+  it('with a guessed currency says so, and still approves straight away', async () => {
     const expense = expenseView({ status: 'draft', currency: 'THB', currencyNeedsReview: true, fxRate: '26.1', fxRateSource: 'trip' });
     const { client, user } = setup({ expense });
     client.saveExpense.mockResolvedValue(written(expense));
     await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
+    expect(screen.getByText(/currency was read from the receipt/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Approve and save' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Check the currency first');
-    expect(client.saveExpense).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: 'Confirm THB' }));
-    await waitFor(() => expect(screen.queryByText('Updating amounts…')).not.toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Approve and save' }));
-    expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ currency: 'THB', confirm: true });
+    expect(client.saveExpense.mock.calls[0]![1]).toMatchObject({ confirm: true });
   });
 });
 

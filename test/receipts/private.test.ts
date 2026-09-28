@@ -152,7 +152,8 @@ it('private duplicates, currency review and suggested rates use the existing pip
   expect(privateReply(foreign)).toContain(TEXT.checkCurrency);
   expect(foreign.notifier.tripRateChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT_A }));
   await foreign.tap(splitEvenlyData(foreign), ANA, ANA.id);
-  expect(foreign.answers().at(-1)!.payload.text).toBe(TEXT.tapCurrency);
+  // The guessed currency does not hold it back.
+  expect(drafts().find((e) => e.currency === 'JPY')).toMatchObject({ status: 'confirmed', currencyNeedsReview: false });
 });
 
 describe('image documents', () => {

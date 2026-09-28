@@ -209,12 +209,12 @@ describe('saveExpense', () => {
     expect(saveExpense(s.db, s.asAna, draft.id, 2, { ...sameAs(s, dinner(s)), receiptFileId: null }).receiptFileId).toBeNull();
   });
 
-  it('clears the currency review flag when saved with the currency chosen', () => {
+  it('keeps the review flag on a draft until the currency is chosen or the draft is confirmed', () => {
     const s = seed();
     const draft = createExpense(s.db, s.asAna, dinner(s, { status: 'draft', currencyNeedsReview: true }));
     expect(draft.currencyNeedsReview).toBe(true);
-    expect(code(() => confirmExpense(s.db, s.asAna, draft.id, 1))).toBe('currency_needs_review');
-    expect(code(() => createExpense(s.db, s.asAna, dinner(s, { currencyNeedsReview: true })))).toBe('currency_needs_review');
+    // A confirmed expense never keeps the flag: confirming accepts the currency.
+    expect(createExpense(s.db, s.asAna, dinner(s, { currencyNeedsReview: true })).currencyNeedsReview).toBe(false);
 
     const untouched = saveExpense(s.db, s.asAna, draft.id, 1, sameAs(s, dinner(s)));
     expect(untouched.currencyNeedsReview).toBe(true);
@@ -475,12 +475,19 @@ describe('an expense in a foreign currency', () => {
     expect(getExpense(s.db, s.asAna, draft.id).status).toBe('draft');
   });
 
-  it('reports the currency before the rate, and lists both', () => {
+  it('does not hold back confirmation for the currency, only for the missing rate', () => {
     const s = seed();
     const draft = createExpense(s.db, s.asAna, ramen(s, { status: 'draft', currencyNeedsReview: true }));
     const error = caught(() => confirmExpense(s.db, s.asAna, draft.id, 1)) as ValidationError;
-    expect(error.code).toBe('currency_needs_review');
-    expect(error.problems.map((p) => p.code)).toEqual(['currency_needs_review', 'rate_missing']);
+    expect(error.code).toBe('rate_missing');
+    expect(error.problems.map((p) => p.code)).toEqual(['rate_missing']);
+  });
+
+  it('confirming a draft with a guessed currency accepts it and clears the flag', () => {
+    const s = seed();
+    const draft = createExpense(s.db, s.asAna, dinner(s, { status: 'draft', currencyNeedsReview: true }));
+    const confirmed = confirmExpense(s.db, s.asAna, draft.id, 1);
+    expect(confirmed).toMatchObject({ status: 'confirmed', currencyNeedsReview: false });
   });
 });
 

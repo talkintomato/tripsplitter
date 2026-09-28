@@ -147,7 +147,6 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
   const currency = trip.homeCurrency;
   const drafts = expenses.filter((e) => e.status === 'draft');
   const needRate = drafts.filter((e) => e.problems.some((p) => p.code === 'rate_missing')).length;
-  const checkCurrency = drafts.filter((e) => e.currencyNeedsReview).length;
   const confirmed = expenses.filter((e) => e.status === 'confirmed');
   const payments = balances.settlements.filter((s) => s.status === 'active');
   const mine = balances.balances[group.me.id] ?? 0;
@@ -236,17 +235,17 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
       {done ? <Banner kind="success" onClose={() => setDone(null)}>{done}</Banner> : null}
       <ActionError error={error} onClose={() => setError(undefined)} />
 
-      {drafts.length > 0 ? (
+      {/* Drafts are expenses waiting to be approved, so they show on the Expenses tab only. */}
+      {tab === 'expenses' && drafts.length > 0 ? (
         <Link className="notice-row" to={`/trips/${trip.id}/drafts`}>
           <span className="banner-icon" aria-hidden="true"><Alert size={18} /></span>
           <span className="row-main">
             <span className="row-title">
               {drafts.length} {drafts.length === 1 ? 'draft' : 'drafts'} to finish
             </span>
-            {needRate > 0 || checkCurrency > 0 ? (
+            {needRate > 0 ? (
               <span className="badges">
                 {needRate > 0 ? <Badge tone="warn">{needRate === 1 ? 'Needs rate' : `${needRate} need a rate`}</Badge> : null}
-                {checkCurrency > 0 ? <Badge tone="warn">{checkCurrency === 1 ? 'Check currency' : `${checkCurrency} to check currency`}</Badge> : null}
               </span>
             ) : (
               <span className="row-sub wrap">Drafts do not count until they are approved.</span>
