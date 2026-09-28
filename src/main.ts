@@ -33,12 +33,14 @@ export function createHttpApp(config: Config, db: Db, deps: ApiDeps, bot: Bot, w
       } catch {
         return c.json({ error: 'Invalid update' }, 400);
       }
+      console.log(`Telegram update: ${describeUpdate(update, config.botUsername)}`);
       try {
         await bot.handleUpdate(update);
         return c.json({ ok: true });
-      } catch {
+      } catch (error) {
         // Do not log update bodies or Telegram request URLs (which contain the token).
-        console.error('Telegram webhook update failed.');
+        const reason = error instanceof Error ? `${error.name}: ${error.message}`.replace(/\d{6,}:[A-Za-z0-9_-]{20,}/g, '<token>').slice(0, 300) : 'unknown';
+        console.error(`Telegram webhook update failed. ${reason}`);
         return c.json({ error: 'Update failed' }, 500);
       }
     });
@@ -120,4 +122,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(error instanceof Error ? error.message : 'Startup failed.');
     process.exitCode = 1;
   });
+}
+
+/**
+ * One line describing an update for the log: its kind, the chat type, what the message holds and whether it
+ * mentions the bot. Never any text, caption, name or id, so nothing a person wrote reaches the log.
+ */
+export function describeUpdate(update: Update, botUsername: string): string {
+  const kind = Object.keys(update).find((key) => key !== 'update_id') ?? 'unknown';
+  const message = update.message ?? update.edited_message ?? update.channel_post;
+  if (!message) return kind;
+  const parts = [kind, message.chat.type];
+  if (message.photo) parts.push('photo');
+  if (message.document) parts.push(`document ${message.document.mime_type ?? ''}`.trim());
+  if (message.text !== undefined) parts.push(message.text.startsWith('/') ? 'command' : 'text');
+  if (message.reply_to_message) parts.push(message.reply_to_message.photo ? 'reply to photo' : 'reply');
+  const said = `${message.text ?? ''} ${message.caption ?? ''}`.toLowerCase();
+  parts.push(said.includes(`@${botUsername.toLowerCase()}`) ? 'mentions bot' : 'no mention');
+  if (message.from?.is_bot) parts.push('from a bot');
+  return parts.join(', ');
 }
