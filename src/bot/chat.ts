@@ -25,5 +25,5 @@ export function appKeyboard(config: Config, group?: Group, privateChat = false, 
   return new InlineKeyboard().url(label, `https://t.me/${config.botUsername}/${config.miniAppName}`);
 }
 export function helpText(config: Config): string {
-  return `Try:\n@${config.botUsername} taxi 24 dollars, split between everyone\n@${config.botUsername} who owes what?\n@${config.botUsername} I paid Sam 20 SGD\n\nSend me a photo of a receipt in private chat, or mention me in its caption in a group. Image files work too. Use /group in private chat to change trips.`;
+  return `Commands:\n/split 24 taxi — add an expense split equally\n/today yesterday — see what was spent that day\n/wrap — trip recap and who owes whom\n\nTry:\n@${config.botUsername} taxi 24 dollars, split between everyone\n@${config.botUsername} who owes what?\n@${config.botUsername} I paid Sam 20 SGD\n\nSend me a photo of a receipt in private chat, or mention me in its caption in a group. Image files work too. Use /group in private chat to change trips.`;
 }

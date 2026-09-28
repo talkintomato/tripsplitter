@@ -2,7 +2,13 @@ import type { Summary } from './summary.js';
 import type { Db, Scope, ExpenseInput, AgentProposal } from '../db/index.js';
 import type { RateSuggester, Notifier } from '../core/index.js';
 
-export interface ToolContext { db: Db; scope: Scope; suggestRate: RateSuggester; now: Date }
+export interface ToolContext {
+  db: Db; scope: Scope; suggestRate: RateSuggester; now: Date;
+  /** Command-only opt-in for get_trip; never exposed in the model's tool arguments. */
+  startTripIfMissing?: boolean;
+  /** Use you for the caller throughout a personal command reply. */
+  personalNames?: boolean;
+}
 export type Action =
   | { kind: 'add_expense'; tripId: number; input: ExpenseInput }
   | { kind: 'edit_expense' | 'approve_draft' | 'set_expense_rate'; expenseId: number; input: ExpenseInput }

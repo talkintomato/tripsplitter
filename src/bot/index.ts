@@ -1,7 +1,9 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import type { Config } from '../config.js';
-import type { Notifier } from '../core/index.js';
+import type { Notifier, RateSuggester } from '../core/index.js';
+import { createRateSuggester } from '../fx/index.js';
+import { registerCommands } from './commands.js';
 import { findGroupByChatId, type Db } from '../db/index.js';
 import { appKeyboard, helpText } from './chat.js';
 import { groupMiddleware } from './middleware.js';
@@ -18,6 +20,7 @@ export interface CreateBotOptions {
   botInfo?: UserFromGetMe;
   /** Where errors go. `console` by default. */
   logger?: BotLogger;
+  suggestRate?: RateSuggester;
 }
 
 export interface CreatedBot {
@@ -38,6 +41,9 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   const logger = options.logger ?? consoleLogger;
   const bot = new Bot(config.botToken, options.botInfo !== undefined ? { botInfo: options.botInfo } : {});
   bot.use(groupMiddleware({ api: bot.api, config, db, logger }));
+  const notifier = createNotifier(bot.api, config, db, logger);
+  registerCommands(bot, config, db, { notifier, suggestRate: options.suggestRate ?? createRateSuggester(config),
+    isAllowedChat: chatId => isAllowedChat(config, db, chatId) });
   bot.command('help', async ctx => {
     if (ctx.from?.is_bot) return;
     await ctx.reply(helpText(config), { reply_parameters: { message_id: ctx.msg.message_id }, reply_markup: appKeyboard(config, findGroupByChatId(db, ctx.chat.id), ctx.chat.type === 'private') });
@@ -56,6 +62,6 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   return {
     bot,
     isAllowedChat: (chatId) => isAllowedChat(config, db, chatId),
-    notifier: createNotifier(bot.api, config, db, logger),
+    notifier,
   };
 }

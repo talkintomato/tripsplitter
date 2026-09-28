@@ -114,4 +114,4 @@ export function defineTool<S extends z.ZodType>(name:string, description:string,
 export const read = (data:unknown):ToolOutcome=>({kind:'read',data});
 export const plan = (action:PlannedAction['action'],summary:Summary,confirmLabel:string):ToolOutcome=>({kind:'proposal',plans:[{action,...summaryFields(summary),confirmLabel}]});
 
-export const memberName = (c:ToolContext, memberId:number, personal = false) => personal && c.scope.actor.kind === "member" && c.scope.actor.memberId === memberId ? "you" : dbOps.getMember(c.db,c.scope,memberId).displayName;
+export const memberName = (c:ToolContext, memberId:number, personal = c.personalNames ?? false) => personal && c.scope.actor.kind === "member" && c.scope.actor.memberId === memberId ? "you" : dbOps.getMember(c.db,c.scope,memberId).displayName;

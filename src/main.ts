@@ -64,6 +64,7 @@ export async function startApp(config = loadConfig()): Promise<{ close(): Promis
 
   // Explicit development sign-in uses the existing offline fixtures, with no external calls.
   const offline = config.nodeEnv === 'development' && config.devFakeUser !== undefined;
+  if (!offline) await registerBotCommands(bot);
   const app = offline ? createDevApp(config, db) : createHttpApp(config, db, { notifier, suggestRate }, bot);
   try {
     if (!offline && config.webhookUrl) {
@@ -115,6 +116,24 @@ export async function startApp(config = loadConfig()): Promise<{ close(): Promis
     });
   }
   return { close };
+}
+
+/** Menu registration is best effort; a failure must not prevent the bot from starting. */
+export async function registerBotCommands(bot: Bot, logger: Pick<Console, 'error'> = console): Promise<void> {
+  const commands = [
+    { command: 'split', description: 'Add an expense split equally, e.g. /split 24 taxi' },
+    { command: 'today', description: 'What was spent today' },
+    { command: 'wrap', description: 'Trip recap and who owes whom' },
+    { command: 'help', description: 'How to use TripSplitter' },
+  ];
+  for (const type of ['all_group_chats', 'all_private_chats'] as const) {
+    try {
+      await bot.api.setMyCommands(type === 'all_group_chats' ? commands : [...commands,
+        { command: 'group', description: 'Choose a group' },
+        { command: 'connections', description: 'Manage connected AI clients' },
+      ], { scope: { type } });
+    } catch { logger.error(`Could not register Telegram commands for ${type}.`); }
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

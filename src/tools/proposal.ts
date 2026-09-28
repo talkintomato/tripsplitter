@@ -36,7 +36,7 @@ export function combinePlans(plans:PlannedAction[]):PlannedAction[] {
 }
 export const proposalSummary = (plans:PlannedAction[]) => combineSummaries(plans.map(p=>p.structuredSummary));
 export function summariseProposal(plans:PlannedAction[]):string { return toPlainText(proposalSummary(plans)); }
-export function createAgentProposal(db:ops.Db, scope:ops.Scope, input:{chatId:number;plans:PlannedAction[];versions:ProposalVersions;now:Date}) {
+export function createAgentProposal(db:ops.Db, scope:ops.Scope, input:{chatId:number;plans:PlannedAction[];versions:ProposalVersions;now:Date;personalNames?:boolean}) {
   const plans=combinePlans(input.plans);
   if(!plans.length) throw new ops.ValidationError('invalid_input','There are no changes to confirm.');
   // Preview against proposed rates while preserving the requested display order.
@@ -48,7 +48,7 @@ export function createAgentProposal(db:ops.Db, scope:ops.Scope, input:{chatId:nu
     const proposed=plans.find(q=>q.action.kind==='set_trip_rate'&&q.action.tripId===tripId&&q.action.currency===expenseInput.currency)?.action;
     if(proposed?.kind==='set_trip_rate') {
       const resolved=resolveRate({expenseCurrency:expenseInput.currency!,homeCurrency:t.homeCurrency,expenseOverride:expenseInput.rateOverride,tripRate:proposed.rate});
-      const c={db,scope,now:input.now,suggestRate:async()=>null};
+      const c={db,scope,now:input.now,suggestRate:async()=>null,personalNames:input.personalNames};
       try {
         const rendered=renderExpense(c,expenseInput,t,resolved.rate,resolved.source==='trip'?`trip, ${proposed.origin}`:resolved.source);
         if ('input' in action) {

@@ -5,6 +5,7 @@ const fake = vi.hoisted(() => ({
   init: vi.fn(async () => {}),
   setWebhook: vi.fn(async () => true),
   deleteWebhook: vi.fn(async () => true),
+  setMyCommands: vi.fn(async () => true),
   start: vi.fn<(...args: unknown[]) => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   catch: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('../../src/bot/index.js', () => ({
   ALLOWED_UPDATES: ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member'],
   createBot: (_config: unknown, db: { open: boolean }) => {
     fake.db = db;
-    return { bot: { init: fake.init, api: { setWebhook: fake.setWebhook, deleteWebhook: fake.deleteWebhook }, start: fake.start, stop: fake.stop, catch: fake.catch, isRunning: () => fake.running }, notifier: fake.notifier, isAllowedChat: () => true };
+    return { bot: { init: fake.init, api: { setWebhook: fake.setWebhook, deleteWebhook: fake.deleteWebhook, setMyCommands: fake.setMyCommands }, start: fake.start, stop: fake.stop, catch: fake.catch, isRunning: () => fake.running }, notifier: fake.notifier, isAllowedChat: () => true };
   },
 }));
 vi.mock('../../src/agent/handlers.js', () => ({ registerAgentHandlers: fake.agent, registerAgentUnavailableHandlers: fake.agentOff }));
@@ -52,6 +53,7 @@ describe('one-process runtime without external calls', () => {
     const runtime = await startApp(buildConfig());
     try {
       expect(fake.deleteWebhook).toHaveBeenCalledOnce();
+      expect(fake.setMyCommands).toHaveBeenCalledTimes(2);
       expect(fake.setWebhook).not.toHaveBeenCalled();
       expect(fake.start).toHaveBeenCalledWith({ allowed_updates: updates });
       expect(fake.catch).toHaveBeenCalledOnce();
@@ -83,6 +85,16 @@ describe('one-process runtime without external calls', () => {
     fake.deleteWebhook.mockRejectedValueOnce(new Error('offline'));
     await expect(startApp(buildConfig())).rejects.toThrow('Could not start Telegram');
     expect(fake.db?.open).toBe(false);
+  });
+  it('logs menu registration failures and continues startup', async () => {
+    fake.setMyCommands.mockRejectedValueOnce(new Error('private input must not be logged'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const runtime = await startApp(buildConfig({ webhookUrl: 'https://example.invalid', webhookSecret: 'test-webhook-secret' }));
+    try {
+      expect(fake.setMyCommands).toHaveBeenCalledTimes(2);
+      expect(fake.setWebhook).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledExactlyOnceWith('Could not register Telegram commands for all_group_chats.');
+    } finally { await runtime.close(); log.mockRestore(); }
   });
 });
 

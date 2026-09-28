@@ -11,7 +11,7 @@ export function ratePlan(c:ToolContext, tripId:number, currency:string, rate:str
   return {action:{kind:'set_trip_rate',tripId,currency,rate,origin,snapshot:preview.snapshot},confirmLabel:'Set rate',
     ...summaryFields({icon:'💱',title:`Exchange rate · ${currency}`,blocks:[{lines:[
       `Rate: 1 ${t.homeCurrency} = ${rate} ${currency} · ${origin==='suggested'?'looked up today':'trip rate'}`,
-      `⚠️ Changes ${preview.expensesChanged} ${preview.expensesChanged===1?'expense':'expenses'} already saved`,
+      ...(preview.expensesChanged>0?[`⚠️ Changes ${preview.expensesChanged} ${preview.expensesChanged===1?'expense':'expenses'} already saved`]:[]),
     ]}]})};
 }
 export async function prepareExpense(c:ToolContext, tripId:number, args:ExpensePatch, existing?:ExpenseDetail, allowIncomplete = false) {

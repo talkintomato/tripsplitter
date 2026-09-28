@@ -2,7 +2,9 @@ import { formatAmount } from '../core/index.js';
 
 export type Line = string | { label: string; value: string } | { label: string; before: string; after: string } | { bullet: string };
 export interface Summary { icon: string; title: string; blocks: Array<{ heading?: string; lines: Line[] }> }
-export const lineText = (line: Line): string => typeof line === 'string' ? line : 'bullet' in line ? `• ${line.bullet}` : 'value' in line ? `${line.label}: ${line.value}` : `${line.label}: ${line.before} → ${line.after}`;
+/** "you" opening a line or bullet is written "You". */
+const opening = (text: string): string => (text.startsWith('you ') || text.startsWith('you:') ? `Y${text.slice(1)}` : text);
+export const lineText = (line: Line): string => typeof line === 'string' ? opening(line) : 'bullet' in line ? `• ${opening(line.bullet)}` : 'value' in line ? `${line.label}: ${line.value}` : `${line.label}: ${line.before} → ${line.after}`;
 export const escapeHtml = (text: string): string => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 export function toPlainText(summary: Summary): string {
   return [ [summary.icon, summary.title].filter(Boolean).join(' '), ...summary.blocks.map(b => [b.heading, ...b.lines.map(lineText)].filter(v => v !== undefined).join('\n')) ].filter(Boolean).join('\n\n');

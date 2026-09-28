@@ -203,9 +203,12 @@ it('does not model disallowed groups or expose their private choices', async () 
   await h.send('/group', { entities: [{ type: 'bot_command', offset: 0, length: 6 }] }, ANA, ANA.id);
   expect(h.buttons().map(b => b.text)).toEqual(['Trip 0']);
 });
-it.each([CHAT, ANA.id])('/help in chat %s shows three examples and an app button, without a model call', async chatId => {
+it.each([CHAT, ANA.id])('/help in chat %s shows commands, chat examples and an app button, without a model call', async chatId => {
   const h = make(); await h.send('/help', { entities: [{ type: 'bot_command', offset: 0, length: 5 }] }, ANA, chatId);
-  expect(h.sent().at(-1)?.text.split('\n')).toHaveLength(6);
+  expect(h.sent().at(-1)?.text.split('\n')).toHaveLength(11);
+  expect(h.sent().at(-1)?.text).toContain('/split 24 taxi — add an expense split equally');
+  expect(h.sent().at(-1)?.text).toContain('/today yesterday — see what was spent that day');
+  expect(h.sent().at(-1)?.text).toContain('/wrap — trip recap and who owes whom');
   expect(h.sent().at(-1)?.text).toContain('taxi 24 dollars'); expect(h.sent().at(-1)?.text).toContain('who owes what?'); expect(h.sent().at(-1)?.text).toContain('I paid Sam 20 SGD');
   expect(h.sent().at(-1)?.text).toContain('Send me a photo of a receipt');
   expect(h.buttons()).toHaveLength(1); expect(h.model.requests).toEqual([]);
