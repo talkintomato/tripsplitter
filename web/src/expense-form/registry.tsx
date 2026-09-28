@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import type { ApiClient } from '../api/client';
 import type { ExpensePreviewResponse, ExpenseProblem, Member, SplitType } from '../api/types';
 import { EvenSplit } from './EvenSplit';
@@ -9,6 +9,8 @@ import { ItemFigures, ItemsSplit } from '../split-items/ItemsSplit';
 /** What the form hands to the body of a split type. */
 export interface SplitBodyProps {
   state: ExpenseFormState;
+  /** Shown just before the list of what each person pays, such as More options with tax, tip and discount. */
+  beforeShares?: ReactNode;
   /** Changes any field of the expense, including the amount, the items and the adjustment figures. */
   update(patch: FormPatch): void;
   /** The people to choose from. */

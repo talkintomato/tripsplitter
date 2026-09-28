@@ -406,7 +406,8 @@ describe('expense currency and rate preview', () => {
       const afterOther = fingerprint(h.db);
       expect((await h.ana.post('/api/expenses/preview', { ...input, expenseId: other.id })).status).toBe(404);
       expect(fingerprint(h.db)).toBe(afterOther);
-      expect(h.rateLookups).toEqual([]);
+      // A currency with no trip rate has its live rate looked up for the preview; nothing is written.
+      expect(h.rateLookups).toEqual([['SGD', 'THB']]);
       expect(h.sent()).toEqual([]);
       expect(before).not.toBe(afterOther);
     } finally { h.db.close(); }

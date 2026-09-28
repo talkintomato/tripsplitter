@@ -53,7 +53,7 @@ export function createConsoleNotifier(log: (line: string) => void = console.log)
 
 // Rough values of 1 USD, good enough to try the screens. Not real rates.
 const DEV_PER_USD: Record<string, number> = {
-  USD: 1, SGD: 1.3, MYR: 4.4, THB: 34, CNY: 7.1, GBP: 0.76, AUD: 1.5, NZD: 1.65, IDR: 16000, JPY: 146, KRW: 1350,
+  USD: 1, SGD: 1.3, MYR: 4.4, THB: 34, CNY: 7.1, GBP: 0.76, AUD: 1.5, NZD: 1.65, IDR: 16000, JPY: 146, KRW: 1350, EUR: 0.86,
 };
 
 /** Made-up rates. Set DEV_NO_RATES=1 to see what happens when the lookup finds nothing. */

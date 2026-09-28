@@ -282,7 +282,8 @@ describe('the preview of an item split', () => {
     for (let i = 0; i < 3; i++) await unchanged(h, () => h.ana.post(PREVIEW, casaPepe(h)));
     await unchanged(h, () => h.ana.post(PREVIEW, casaPepe(h, { currency: 'JPY' })));
     expect(countActivity(h.db)).toBe(activity);
-    expect(h.rateLookups).toEqual([]);
+    // The live rate may be looked up for a currency with no trip rate; nothing is written.
+    expect(h.rateLookups.every(([from, to]) => from === 'SGD' && to === 'JPY')).toBe(true);
     const first = await h.ana.post(`/api/trips/${h.a.trip.id}/expenses`, casaPepe(h));
     expect(first.body.expense.id).toBe(1);
     expect(first.body.expense.items.map((i: { id: number }) => i.id)).toEqual([1, 2, 3]);

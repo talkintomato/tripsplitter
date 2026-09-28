@@ -149,10 +149,13 @@ export interface ExpensePreviewBody extends CreateExpenseBody {
   expenseId?: number;
 }
 
-/** Answer of `POST /api/expenses/preview`. Nothing is saved or looked up. */
+/** Answer of `POST /api/expenses/preview`. Nothing is saved. */
 export interface ExpensePreviewResponse {
-  /** Present when trip or expense context was requested. */
-  fx?: Pick<ExpenseView, 'fxRate' | 'fxRateSource' | 'homeTotal' | 'homeCurrency'>;
+  /**
+   * Present when trip or expense context was requested. When the trip has no rate for the currency, the live
+   * rate is looked up and used, with `fxRateSource` 'suggested': saving the expense makes it the trip rate.
+   */
+  fx?: Pick<ExpenseView, 'fxRate' | 'homeTotal' | 'homeCurrency'> & { fxRateSource: ExpenseView['fxRateSource'] | 'suggested' };
   corrections?: { total: number | null; discount: number | null };
   /** Each included member's amount in the expense currency. Null while there is a problem. */
   amounts: Record<number, number> | null;

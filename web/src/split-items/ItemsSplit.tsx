@@ -221,6 +221,8 @@ export function ItemsSplit(props: SplitBodyProps) {
       ) : null}
       <Problems problems={totalProblems} />
 
+      {props.beforeShares}
+
       <section className="section">
         <div className="section-head">
           <span className="section-label">Each person pays</span>

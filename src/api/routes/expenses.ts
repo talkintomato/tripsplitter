@@ -5,11 +5,13 @@ import {
   createExpense,
   deleteExpense,
   discardExpense,
+  getActiveTrip,
   getExpense,
   getOrCreateActiveTrip,
   getTrip,
   inTransaction,
   listExpenses,
+  listTripRates,
   listTrips,
   restoreExpense,
   saveExpense,
@@ -190,18 +192,50 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     return c.json(writeResponse(caller, result), 201);
   });
 
+  /** The live rate for a preview, when the trip has no rate for a foreign currency and none is given. */
+  async function liveRateFor(
+    scope: Caller['scope'],
+    tripId: number | 'active' | undefined,
+    expenseId: number | undefined,
+    input: { currency?: string; rateOverride?: string | null },
+  ): Promise<{ tripId: number; currency: string; rate: string } | null> {
+    try {
+      const existing = expenseId === undefined ? undefined : getExpense(db, scope, expenseId);
+      const trip = existing
+        ? getTrip(db, scope, existing.tripId)
+        : tripId === undefined || tripId === 'active' ? getActiveTrip(db, scope) : getTrip(db, scope, tripId);
+      if (!trip) return null;
+      const currency = input.currency ?? existing?.currency ?? trip.homeCurrency;
+      if (currency === trip.homeCurrency || (typeof input.rateOverride === 'string' && input.rateOverride !== '')) return null;
+      if (listTripRates(db, scope, trip.id).some((r) => r.currency === currency)) return null;
+      const rate = await deps.suggestRate(trip.homeCurrency, currency);
+      return rate && isValidRate(rate) ? { tripId: trip.id, currency, rate } : null;
+    } catch {
+      // The preview then shows the rate as missing; the save refuses in the usual way.
+      return null;
+    }
+  }
+
   // What each person would pay for an expense that is not saved. The expense goes through the very
   // operation that a save uses, as a draft in a transaction that is always rolled back, so members, items
   // and figures are checked exactly as a save checks them, and nothing is written.
   app.post('/api/expenses/preview', async (c) => {
     const { scope } = c.get('caller');
     const { status: _status, tripId, expenseId, ...input } = await readBody(c, previewExpenseBody);
+    // No trip rate for a foreign currency: look up the live rate first, so the preview shows it and the converted
+    // amounts. Saving uses the same lookup (cached), and the rate then becomes the trip rate.
+    const live = await liveRateFor(scope, tripId, expenseId, input);
     try {
       inTransaction(db, () => {
         const existing = expenseId === undefined ? undefined : getExpense(db, scope, expenseId);
         const trip = existing ? getTrip(db, scope, existing.tripId) : tripId === undefined || tripId === 'active' ? getOrCreateActiveTrip(db, scope).trip : getTrip(db, scope, tripId);
         const keptRate = existing?.fxRateSource === 'expense' && existing.currency === (input.currency ?? existing.currency) && input.rateOverride === undefined
           ? { rateOverride: existing.fxRate } : {};
+        // Rolled back with everything else.
+        let usedLive = false;
+        if (live && live.tripId === trip.id) {
+          try { setTripRate(db, scope, trip.id, live.currency, live.rate, 'suggested'); usedLive = true; } catch { /* An ended trip: shown without it. */ }
+        }
         const draft = createExpense(db, scope, { ...(existing ? { currency: existing.currency } : {}), ...keptRate, ...input, tripId: trip.id, status: 'draft' });
         const view = toExpenseView(db, scope, draft, trip);
         const problems = validateExpense(draft, draft.items, draft.shares);
@@ -212,7 +246,7 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
           discount: mismatch?.difference === undefined || mismatch.difference >= 0 ? null : safe(BigInt(draft.discount) - BigInt(mismatch.difference)),
         };
         throw new PreviewDone({
-          ...(tripId !== undefined || expenseId !== undefined ? { corrections, fx: { fxRate: view.fxRate, fxRateSource: view.fxRateSource, homeTotal: view.homeTotal, homeCurrency: view.homeCurrency } } : {}),
+          ...(tripId !== undefined || expenseId !== undefined ? { corrections, fx: { fxRate: view.fxRate, fxRateSource: usedLive && view.fxRateSource === 'trip' ? 'suggested' as const : view.fxRateSource, homeTotal: view.homeTotal, homeCurrency: view.homeCurrency } } : {}),
           amounts: problems.length === 0 ? amountsToRecord(computeShares(draft, draft.items, draft.shares)) : null,
           problems,
           difference: mismatch?.difference ?? null,
