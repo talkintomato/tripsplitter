@@ -5,3 +5,7 @@ dist/
 *.db-wal
 *.db-shm
 .DS_Store
+.claude/
+.gstack/
+.verification/
+data/
