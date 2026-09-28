@@ -37,7 +37,7 @@ it.each([undefined, 'https://trip.example/app?existing=1'])('one group: private 
   expect(drafts()).toHaveLength(1);
   const draft = drafts()[0]!;
   expect(draft).toMatchObject({ status: 'draft', tripId: s.trip.id, payerId: s.ana.id, createdBy: s.ana.id, description: 'Dinner @tripsplitter_test_bot', receiptFileId: 'photo-large' });
-  expect(privateReply(h)).toBe('For Test group\nCasa Pepe · 84.50 SGD · 3 items\nPaid by Ana\nUse /group to switch.');
+  expect(privateReply(h)).toBe('For Test group\n<b>✅ Approve Casa Pepe</b>\n\nTotal: 84.50 SGD\nPaid by Ana\n3 items\nUse /group to switch.');
   expect(chosenGroup(db, ANA.id, ANA.id)?.groupId).toBe(s.group.id);
   expect(h.edits().at(-1)!.payload.chat_id).toBe(ANA.id);
   const open = h.buttons().find(b => b.text === 'Open to split')!;

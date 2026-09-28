@@ -1,3 +1,4 @@
+import * as d from '../../src/db/index.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import OpenAI from 'openai';
 import { ContentFilterFinishReasonError, LengthFinishReasonError } from 'openai/error';
@@ -69,9 +70,9 @@ it('preserves omitted versus explicit null edits and nested optional fields with
   expect(omitted).toEqual({ expenseId: e.id, changes: {} });
   const cleared = decodeArguments({ expenseId: e.id, changes: { merchant: { value: null }, rateOverride: { value: null }, people: [{ name: 'me', weight: null }] } }, schema);
   expect(cleared).toEqual({ expenseId: e.id, changes: { merchant: null, rateOverride: null, people: [{ name: 'me' }] } });
-  const unchanged = await runTool(f.context, 'edit_expense', omitted);
+  await expect(runTool(f.context, 'edit_expense', omitted)).rejects.toThrow("That's already how it is.");
   const changed = await runTool(f.context, 'edit_expense', cleared);
-  expect(unchanged).toMatchObject({ plans: [{ action: { input: { merchant: 'Original' } } }] });
+  expect(d.getExpense(f.db, f.scope, e.id).merchant).toBe('Original');
   expect(changed).toMatchObject({ plans: [{ action: { input: { merchant: null, rateOverride: null } } }] });
   await expect(runTool(f.context, 'edit_expense', decodeArguments({ expenseId: e.id, changes: { amount: '-1' } }, schema))).rejects.toThrow();
 });

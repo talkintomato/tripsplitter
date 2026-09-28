@@ -1,3 +1,4 @@
+import type { Summary } from './summary.js';
 import type { Db, Scope, ExpenseInput, AgentProposal } from '../db/index.js';
 import type { RateSuggester, Notifier } from '../core/index.js';
 
@@ -12,7 +13,7 @@ export type Action =
   | { kind: 'set_trip_rate'; tripId: number; currency: string; rate: string; origin: 'suggested' | 'member'; snapshot: string }
   | { kind: 'rename_trip'; tripId: number; name: string }
   | { kind: 'end_trip' | 'reopen_trip'; tripId: number };
-export interface PlannedAction { action: Action; summary: string; confirmLabel: string }
+export interface PlannedAction { action: Action; summary: string; structuredSummary: Summary; confirmLabel: string }
 export type ToolOutcome = { kind: 'read'; data: unknown } | { kind: 'proposal'; plans: PlannedAction[] };
 export interface ProposalVersions { revision: number; expenses: Record<number, number>; settlements: Record<number, number> }
 export interface PreparedProposal extends Omit<AgentProposal, 'actions' | 'versions'> { actions: PlannedAction[]; versions: ProposalVersions }

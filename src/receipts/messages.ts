@@ -1,4 +1,4 @@
-import { formatAmount } from '../core/index.js';
+import { displayAmount as formatAmount, escapeHtml, toPlainText } from '../tools/summary.js';
 
 export const TEXT = {
   noGroup: "Add me to your trip's Telegram group first, then send receipts here or there.",
@@ -44,23 +44,22 @@ function title(merchant: string | null, description: string): string {
   return merchant || description || 'Receipt';
 }
 
-/** The text of the message that offers a draft. Plain text, sent without a parse mode. */
+/** Plain content; the Telegram call site applies receiptHtml after adding its group wrapper. */
 export function draftMessage(input: DraftMessageInput): string {
-  const head = [title(input.merchant, input.description), formatAmount(input.total, input.currency)];
-  if (input.itemCount > 0) head.push(input.itemCount === 1 ? '1 item' : `${input.itemCount} items`);
-  const lines = [head.join(' · '), `Paid by ${input.payerName}`];
-  if (input.itemsDropped) lines.push(TEXT.itemsDropped);
+  const lines = [`Total: ${formatAmount(input.total, input.currency)}`, `Paid by ${input.payerName}`];
+  if (input.itemCount > 0) lines.push(input.itemCount === 1 ? '1 item' : `${input.itemCount} items`);
+  if (input.itemsDropped) lines.push(`⚠️ ${TEXT.itemsDropped}`);
   if (input.unsupportedCurrency) {
-    lines.push(`${TEXT.checkCurrency} The receipt shows ${input.unsupportedCurrency}, which isn't supported.`);
+    lines.push(`⚠️ ${TEXT.checkCurrency} The receipt shows ${input.unsupportedCurrency}, which isn't supported.`);
   } else if (input.currencyNeedsReview) {
-    lines.push(TEXT.checkCurrency);
+    lines.push(`⚠️ ${TEXT.checkCurrency}`);
   }
-  if (input.rateMissing) lines.push(TEXT.rateMissing);
+  if (input.rateMissing) lines.push(`⚠️ ${TEXT.rateMissing}`);
   if (input.duplicate) {
     const d = input.duplicate;
-    lines.push(`This looks like one already added: ${d.merchant || 'Receipt'}, ${formatAmount(d.total, d.currency)}, by ${d.byName}.`);
+    lines.push(`⚠️ This looks like one already added: ${d.merchant || 'Receipt'}, ${formatAmount(d.total, d.currency)}, by ${d.byName}.`);
   }
-  return lines.join('\n');
+  return toPlainText({icon:'✅',title:`Approve ${title(input.merchant,input.description)}`,blocks:[{lines}]});
 }
 
 export interface SavedMessageInput {
@@ -74,9 +73,13 @@ export interface SavedMessageInput {
 
 /** The text that replaces the draft message once Split evenly has saved the expense. */
 export function savedMessage(input: SavedMessageInput): string {
-  const between = input.people === 1 ? '1 person' : `${input.people} people`;
-  return [
-    `${title(input.merchant, input.description)} · ${formatAmount(input.total, input.currency)}`,
-    `Paid by ${input.payerName} · split evenly between ${between}`,
-  ].join('\n');
+  return `✅ Added ${title(input.merchant,input.description)} · ${formatAmount(input.total,input.currency)}`;
+}
+
+/** Escape the entire card, including the private-chat group wrapper, before enabling HTML. */
+export function receiptHtml(text: string): string {
+  return text.split('\n').map(line => {
+    const escaped = escapeHtml(line);
+    return line.startsWith('✅ ') ? `<b>${escaped}</b>` : escaped;
+  }).join('\n');
 }

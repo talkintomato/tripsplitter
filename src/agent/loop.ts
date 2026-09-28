@@ -3,11 +3,11 @@ import { memberScope, getMember, DomainError, singaporeDate, appendTurn, recentT
 import type { Config } from '../config.js';
 import { AGENT_INSTRUCTION } from './prompt.js';
 import { asData, type AgentModelInput, type ToolResult } from './model.js';
-import { runTool, toolDefinitions, createAgentProposal, proposalVersions } from '../tools/index.js';
+import { runTool, toolDefinitions, createAgentProposal, proposalVersions, proposalSummary, type Summary } from '../tools/index.js';
 import type { AgentDeps, PlannedAction, ToolContext } from './types.js';
 
 export interface AgentTurnInput { groupId:number;memberId:number;chatId:number;text:string;now:Date }
-export type AgentTurnResult = {kind:'reply';text:string}|{kind:'proposal';proposalId:string;summary:string;confirmLabel:string}|{kind:'limit'}|{kind:'unavailable'};
+export type AgentTurnResult = {kind:'reply';text:string}|{kind:'proposal';proposalId:string;summary:string;structuredSummary:Summary;confirmLabel:string}|{kind:'limit'}|{kind:'unavailable'};
 export const TOOL_CALL_LIMIT=6;
 function safeError(error:unknown):string {
   if(error instanceof ZodError)return 'Some arguments are missing or invalid. Check the tool schema and ask one short question.';
@@ -62,7 +62,7 @@ export async function runAgentTurn(db:Db,config:Config,deps:AgentDeps,input:Agen
           plans.some(p=>p.action.kind==='end_trip')?'End trip and confirm':
           plans.some(p=>p.action.kind==='set_trip_rate'&&p.action.origin==='member')?'Set rate and confirm':
           plans.every(p=>p.action.kind==='add_expense'||(p.action.kind==='set_trip_rate'&&p.action.origin==='suggested'))?'Add it':'Confirm changes';
-        result={kind:'proposal',proposalId:proposal.id,summary:proposal.summary,confirmLabel:label};
+        result={kind:'proposal',proposalId:proposal.id,summary:proposal.summary,structuredSummary:proposalSummary(proposal.actions as PlannedAction[]),confirmLabel:label};
       } catch(error) {result={kind:'reply',text:safeError(error)};}
     } else result={kind:'reply',text:reply};
     appendTurn(db,scope,input.chatId,'user',input.text,input.now);

@@ -7,22 +7,22 @@ import { fixture, expense, expenseArgs, fingerprint, prepare, turn, now, type Fi
 const opened:Fixture[]=[];
 const make=()=>{const f=fixture();opened.push(f);return f;};
 afterEach(()=>{for(const f of opened.splice(0))f.db.close();});
-const details='"Taxi" · 12.00 SGD\nPaid by "Sam" · 2026-09-28 · even split\n"Sam": 6.00 SGD; "Alex": 6.00 SGD';
+const details='Total: 12.00 SGD\nPaid by you\nDate: Mon 28 Sep\nSplit equally between 2\n\nEach pays\n• Sam: 6.00 SGD\n• Alex: 6.00 SGD';
 const cases:Array<{name:string;args:(f:Fixture)=>unknown;summary:(f:Fixture)=>string;verify:(f:Fixture)=>void;notice?:string}>=[
- {name:'add_expense',args:()=>expenseArgs,summary:()=>`Add expense\n${details}`,notice:'expenseSaved',verify:f=>expect(d.listExpenses(f.db,f.scope,f.trip.id)).toHaveLength(1)},
- {name:'edit_expense',args:f=>({expenseId:expense(f).id,changes:{description:'Bus'}}),summary:()=>`Edit expense #1\n${details.replace('Taxi','Bus')}`,notice:'expenseEdited',verify:f=>expect(d.getExpense(f.db,f.scope,1).description).toBe('Bus')},
- {name:'approve_draft',args:f=>({expenseId:expense(f,'draft',{receiptFileId:'receipt'}).id}),summary:()=>`Approve draft #1\n${details}`,notice:'expenseSaved',verify:f=>expect(d.getExpense(f.db,f.scope,1)).toMatchObject({status:'confirmed',receiptFileId:'receipt'})},
- {name:'discard_draft',args:f=>({expenseId:expense(f,'draft').id}),summary:()=>`Discard draft #1\n${details}`,verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('discarded')},
- {name:'delete_expense',args:f=>({expenseId:expense(f).id}),summary:()=>`Delete expense #1\n${details}\nWarning: deleting this expense removes it from balances. It can be restored.`,notice:'expenseDeleted',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('deleted')},
- {name:'restore_expense',args:f=>{const e=expense(f);d.deleteExpense(f.db,f.scope,e.id,e.version);return {expenseId:e.id};},summary:()=>`Restore expense #1\n${details}`,notice:'expenseRestored',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('confirmed')},
- {name:'record_payment',args:()=>({from:'me',to:'Alex',amount:'12',currency:'SGD'}),summary:()=>`Record payment: "Sam" paid "Alex" 12.00 SGD.`,notice:'settlementRecorded',verify:f=>expect(d.listSettlements(f.db,f.scope,f.trip.id)[0]).toMatchObject({amount:1200,createdBy:f.member.id})},
- {name:'undo_payment',args:f=>({settlementId:d.createSettlement(f.db,f.scope,{tripId:f.trip.id,fromMemberId:f.member.id,toMemberId:f.alex.id,amount:1200}).id}),summary:()=>`Undo payment #1: "Sam" paid "Alex" 12.00 SGD.`,notice:'settlementUndone',verify:f=>expect(d.getSettlement(f.db,f.scope,1).status).toBe('undone')},
- {name:'add_member',args:()=>({name:'Lee'}),summary:()=>`Add member: "Lee". They will be included in future everyone splits.`,verify:f=>expect(d.listMembers(f.db,f.scope).map(m=>m.displayName)).toContain('Lee')},
- {name:'set_trip_rate',args:()=>({currency:'JPY',rate:'100'}),summary:()=>`Set trip rate: 1 SGD = 100 JPY (member).\nWarning: changing the trip rate will update 0 expenses (0 confirmed).`,notice:'tripRateChanged',verify:f=>expect(d.listTripRates(f.db,f.scope,f.trip.id)[0]).toMatchObject({currency:'JPY',rate:'100',origin:'member'})},
- {name:'set_expense_rate',args:f=>({expenseId:expense(f,'confirmed',{currency:'JPY',total:1200,rateOverride:'100'}).id,rate:'120'}),summary:()=>`Change expense rate #1\n"Taxi" · 1200 JPY\nPaid by "Sam" · 2026-09-28 · even split\n"Sam": 600 JPY; "Alex": 600 JPY\nHome total: 10.00 SGD · 1 SGD = 120 JPY (expense)\n"Sam": 5.00 SGD; "Alex": 5.00 SGD`,notice:'expenseEdited',verify:f=>expect(d.getExpense(f.db,f.scope,1)).toMatchObject({fxRate:'120',fxRateSource:'expense'})},
- {name:'rename_trip',args:()=>({name:'Japan'}),summary:()=>`Rename trip "Holiday" to "Japan".`,verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).name).toBe('Japan')},
- {name:'end_trip',args:()=>({}),summary:()=>`End trip "Holiday".\nWarning: ending the trip stops expense and rate changes until it is reopened. Payments can still be recorded.`,notice:'tripEnded',verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).status).toBe('ended')},
- {name:'reopen_trip',args:f=>{d.endTrip(f.db,f.scope,f.trip.id);return {};},summary:()=>`Reopen trip "Holiday". Expenses and rates can be changed again.`,notice:'tripReopened',verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).status).toBe('active')},
+ {name:'add_expense',args:()=>expenseArgs,summary:()=>`➕ Add Taxi\n\n${details}`,notice:'expenseSaved',verify:f=>expect(d.listExpenses(f.db,f.scope,f.trip.id)).toHaveLength(1)},
+ {name:'edit_expense',args:f=>({expenseId:expense(f).id,changes:{description:'Bus'}}),summary:()=>`✏️ Change Bus\n\nDescription: Taxi → Bus\n\nEach pays\n• Sam: 6.00 SGD\n• Alex: 6.00 SGD`,notice:'expenseEdited',verify:f=>expect(d.getExpense(f.db,f.scope,1).description).toBe('Bus')},
+ {name:'approve_draft',args:f=>({expenseId:expense(f,'draft',{receiptFileId:'receipt'}).id}),summary:()=>`✅ Approve Taxi\n\n${details}`,notice:'expenseSaved',verify:f=>expect(d.getExpense(f.db,f.scope,1)).toMatchObject({status:'confirmed',receiptFileId:'receipt'})},
+ {name:'discard_draft',args:f=>({expenseId:expense(f,'draft').id}),summary:()=>`✖️ Discard Taxi\n\nTotal: 12.00 SGD\nDraft remains unconfirmed; does not count toward balances.`,verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('discarded')},
+ {name:'delete_expense',args:f=>({expenseId:expense(f).id}),summary:()=>`🗑️ Delete Taxi\n\nTotal: 12.00 SGD\n⚠️ Removes this expense from balances. It can be restored.`,notice:'expenseDeleted',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('deleted')},
+ {name:'restore_expense',args:f=>{const e=expense(f);d.deleteExpense(f.db,f.scope,e.id,e.version);return {expenseId:e.id};},summary:()=>`♻️ Restore Taxi\n\nTotal: 12.00 SGD`,notice:'expenseRestored',verify:f=>expect(d.getExpense(f.db,f.scope,1).status).toBe('confirmed')},
+ {name:'record_payment',args:()=>({from:'me',to:'Alex',amount:'12',currency:'SGD'}),summary:()=>`💸 Payment · Sam → Alex\n\nAmount: 12.00 SGD`,notice:'settlementRecorded',verify:f=>expect(d.listSettlements(f.db,f.scope,f.trip.id)[0]).toMatchObject({amount:1200,createdBy:f.member.id})},
+ {name:'undo_payment',args:f=>({settlementId:d.createSettlement(f.db,f.scope,{tripId:f.trip.id,fromMemberId:f.member.id,toMemberId:f.alex.id,amount:1200}).id}),summary:()=>`↩️ Undo payment · Sam → Alex\n\nAmount: 12.00 SGD`,notice:'settlementUndone',verify:f=>expect(d.getSettlement(f.db,f.scope,1).status).toBe('undone')},
+ {name:'add_member',args:()=>({name:'Lee'}),summary:()=>`👤 Add person Lee\n\nThey will be included in future everyone splits.`,verify:f=>expect(d.listMembers(f.db,f.scope).map(m=>m.displayName)).toContain('Lee')},
+ {name:'set_trip_rate',args:()=>({currency:'JPY',rate:'100'}),summary:()=>`💱 Exchange rate · JPY\n\nRate: 1 SGD = 100 JPY · trip rate\n⚠️ Changes 0 expenses already saved`,notice:'tripRateChanged',verify:f=>expect(d.listTripRates(f.db,f.scope,f.trip.id)[0]).toMatchObject({currency:'JPY',rate:'100',origin:'member'})},
+ {name:'set_expense_rate',args:f=>({expenseId:expense(f,'confirmed',{currency:'JPY',total:1200,rateOverride:'100'}).id,rate:'120'}),summary:()=>`✏️ Change Taxi\n\nRate: 1 SGD = 100 JPY · this expense's own rate → 1 SGD = 120 JPY · this expense's own rate\n\nEach pays\n• Sam: 600 JPY (≈ 6.00 SGD) → 600 JPY (≈ 5.00 SGD)\n• Alex: 600 JPY (≈ 6.00 SGD) → 600 JPY (≈ 5.00 SGD)`,notice:'expenseEdited',verify:f=>expect(d.getExpense(f.db,f.scope,1)).toMatchObject({fxRate:'120',fxRateSource:'expense'})},
+ {name:'rename_trip',args:()=>({name:'Japan'}),summary:()=>`✏️ Rename trip Holiday\n\nName: Holiday → Japan`,verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).name).toBe('Japan')},
+ {name:'end_trip',args:()=>({}),summary:()=>`🏁 End trip Holiday\n\n⚠️ Expenses and rates cannot be changed until the trip is reopened.\nPayments can still be recorded.`,notice:'tripEnded',verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).status).toBe('ended')},
+ {name:'reopen_trip',args:f=>{d.endTrip(f.db,f.scope,f.trip.id);return {};},summary:()=>`🔓 Reopen trip Holiday\n\nExpenses and rates can be changed again.`,notice:'tripReopened',verify:f=>expect(d.getTrip(f.db,f.scope,f.trip.id).status).toBe('active')},
 ];
 describe('every changing tool',()=>{
  for(const c of cases)it(`${c.name}: exact summary, all-table fingerprint, actor, notice once`,async()=>{
@@ -64,7 +64,7 @@ describe('reading tools',()=>{
   expect(await data('list_settlements')).toEqual([settlement]);
   expect(await data('get_activity',{expenseId:e.id})).toEqual(d.listActivity(f.db,f.scope,{entity:{type:'expense',id:e.id},limit:20}));
   expect(await data('resolve_members',{names:['me']})).toMatchObject([{status:'exact',members:[{id:f.member.id}]}]);
-  expect(await data('preview_expense',expenseArgs)).toMatchObject({summary:details,preview:{amounts:{[f.member.id]:600,[f.alex.id]:600}}});
+  expect(await data('preview_expense',expenseArgs)).toMatchObject({summary:`Taxi\n\n${details}`,preview:{amounts:{[f.member.id]:600,[f.alex.id]:600}}});
   expect(fingerprint(f.db)).toBe(before);
  });
  it('filters status, date, payer and text, with at most 20 newest first',async()=>{
@@ -127,7 +127,7 @@ it('a different member acts under their own foundation scope',async()=>{
  const result=await runTool(context,'add_expense',{...expenseArgs,payer:'me'});
  expect(result.kind).toBe('proposal');if(result.kind!=='proposal')return;
  expect(result.plans[0]!.action).toMatchObject({input:{payerId:f.alex.id}});
- expect(result.plans[0]!.summary).toContain('Paid by "Alex"');
+ expect(result.plans[0]!.summary).toContain('Paid by you');
 });
 
 it('edits an existing incomplete receipt draft without confirming it or losing its review flag',async()=>{

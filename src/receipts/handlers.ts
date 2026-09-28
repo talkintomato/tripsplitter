@@ -33,7 +33,7 @@ import {
   type Scope,
 } from '../db/index.js';
 import { planDraft } from './interpret.js';
-import { draftMessage, savedMessage, TEXT } from './messages.js';
+import { draftMessage, savedMessage, receiptHtml, TEXT } from './messages.js';
 import { createOpenAIReader, detectImageType, ReceiptReadError, type ReceiptReader } from './reader.js';
 import type { ReceiptReading } from './schema.js';
 
@@ -246,7 +246,7 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
     }
     const status = await ctx.api.sendMessage(chatId, TEXT.reading, reply);
     const finish = (text: string, keyboard?: InlineKeyboard) =>
-      ctx.api.editMessageText(chatId, status.message_id, text, keyboard ? { reply_markup: keyboard } : {});
+      ctx.api.editMessageText(chatId, status.message_id, keyboard ? receiptHtml(text) : text, keyboard ? { parse_mode: 'HTML', reply_markup: keyboard } : {});
 
     let reading: ReceiptReading;
     try {
@@ -455,15 +455,15 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
     await ctx.answerCallbackQuery().catch(error => { logError(`receipts: could not answer the tap: ${errorName(error)}`); });
     try {
       await ctx.editMessageText(
-        savedMessage({
+        receiptHtml(savedMessage({
           merchant: detail.merchant,
           description: detail.description,
           total: detail.total,
           currency: detail.currency,
           payerName: nameOf(detail.payerId),
           people: shares.size,
-        }),
-        { reply_markup: new InlineKeyboard().url(TEXT.edit, expenseUrl(who.group, detail.id)) },
+        })),
+        { parse_mode: 'HTML', reply_markup: new InlineKeyboard().url(TEXT.edit, expenseUrl(who.group, detail.id)) },
       );
     } catch (error) {
       logError(`receipts: could not replace the draft message: ${errorName(error)}`);

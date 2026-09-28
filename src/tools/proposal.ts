@@ -1,7 +1,8 @@
+import { combineSummaries, summaryFields, toPlainText, lineText } from './summary.js';
 import * as ops from '../db/index.js';
 import { computeShares, toSafeNumber, type ExpenseNotice } from '../core/index.js';
 import { inputOf } from './tools/shared.js';
-import { renderExpense } from './tools/expensePlan.js';
+import { renderExpense, renderChange, expenseChanges } from './tools/expensePlan.js';
 import { resolveRate } from '../core/index.js';
 import type { PlannedAction, ProposalVersions, ConfirmationResult, AgentNotice, Action } from './types.js';
 
@@ -33,12 +34,12 @@ export function combinePlans(plans:PlannedAction[]):PlannedAction[] {
   }
   return result;
 }
-export function summariseProposal(plans:PlannedAction[]):string { return plans.map(p=>p.summary).join('\n\n'); }
+export const proposalSummary = (plans:PlannedAction[]) => combineSummaries(plans.map(p=>p.structuredSummary));
+export function summariseProposal(plans:PlannedAction[]):string { return toPlainText(proposalSummary(plans)); }
 export function createAgentProposal(db:ops.Db, scope:ops.Scope, input:{chatId:number;plans:PlannedAction[];versions:ProposalVersions;now:Date}) {
   const plans=combinePlans(input.plans);
   if(!plans.length) throw new ops.ValidationError('invalid_input','There are no changes to confirm.');
-  // Apply rates first so every expense is previewed against the rate it will actually use.
-  plans.sort((a,b)=>Number(b.action.kind==='set_trip_rate')-Number(a.action.kind==='set_trip_rate'));
+  // Preview against proposed rates while preserving the requested display order.
   for(const p of plans) if('input' in p.action || 'expenseId' in p.action) {
     const action=p.action;
     const tripId='tripId' in action?action.tripId:ops.getExpense(db,scope,action.expenseId).tripId;
@@ -50,8 +51,12 @@ export function createAgentProposal(db:ops.Db, scope:ops.Scope, input:{chatId:nu
       const c={db,scope,now:input.now,suggestRate:async()=>null};
       try {
         const rendered=renderExpense(c,expenseInput,t,resolved.rate,resolved.source==='trip'?`trip, ${proposed.origin}`:resolved.source);
-        const warning=p.summary.split('\n').find(line=>line.startsWith('Warning:'));
-        p.summary=`${p.summary.split('\n')[0]}\n${rendered.summary}${warning ? `\n${warning}` : ''}`;
+        if ('input' in action) {
+          const summary = action.kind==='add_expense'
+            ? {...rendered.structuredSummary,icon:'➕',title:`Add ${rendered.structuredSummary.title}`}
+            : renderChange(c,ops.getExpense(db,scope,action.expenseId),action.input,resolved.rate,resolved.source,rendered.structuredSummary,action.kind==='approve_draft');
+          Object.assign(p,summaryFields(summary));
+        }
       } catch(error) {
         // An incomplete receipt draft stays a draft when edited, discarded or restored.
         if ('expenseId' in action && ops.getExpense(db,scope,action.expenseId).status !== 'confirmed' && action.kind !== 'approve_draft') continue;
@@ -84,7 +89,7 @@ function execute(db:ops.Db,scope:ops.Scope,a:Action,notices:AgentNotice[]):void 
       let e=ops.saveExpense(db,scope,before.id,before.version,a.input);
       if(a.kind==='approve_draft')e=ops.confirmExpense(db,scope,e.id,e.version);
       if (e.status==='confirmed') notices.push(a.kind==='approve_draft'?{method:'expenseSaved',payload:expenseNotice(db,scope,e)}:
-        {method:'expenseEdited',payload:{...expenseNotice(db,scope,e),changes:[a.kind==='set_expense_rate'?'exchange rate':'expense details']}});break;
+        {method:'expenseEdited',payload:{...expenseNotice(db,scope,e),changes:expenseChanges({db,scope,now:new Date(),suggestRate:async()=>null},before,inputOf(e),e.fxRate,e.fxRateSource,false).map(lineText)}});break;
     }
     case 'discard_draft': case 'delete_expense': case 'restore_expense': {
       const before=ops.getExpense(db,scope,a.expenseId);
@@ -134,7 +139,7 @@ function decide(db:ops.Db,input:ProposalDecision,cancel:boolean):ConfirmationRes
       const versions=p.versions as ProposalVersions;
       if(JSON.stringify(proposalVersions(db,scope))!==JSON.stringify(versions))return {kind:'changed',text:'This changed since I prepared it. Ask me again.'};
       const notices:AgentNotice[]=[];
-      for(const plan of p.actions as PlannedAction[])execute(db,scope,plan.action,notices);
+      for(const plan of [...p.actions as PlannedAction[]].sort((a,b)=>Number(b.action.kind==='set_trip_rate')-Number(a.action.kind==='set_trip_rate')))execute(db,scope,plan.action,notices);
       if(!ops.finishProposal(db,scope,p.id,'done'))throw new Error('Could not finish proposal.');
       return {kind:'done',notices};
     }).immediate();

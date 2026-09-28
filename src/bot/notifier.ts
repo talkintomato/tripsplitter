@@ -1,8 +1,7 @@
+import { displayAmount as formatAmount, displayDate, escapeHtml } from '../tools/summary.js';
 import { InlineKeyboard, type Api } from 'grammy';
 import type { Config } from '../config.js';
 import {
-  formatAmount,
-  fromMinorUnits,
   launchUrl,
   type ExpenseNotice,
   type Notifier,
@@ -20,37 +19,47 @@ const SPLIT_LABEL: Record<SplitType, string> = {
   items: 'split by item',
 };
 
+const singleLine = (value:string) => value.replace(/[\r\n]+/g,' ');
+const shortNotice = (head:string,lines:string[]):string => [head,...(lines.length>5?[...lines.slice(0,4),`and ${lines.length-4} more changes`]:lines)].map(singleLine).join('\n');
 export function expenseSavedText(n: ExpenseNotice): string {
-  const head = `${n.actorName} added ${n.description}, ${formatAmount(n.total, n.currency)}, ${SPLIT_LABEL[n.splitType]}.`;
-  if (n.shares.length === 0) return head;
-  const shares = n.shares.map((share) => `${share.name} ${fromMinorUnits(share.amount, n.currency)}`).join(' · ');
-  return `${head} ${shares}`;
+  return shortNotice(`➕ ${n.actorName} added ${n.description}`, [
+    `Total: ${formatAmount(n.total,n.currency)}`,
+    n.splitType==='even'?`Split equally between ${n.shares.length}`:SPLIT_LABEL[n.splitType].replace(/^s/,'S'),
+    ...n.shares.map(s=>`• ${s.name}: ${formatAmount(s.amount,n.currency)}`),
+  ]);
 }
-
+/** The Mini App's existing notice contract contains short plain phrases. */
+function readableChange(change:string):string {
+  if(change.includes(' → '))return change;
+  const match=/^(total|name|place|date|paid by|payer|split|tax|tip|service charge|discount) (.+) to (.+)$/.exec(change);
+  if(!match)return change==='who is included'?'People changed':change==='items'?'Items changed':change==='exchange rate'?'Exchange rate changed':change;
+  const labels:Record<string,string>={name:'Description',place:'Merchant',payer:'Paid by','paid by':'Paid by'};
+  const value=(v:string)=>match[1]==='date'?displayDate(v,new Date()):v.replace(/^"|"$/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return `${labels[match[1]!]??match[1]![0]!.toUpperCase()+match[1]!.slice(1)}: ${value(match[2]!)} → ${value(match[3]!)}`;
+}
 export function expenseEditedText(n: ExpenseNotice & { changes: string[] }): string {
-  const head = `${n.actorName} edited ${n.description}`;
-  return n.changes.length === 0 ? head : `${head}: ${n.changes.join(', ')}`;
+  return shortNotice(`✏️ ${n.actorName} changed ${n.description}`,n.changes.map(readableChange));
 }
-
 export function expenseRemovedText(n: ExpenseNotice, verb: 'deleted' | 'restored'): string {
-  return `${n.actorName} ${verb} ${n.description} (${formatAmount(n.total, n.currency)})`;
+  return `${verb==='deleted'?'🗑️':'♻️'} ${n.actorName} ${verb} ${n.description} · ${formatAmount(n.total,n.currency)}`;
 }
-
-function paymentText(n: SettlementNotice): string {
-  return `${n.fromName} paid ${n.toName} ${formatAmount(n.amount, n.currency)}`;
-}
-
 export function settlementText(n: SettlementNotice, kind: 'recorded' | 'undone' | 'restored'): string {
-  if (kind === 'recorded') return `${paymentText(n)}, recorded by ${n.actorName}`;
-  const verb = kind === 'undone' ? 'undid' : 'restored';
-  return `${n.actorName} ${verb} the payment: ${paymentText(n)}`;
+  const payment=`${n.fromName} → ${n.toName} · ${formatAmount(n.amount,n.currency)}`;
+  return `${kind==='recorded'?'💸':kind==='undone'?'↩️':'♻️'} ${n.actorName} ${kind==='recorded'?'recorded':kind==='undone'?'undid':'restored'} payment\n${payment}`;
+}
+export function tripRateText(n: RateNotice): string {
+  return `💱 ${n.actorName} changed the exchange rate\nRate: 1 ${n.homeCurrency} = ${n.rate} ${n.currency} · ${n.origin==='suggested'?'looked up today':'trip rate'}\n${n.expensesChanged} ${n.expensesChanged===1?'expense':'expenses'} updated`;
 }
 
-export function tripRateText(n: RateNotice): string {
-  const rate = `1 ${n.homeCurrency} = ${n.rate} ${n.currency}`;
-  if (n.origin === 'suggested') return `Trip rate for ${n.currency} set to ${rate}. Change it in trip settings.`;
-  const count = n.expensesChanged === 1 ? '1 expense updated.' : `${n.expensesChanged} expenses updated.`;
-  return `${n.actorName} changed the trip rate: ${rate}. ${count}`;
+/** Bound even unusually long item-change notices after HTML escaping. */
+function noticeLine(text:string):string {
+  let result='';
+  for(const char of singleLine(text)) {
+    const escaped=escapeHtml(char);
+    if(result.length+escaped.length>600)return `${result}…`;
+    result+=escaped;
+  }
+  return result;
 }
 
 export function createNotifier(api: Api, config: Config, db: Db, logger: BotLogger): Notifier {
@@ -66,7 +75,13 @@ export function createNotifier(api: Api, config: Config, db: Db, logger: BotLogg
   function post(name: string, chatId: number, text: () => string, keyboard?: () => InlineKeyboard): Promise<void> {
     return safely(name, chatId, async () => {
       const markup = keyboard?.();
-      await api.sendMessage(chatId, text(), {
+      const plain = text();
+      const [title,...lines] = plain.split('\n');
+      const html = /^[➕✏🗑♻💸↩💱🏁🔓]/u.test(plain)
+        ? [`<b>${noticeLine(title!)}</b>`,...lines.map(noticeLine)].join('\n')
+        : escapeHtml(plain);
+      await api.sendMessage(chatId, html, {
+        parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
         ...(markup !== undefined ? { reply_markup: markup } : {}),
       });
@@ -88,8 +103,8 @@ export function createNotifier(api: Api, config: Config, db: Db, logger: BotLogg
     settlementUndone: (n) => post('settlementUndone', n.chatId, () => settlementText(n, 'undone')),
     settlementRestored: (n) => post('settlementRestored', n.chatId, () => settlementText(n, 'restored')),
     tripRateChanged: (n) => post('tripRateChanged', n.chatId, () => tripRateText(n)),
-    tripEnded: (n) => post('tripEnded', n.chatId, () => `${n.actorName} ended the trip. Balances can still be settled.`),
-    tripReopened: (n) => post('tripReopened', n.chatId, () => `${n.actorName} reopened the trip.`),
+    tripEnded: (n) => post('tripEnded', n.chatId, () => `🏁 ${n.actorName} ended ${n.tripName}\nBalances can still be settled.`),
+    tripReopened: (n) => post('tripReopened', n.chatId, () => `🔓 ${n.actorName} reopened ${n.tripName}`),
     memberJoinedByLink: (n) => post('memberJoinedByLink', n.chatId, () => `${n.memberName} joined the trip through the link.`),
     async linkReset(n) {
       await post('linkReset', n.chatId, () => `${n.actorName} reset the group's link. Old links no longer work.`);

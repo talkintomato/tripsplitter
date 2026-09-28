@@ -12,7 +12,7 @@ it('uses a trip rate without suggesting another, with an exact zero-decimal summ
  f.context.suggestRate=vi.fn(async()=>null);
  const {p,before,after}=await prepare(f,'add_expense',jpy);
  expect(after).toBe(before);expect(f.context.suggestRate).not.toHaveBeenCalled();
- expect(p.summary).toBe('Add expense\n"Taxi" · 1200 JPY\nPaid by "Sam" · 2026-09-28 · even split\n"Sam": 600 JPY; "Alex": 600 JPY\nHome total: 12.00 SGD · 1 SGD = 100 JPY (trip, member)\n"Sam": 6.00 SGD; "Alex": 6.00 SGD');
+ expect(p.summary).toBe('➕ Add Taxi\n\nTotal: 1,200 JPY (≈ 12.00 SGD)\nPaid by you\nDate: Mon 28 Sep\nSplit equally between 2\nRate: 1 SGD = 100 JPY · trip rate\n\nEach pays\n• Sam: 600 JPY (≈ 6.00 SGD)\n• Alex: 600 JPY (≈ 6.00 SGD)');
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now}).kind).toBe('done');
 });
 it('a suggestion is a rate action plus a confirmed expense, both unchanged until confirmation',async()=>{
@@ -20,7 +20,7 @@ it('a suggestion is a rate action plus a confirmed expense, both unchanged until
  f.context.suggestRate=vi.fn(async()=> '100');
  const {p,before,after}=await prepare(f,'approve_draft',{expenseId:draft.id});
  expect(after).toBe(before);expect(f.context.suggestRate).toHaveBeenCalledWith('SGD','JPY');
- expect(p.summary).toBe('Set trip rate: 1 SGD = 100 JPY (suggested).\nWarning: changing the trip rate will update 1 expenses (0 confirmed).\n\nApprove draft #1\n"Taxi" · 1200 JPY\nPaid by "Sam" · 2026-09-28 · even split\n"Sam": 600 JPY; "Alex": 600 JPY\nHome total: 12.00 SGD · 1 SGD = 100 JPY (trip, suggested)\n"Sam": 6.00 SGD; "Alex": 6.00 SGD');
+ expect(p.summary).toBe('2 changes\n\n💱 Exchange rate · JPY\n\nRate: 1 SGD = 100 JPY · looked up today\n⚠️ Changes 1 expense already saved\n\n✅ Approve Taxi\n\nTotal: 1,200 JPY (≈ 12.00 SGD)\nPaid by you\nDate: Mon 28 Sep\nSplit equally between 2\nRate: 1 SGD = 100 JPY · looked up today\n\nEach pays\n• Sam: 600 JPY (≈ 6.00 SGD)\n• Alex: 600 JPY (≈ 6.00 SGD)');
  const done=confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now});
  expect(done.kind==='done'&&done.notices.map(n=>n.method)).toEqual(['tripRateChanged','expenseSaved']);
  expect(d.getExpense(f.db,f.scope,draft.id)).toMatchObject({status:'confirmed',fxRate:'100',fxRateSource:'trip'});
@@ -40,7 +40,7 @@ it('clears an expense override and returns to the trip rate',async()=>{
  const f=make();d.setTripRate(f.db,f.scope,f.trip.id,'JPY','100','member');
  const e=expense(f,'confirmed',{currency:'JPY',total:1200,rateOverride:'120'});
  const {p}=await prepare(f,'set_expense_rate',{expenseId:e.id,rate:null});
- expect(p.summary).toContain('100 JPY (trip, member)');
+ expect(p.summary).toContain('100 JPY · trip rate');
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now}).kind).toBe('done');
  expect(d.getExpense(f.db,f.scope,e.id)).toMatchObject({fxRate:'100',fxRateSource:'trip'});
 });
@@ -48,7 +48,7 @@ it('deduplicates suggested rates across several expense actions',async()=>{
  const f=make();const model=new ScriptedAgentModel([calls(['add_expense',jpy],['add_expense',{...jpy,description:'Train'}]),text()]);
  const result=await runAgentTurn(f.db,f.config,{model,suggestRate:async()=> '100'},{groupId:f.g.group.id,memberId:f.member.id,chatId:-100,text:'Two expenses',now});
  expect(result.kind).toBe('proposal');if(result.kind!=='proposal')return;
- expect(result.summary.match(/Set trip rate/g)).toHaveLength(1);
+ expect(result.summary.match(/Exchange rate/g)).toHaveLength(1);
  const done=confirmProposal(f.db,{}, {proposalId:result.proposalId,memberId:f.member.id,now});
  expect(done.kind==='done'&&done.notices.map(n=>n.method)).toEqual(['tripRateChanged','expenseSaved','expenseSaved']);
 });
@@ -57,7 +57,8 @@ it('combines an explicit rate change and expense with totals previewed at the ne
  const model=new ScriptedAgentModel([calls(['add_expense',jpy],['set_trip_rate',{currency:'JPY',rate:'120'}]),text()]);
  const result=await runAgentTurn(f.db,f.config,{model,suggestRate:async()=>null},{groupId:f.g.group.id,memberId:f.member.id,chatId:-100,text:'Change rate and add taxi',now});
  expect(result.kind).toBe('proposal');if(result.kind!=='proposal')return;
- expect(result.summary).toContain('Home total: 10.00 SGD · 1 SGD = 120 JPY (trip, member)');
+ expect(result.summary).toContain('Total: 1,200 JPY (≈ 10.00 SGD)');
+ expect(result.summary).toContain('Rate: 1 SGD = 120 JPY · trip rate');
  expect(confirmProposal(f.db,{}, {proposalId:result.proposalId,memberId:f.member.id,now}).kind).toBe('done');
  expect(d.getExpense(f.db,f.scope,1)).toMatchObject({fxRate:'120'});
 });
@@ -65,7 +66,7 @@ it('trip-rate preview count and stale guard cover follower versions and new expe
  const f=make();d.setTripRate(f.db,f.scope,f.trip.id,'JPY','100','member');expense(f,'confirmed',{currency:'JPY',total:1200});
  expense(f,'confirmed',{currency:'JPY',total:1200,rateOverride:'90'});
  const {p,before,after}=await prepare(f,'set_trip_rate',{currency:'JPY',rate:'120'});
- expect(after).toBe(before);expect(p.summary).toContain('1 expenses (1 confirmed)');
+ expect(after).toBe(before);expect(p.summary).toContain('⚠️ Changes 1 expense already saved');
  expense(f,'confirmed',{currency:'JPY',total:1000});
  expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now}).kind).toBe('changed');
 });

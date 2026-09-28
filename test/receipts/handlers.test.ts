@@ -79,8 +79,9 @@ describe('outcomes', () => {
     expect(draft.shares.filter((x) => x.itemId === null).map((x) => x.memberId).sort()).toEqual([s.ana.id, s.sam.id, s.leo.id].sort());
 
     expect(h.sent().map((c) => c.payload.text)).toEqual([TEXT.reading]);
-    expect(h.finalText()).toBe('Casa Pepe · 84.50 SGD · 3 items\nPaid by Ana');
+    expect(h.finalText()).toBe('<b>✅ Approve Casa Pepe</b>\n\nTotal: 84.50 SGD\nPaid by Ana\n3 items');
     expect(h.edits()).toHaveLength(1);
+    expect(h.edits()[0]!.payload.parse_mode).toBe('HTML');
     expect(h.edits()[0]!.payload.message_id).toBe(h.sentIds[0]);
     expect(h.sent()[0]!.payload.reply_parameters).toMatchObject({ message_id: expect.any(Number) });
 
@@ -99,7 +100,7 @@ describe('outcomes', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ status: 'draft', total: 9000, splitType: 'even' });
     expect(draft.items).toEqual([]);
-    expect(h.finalText()).toBe(`Casa Pepe · 90.00 SGD\nPaid by Ana\n${TEXT.itemsDropped}`);
+    expect(h.finalText()).toBe(`<b>✅ Approve Casa Pepe</b>\n\nTotal: 90.00 SGD\nPaid by Ana\n⚠️ ${TEXT.itemsDropped}`);
     expect(h.buttons().map((b) => b.text)).toEqual(['Split evenly', 'Open to split']);
   });
 
@@ -199,7 +200,7 @@ describe('outcomes', () => {
     const draft = onlyExpense();
     expect(draft.tripId).not.toBe(s.trip.id);
     expect(getTrip(db, s.asAna, draft.tripId).status).toBe('active');
-    expect(h.finalText()).toContain('Casa Pepe · 84.50 SGD');
+    expect(h.finalText()).toContain('<b>✅ Approve Casa Pepe</b>\n\nTotal: 84.50 SGD');
   });
 });
 
@@ -305,7 +306,7 @@ describe('daily cap', () => {
     expect(h.downloadPhoto).toHaveBeenCalledTimes(1);
     expect(countReceiptReads(db, s.group.id, NOW)).toBe(2);
     expect(onlyExpense().total).toBe(8450);
-    expect(h.finalText()).toContain('Casa Pepe · 84.50 SGD');
+    expect(h.finalText()).toContain('<b>✅ Approve Casa Pepe</b>\n\nTotal: 84.50 SGD');
   });
 
   it('a retry refused at the limit is the error outcome', async () => {
@@ -349,7 +350,7 @@ describe('amounts', () => {
     const draft = onlyExpense();
     expect(draft.total).toBe(1600);
     expect(draft.items.map((i) => [i.label, i.quantity, i.amount])).toEqual([['Beer', 2, 1600]]);
-    expect(h.finalText()).toContain('16.00 SGD · 1 item');
+    expect(h.finalText()).toContain('Total: 16.00 SGD\nPaid by Ana\n1 item');
   });
 
   it('a negative line is moved into the discount', async () => {
@@ -374,7 +375,7 @@ describe('amounts', () => {
       ['Paella', 6000],
       ['Beer', 1600],
     ]);
-    expect(h.finalText()).toContain('64.00 SGD · 2 items');
+    expect(h.finalText()).toContain('Total: 64.00 SGD\nPaid by Ana\n2 items');
     expect(h.finalText()).not.toContain(TEXT.itemsDropped);
   });
 
@@ -390,7 +391,7 @@ describe('amounts', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ currency: 'JPY', total: 1200 });
     expect(draft.items.map((i) => i.amount)).toEqual([1200]);
-    expect(h.finalText()).toContain('Ichiran · 1200 JPY · 1 item');
+    expect(h.finalText()).toContain('<b>✅ Approve Ichiran</b>\n\nTotal: 1,200 JPY\nPaid by Ana\n1 item');
   });
 });
 
@@ -399,21 +400,21 @@ describe('currency', () => {
     const h = harness({ db, reader: async () => reading({ currency: 'MYR', currency_certain: true }), suggestRate: async () => '3.3' });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'MYR', currencyNeedsReview: false, total: 8450 });
-    expect(h.finalText()).not.toContain(TEXT.checkCurrency);
+    expect(h.finalText()).not.toContain(`⚠️ ${TEXT.checkCurrency}`);
   });
 
   it('supported and not certain: that currency, to be reviewed', async () => {
     const h = harness({ db, reader: async () => reading({ currency: 'USD', currency_certain: false }), suggestRate: async () => '0.78' });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'USD', currencyNeedsReview: true, total: 8450 });
-    expect(h.finalText().split('\n')).toContain(TEXT.checkCurrency);
+    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.checkCurrency}`);
   });
 
   it('not shown: home currency, to be reviewed', async () => {
     const h = harness({ db, reader: async () => reading({ currency: null, currency_certain: false }) });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense()).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, total: 8450, fxRateSource: 'home' });
-    expect(h.finalText().split('\n')).toContain(TEXT.checkCurrency);
+    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.checkCurrency}`);
   });
 
   it('not supported: home currency, to be reviewed, and the message names what was printed', async () => {
@@ -422,7 +423,7 @@ describe('currency', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ currency: 'SGD', currencyNeedsReview: true, total: 8450, fxRateSource: 'home' });
     expect(draft.items).toHaveLength(3);
-    expect(h.finalText().split('\n')).toContain("Check the currency before saving. The receipt shows CHF, which isn't supported.");
+    expect(h.finalText().split('\n')).toContain("⚠️ Check the currency before saving. The receipt shows CHF, which isn't supported.");
   });
 
   it('not supported, with decimals, in a trip whose home currency has none', async () => {
@@ -444,7 +445,7 @@ describe('currency', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ currency: 'JPY', currencyNeedsReview: true, total: 85, fxRateSource: 'home' });
     expect(draft.items.map((i) => i.amount)).toEqual([60, 25]);
-    expect(h.finalText()).toContain('Casa Pepe · 85 JPY · 2 items');
+    expect(h.finalText()).toContain('<b>✅ Approve Casa Pepe</b>\n\nTotal: 85 JPY\nPaid by Ana\n2 items');
     expect(h.finalText()).toContain('The receipt shows CHF');
   });
 });
@@ -457,7 +458,7 @@ describe('rate', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ status: 'draft', currency: 'JPY', fxRateSource: 'missing', fxRate: null });
     expect(h.suggestRate).toHaveBeenCalledExactlyOnceWith('SGD', 'JPY');
-    expect(h.finalText().split('\n')).toContain(TEXT.rateMissing);
+    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.rateMissing}`);
     expect(listTripRates(db, s.asAna, s.trip.id)).toEqual([]);
 
     const before = fingerprint(db);
@@ -477,7 +478,7 @@ describe('rate', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ fxRateSource: 'trip', fxRate: '112.4' });
     expect(h.suggestRate).not.toHaveBeenCalled();
-    expect(h.finalText()).not.toContain(TEXT.rateMissing);
+    expect(h.finalText()).not.toContain(`⚠️ ${TEXT.rateMissing}`);
 
     await h.tap(splitEvenlyData(h));
     expect(getExpense(db, s.asAna, draft.id).status).toBe('confirmed');
@@ -502,7 +503,7 @@ describe('rate', () => {
       origin: 'suggested',
       expensesChanged: 1,
     });
-    expect(h.finalText()).not.toContain(TEXT.rateMissing);
+    expect(h.finalText()).not.toContain(`⚠️ ${TEXT.rateMissing}`);
     // The button holds the version after the rate was set, so it still works.
     expect(splitEvenlyData(h)).toBe(`rcpt:${draft.id}:${draft.version}`);
     await h.tap(splitEvenlyData(h));
@@ -519,7 +520,7 @@ describe('rate', () => {
     });
     await h.sendPhoto('@tripsplitter_test_bot');
     expect(onlyExpense().fxRateSource).toBe('missing');
-    expect(h.finalText().split('\n')).toContain(TEXT.rateMissing);
+    expect(h.finalText().split('\n')).toContain(`⚠️ ${TEXT.rateMissing}`);
   });
 });
 
@@ -533,7 +534,8 @@ describe('Split evenly', () => {
     const saved = getExpense(db, s.asAna, draft.id);
     expect(saved).toMatchObject({ status: 'confirmed', payerId: s.ana.id, splitType: 'even' });
     expect(getTrip(db, s.asAna, s.trip.id).homeCurrencyLocked).toBe(true);
-    expect(h.finalText()).toBe('Casa Pepe · 84.50 SGD\nPaid by Ana · split evenly between 3 people');
+    expect(h.finalText()).toBe('<b>✅ Added Casa Pepe · 84.50 SGD</b>');
+    expect(h.edits().at(-1)!.payload.parse_mode).toBe('HTML');
     const buttons = h.buttons();
     expect(buttons.map((b) => b.text)).toEqual(['Edit']);
     expect(decodeLaunch(new URL(buttons[0]!.url!).searchParams.get('startapp')!, h.config.linkSecret)).toMatchObject({ view: 'expense', expenseId: draft.id });
@@ -646,7 +648,7 @@ describe('Split evenly', () => {
       expensesChanged: 1,
     });
     expect(h.notifier.expenseSaved).toHaveBeenCalledTimes(1);
-    expect(h.finalText()).toBe('Ichiran · 1200 JPY\nPaid by Ana · split evenly between 3 people');
+    expect(h.finalText()).toBe('<b>✅ Added Ichiran · 1,200 JPY</b>');
   });
 
   it('rate missing, and the lookup fails again', async () => {
@@ -765,7 +767,7 @@ describe('duplicate warning', () => {
 
     expect(allExpenses()).toHaveLength(2);
     expect(allExpenses().filter((e) => e.status === 'draft')).toHaveLength(1);
-    expect(h.finalText().split('\n')).toContain('This looks like one already added: casa  PEPE, 84.50 SGD, by Sam.');
+    expect(h.finalText().split('\n')).toContain('⚠️ This looks like one already added: casa  PEPE, 84.50 SGD, by Sam.');
   });
 
   it('says nothing when the date differs', async () => {

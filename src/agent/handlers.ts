@@ -1,10 +1,11 @@
+import { telegramChunks, escapeHtml, displayAmount } from '../tools/summary.js';
 import { InlineKeyboard, type Bot, type Context } from 'grammy';
 import type { Config } from '../config.js';
 import type { Notifier, RateSuggester } from '../core/index.js';
 import {
   appendTurn, findGroupByChatId, findMemberByTelegramId, finishProposal, forgetExpiredTurns,
-  getGroup, getMember, getProposal, memberScope, now, rememberChosenGroup, systemScope,
-  type Db,
+  getGroup, getMember, getProposal, getExpense, getSettlement, getTrip, memberScope, now, rememberChosenGroup, systemScope,
+  type Db, type Scope,
 } from '../db/index.js';
 import { cancelProposal, confirmProposal, proposalVersions, type AgentNotice, type PlannedAction } from '../tools/index.js';
 import { agentText, appKeyboard } from '../bot/chat.js';
@@ -81,8 +82,8 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
       if (result.kind === 'proposal') {
         const keyboard = new InlineKeyboard().text(result.confirmLabel, proposalCallback('yes', result.proposalId))
           .text('Change', proposalCallback('change', result.proposalId)).text('Cancel', proposalCallback('cancel', result.proposalId));
-        const chunks = messageChunks(result.summary);
-        for (const [index, chunk] of chunks.entries()) await ctx.reply(chunk, { reply_parameters,
+        const chunks = telegramChunks(result.structuredSummary);
+        for (const [index, chunk] of chunks.entries()) await ctx.reply(chunk, { reply_parameters, parse_mode: 'HTML',
           ...(index === chunks.length - 1 ? { reply_markup: keyboard } : {}),
         });
       } else {
@@ -144,27 +145,39 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
       if (action === 'change') {
         if (ctx.chat!.type === 'private') rememberChosenGroup(db, scope, ctx.chat!.id, now());
         appendTurn(db, scope, ctx.chat!.id, 'assistant', p.summary, now());
-        await ctx.editMessageText('Ready to change.', { reply_markup: { inline_keyboard: [] } }).catch(() => {});
+        await ctx.editMessageText('Ready to change.', { parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }).catch(() => {});
         await ctx.reply('What should I change?', { reply_markup: { force_reply: true, selective: true }, reply_parameters: { message_id: ('reply_to_message' in ctx.callbackQuery.message! ? ctx.callbackQuery.message.reply_to_message?.message_id : undefined) ?? ctx.callbackQuery.message!.message_id } });
         return;
       }
-      const text = action === 'cancel' ? 'Cancelled.' : result.notices.length ? 'Done.' : finalLine(p.actions as PlannedAction[]);
-      await ctx.editMessageText(text, { reply_markup: action === 'cancel' ? { inline_keyboard: [] } : appKeyboard(config, group, ctx.chat!.type === 'private', 'View') }).catch(() => {});
+      const text = action === 'cancel' ? 'Cancelled.' : finalLine(db, scope, p.actions as PlannedAction[]);
+      await ctx.editMessageText(escapeHtml(text), { parse_mode: 'HTML', reply_markup: action === 'cancel' ? { inline_keyboard: [] } : appKeyboard(config, group, ctx.chat!.type === 'private', 'View') }).catch(() => {});
       for (const notice of result.notices) await dispatchNotice(deps.notifier, notice).catch(() => {});
     });
   });
 }
-function finalLine(plans: PlannedAction[]): string {
-  if (plans.length !== 1) return 'Done.';
-  const action = plans[0]!.action;
-  switch (action.kind) {
-    case 'add_member': return `Added ${JSON.stringify(action.name)}.`;
-    case 'rename_trip': return `Trip renamed to ${JSON.stringify(action.name)}.`;
-    case 'discard_draft': return 'Draft discarded.';
-    case 'restore_expense': return 'Draft restored.';
-    case 'edit_expense': case 'set_expense_rate': return 'Draft updated.';
-    default: return 'Done.';
-  }
+function finalLine(db:Db, scope:Scope, plans: PlannedAction[]): string {
+  if (plans.length !== 1) return `✅ Completed ${plans.length} changes`;
+  const plan = plans[0]!, action = plan.action;
+  const verbs:Record<PlannedAction['action']['kind'],string> = {
+    add_expense:'Added',edit_expense:'Changed',set_expense_rate:'Changed',approve_draft:'Approved',
+    delete_expense:'Deleted',restore_expense:'Restored',discard_draft:'Discarded',
+    record_payment:'Recorded payment',undo_payment:'Undid payment',add_member:'Added person',
+    set_trip_rate:'Changed exchange rate',rename_trip:'Renamed trip',end_trip:'Ended trip',reopen_trip:'Reopened trip',
+  };
+  let name:string, amount='';
+  if ('expenseId' in action || action.kind==='add_expense') {
+    const expense = action.kind==='add_expense'?action.input:getExpense(db,scope,action.expenseId);
+    name=expense.description||expense.merchant||'Expense';
+    amount=` · ${displayAmount(expense.total,expense.currency!)}`;
+  } else if (action.kind==='record_payment'||action.kind==='undo_payment') {
+    const payment=action.kind==='record_payment'?action:getSettlement(db,scope,action.settlementId);
+    name=`${getMember(db,scope,payment.fromMemberId).displayName} → ${getMember(db,scope,payment.toMemberId).displayName}`;
+    amount=` · ${displayAmount(payment.amount,getTrip(db,scope,payment.tripId).homeCurrency)}`;
+  } else if(action.kind==='add_member'||action.kind==='rename_trip')name=action.name;
+  else if(action.kind==='set_trip_rate')name=`1 ${getTrip(db,scope,action.tripId).homeCurrency} = ${action.rate} ${action.currency}`;
+  else name=getTrip(db,scope,action.tripId).name;
+  return `✅ ${verbs[action.kind]} ${name}${amount}`;
+
 }
 async function dispatchNotice(notifier: Notifier, notice: AgentNotice): Promise<void> {
   // The mapped union guarantees the payload matches its method.

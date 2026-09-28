@@ -73,14 +73,14 @@ it('keeps typing during a slow turn and stops when it finishes', async () => {
 it('posts a code-built proposal and three bounded callbacks; commits and notifies exactly once', async () => {
   const h = make(proposalScript());
   const id = await h.mention('taxi');
-  expect(h.sent().at(-1)).toMatchObject({ text: expect.stringContaining('24.00 SGD'), reply_parameters: { message_id: id } });
+  expect(h.sent().at(-1)).toMatchObject({ text: expect.stringContaining('24.00 SGD'), parse_mode: 'HTML', reply_parameters: { message_id: id } });
   expect(h.buttons().map(b => b.text)).toEqual(['Add it', 'Change', 'Cancel']);
   for (const button of h.buttons()) expect(Buffer.byteLength(button.callback_data!)).toBeLessThanOrEqual(64);
   const p = latest(h), data = h.data('Add it');
   expect(d.listExpenses(h.db, d.systemScope(p.groupId), h.groups[0]!.trip!.id)).toEqual([]);
   await h.tap(data);
   expect(d.getProposal(h.db, p.id)!.status).toBe('done');
-  expect(h.sent('editMessageText').at(-1)).toMatchObject({ text: 'Done.', reply_markup: { inline_keyboard: [[{ text: 'View', url: expect.any(String) }]] } });
+  expect(h.sent('editMessageText').at(-1)).toMatchObject({ text: '✅ Added Taxi · 24.00 SGD', parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: 'View', url: expect.any(String) }]] } });
   expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT, actorName: 'Ana', total: 2400 }));
   await h.tap(data);
   alert(h, 'Already done.'); expect(h.notifier.expenseSaved).toHaveBeenCalledOnce();
@@ -136,7 +136,7 @@ it('delivers every notice once even if the Telegram edit or an earlier notifier 
 });
 it('finishes an action without a notice with a meaningful final line', async () => {
   const h = make([calls(['rename_trip', { name: 'Japan' }]), text()]); await h.mention('rename');
-  await h.tap(proposalCallback('yes', latest(h).id)); expect(h.sent('editMessageText').at(-1)?.text).toBe('Trip renamed to "Japan".');
+  await h.tap(proposalCallback('yes', latest(h).id)); expect(h.sent('editMessageText').at(-1)?.text).toBe('✅ Renamed trip Japan');
 });
 it('private chat with no group gives onboarding without creating a group', async () => {
   const h = make([], { groups: 0 }); await h.privateText('taxi');
@@ -148,7 +148,7 @@ it('private chat with one group remembers it and sends confirmed notices to the 
   expect(d.chosenGroup(h.db, ANA.id, ANA.id)?.groupId).toBe(h.groups[0]!.group.id);
   const p = latest(h); expect(p.chatId).toBe(ANA.id);
   await h.tap(proposalCallback('yes', p.id), ANA, ANA.id);
-  expect(h.sent('editMessageText').at(-1)).toMatchObject({ chat_id: ANA.id, text: 'Done.' });
+  expect(h.sent('editMessageText').at(-1)).toMatchObject({ chat_id: ANA.id, text: '✅ Added Taxi · 24.00 SGD', parse_mode: 'HTML' });
   expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT }));
 });
 it('several private groups: selects, handles the pending question once, remembers and switches with /group', async () => {
@@ -224,10 +224,12 @@ it('posts every part of a long summary before offering confirmation', async () =
   const h = make([calls(['add_expense', { ...args, amount: '30', splitType: 'items', items }]), text()]);
   const id = await h.mention('dinner');
   expect(h.sent().length).toBeGreaterThan(1);
-  expect(h.sent().map(p => p.text).join('')).toBe(latest(h).summary);
+  expect(h.sent().map(p => p.text.replace(/<\/?b>/g, '')).join('\n\n').replace(/\n+/g, '\n')).toBe(latest(h).summary.replace(/\n+/g, '\n'));
   for (const sent of h.sent()) {
     expect(sent.text.length).toBeLessThanOrEqual(4000);
     expect(sent.text.isWellFormed()).toBe(true);
+    expect(sent.parse_mode).toBe('HTML');
+    expect((sent.text.match(/<b>/g) ?? []).length).toBe((sent.text.match(/<\/b>/g) ?? []).length);
     expect(sent.reply_parameters.message_id).toBe(id);
   }
   expect(h.sent().slice(0, -1).every(p => !p.reply_markup)).toBe(true);
@@ -292,4 +294,20 @@ it('agent approval of a private receipt notifies its group once', async () => {
   await h.privateText('approve the receipt'); const data = h.data('Approve it');
   await h.tap(data, ANA, ANA.id); await h.tap(data, ANA, ANA.id);
   expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT, expenseId: 1 }));
+});
+it('sends model replies as plain text even when they contain HTML-looking text',async()=>{
+  const h=make([text('<b>Tom & Jerry</b>')]);
+  await h.mention('balances');
+  expect(h.sent().at(-1)).toMatchObject({text:'<b>Tom & Jerry</b>'});
+  expect(h.sent().at(-1)).not.toHaveProperty('parse_mode');
+});
+it('escapes a proposal and completion but stores the plain summary in the conversation',async()=>{
+  const h=make([calls(['add_expense',{...args,description:'<b>Tom & Jerry</b>'}]),text()]);
+  await h.mention('add it');
+  expect(h.sent().at(-1)).toMatchObject({parse_mode:'HTML',text:expect.stringContaining('<b>➕ Add &lt;b&gt;Tom &amp; Jerry&lt;/b&gt;</b>')});
+  const p=latest(h);
+  expect(p.summary).toContain('➕ Add <b>Tom & Jerry</b>');
+  expect(d.recentTurns(h.db,d.memberScope(p.groupId,p.memberId),CHAT,NOW).at(-1)?.content).toBe(p.summary);
+  await h.tap(proposalCallback('yes',p.id));
+  expect(h.sent('editMessageText').at(-1)).toMatchObject({parse_mode:'HTML',text:'✅ Added &lt;b&gt;Tom &amp; Jerry&lt;/b&gt; · 24.00 SGD'});
 });

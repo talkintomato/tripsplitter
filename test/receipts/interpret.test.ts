@@ -138,12 +138,14 @@ describe('draftMessage', () => {
       duplicate: { merchant: 'Ichiran', total: 1200, currency: 'JPY', byName: 'Sam' },
     });
     expect(text.split('\n')).toEqual([
-      'Receipt · 1200 JPY',
+      '✅ Approve Receipt',
+      '',
+      'Total: 1,200 JPY',
       'Paid by Ana',
-      "I couldn't match the items to the total, so check them.",
-      'Check the currency before saving.',
-      "Couldn't look up an exchange rate. Open to set it.",
-      'This looks like one already added: Ichiran, 1200 JPY, by Sam.',
+      "⚠️ I couldn't match the items to the total, so check them.",
+      '⚠️ Check the currency before saving.',
+      "⚠️ Couldn't look up an exchange rate. Open to set it.",
+      '⚠️ This looks like one already added: Ichiran, 1,200 JPY, by Sam.',
     ]);
   });
 });
@@ -159,4 +161,10 @@ describe('prompt', () => {
     expect(prompt).toContain('"$"');
     expect(prompt).toContain('"¥"');
   });
+});
+
+it('escapes receipt fields and the private group wrapper before enabling HTML',async()=>{
+  const {receiptHtml}=await import('../../src/receipts/messages.js');
+  const card=draftMessage({merchant:'<b>Tom & Jerry</b>',description:'',total:14850,currency:'JPY',itemCount:2,payerName:'<Sam>',itemsDropped:false,currencyNeedsReview:false,unsupportedCurrency:null,rateMissing:false,duplicate:null});
+  expect(receiptHtml(`For <Trip & friends>\n${card}\nUse /group to switch.`)).toBe('For &lt;Trip &amp; friends&gt;\n<b>✅ Approve &lt;b&gt;Tom &amp; Jerry&lt;/b&gt;</b>\n\nTotal: 14,850 JPY\nPaid by &lt;Sam&gt;\n2 items\nUse /group to switch.');
 });

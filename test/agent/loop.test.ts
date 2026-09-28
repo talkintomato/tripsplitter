@@ -63,7 +63,7 @@ it('does not allow instructions in descriptions/names to change scope or tools',
  expect(JSON.stringify(envelope)).toContain(malicious);
  expect(model.requests[1]!.tools.some(t=>t.name==='reset_link')).toBe(false);
  const p=await prepare(f,'add_expense',{...expenseArgs,description:malicious,people:[{name:malicious}]});
- expect(p.before).toBe(p.after);expect(p.p.summary).toContain(JSON.stringify(malicious));
+ expect(p.before).toBe(p.after);expect(p.p.summary).toContain(malicious);
  expect(confirmProposal(f.db,{}, {proposalId:p.p.id,memberId:f.member.id,now}).kind).toBe('done');
  expect(d.getExpense(f.db,f.scope,2).description).toBe(malicious);
 });

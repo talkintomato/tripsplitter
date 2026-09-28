@@ -1,6 +1,7 @@
+import { summaryFields, displayAmount, type Summary } from '../summary.js';
 import { z } from 'zod';
 import * as dbOps from '../../db/index.js';
-import { isSupportedCurrency, isValidRate, toMinorUnits, fromMinorUnits, formatAmount, computeShares, convertExpense, validateExpense, amountsToRecord } from '../../core/index.js';
+import { isSupportedCurrency, isValidRate, toMinorUnits, fromMinorUnits, computeShares, convertExpense, validateExpense, amountsToRecord } from '../../core/index.js';
 import type { ToolContext, ToolOutcome, PlannedAction } from '../types.js';
 
 export const id = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
@@ -52,7 +53,6 @@ export function person(c: ToolContext, value: string): number {
   const found = people(c,[{name:value}]);
   return found.length === 1 ? found[0]!.memberId : refuse('Choose one person.');
 }
-export const quotedName = (c:ToolContext, memberId:number) => JSON.stringify(dbOps.getMember(c.db,c.scope,memberId).displayName);
 export function inputOf(e: dbOps.ExpenseDetail): dbOps.ExpenseInput {
   return { payerId:e.payerId, description:e.description, merchant:e.merchant, expenseDate:e.expenseDate, total:e.total, currency:e.currency,
     tax:e.tax, taxIncluded:e.taxIncluded, tip:e.tip, serviceCharge:e.serviceCharge, discount:e.discount, splitType:e.splitType,
@@ -102,7 +102,7 @@ export function expenseAmounts(c:ToolContext, input:dbOps.ExpenseInput, t:dbOps.
   if(problems.length) refuse(problems.map(p=>p.message).join(' '));
   const amounts=computeShares(s.expense,s.items,s.shares);
   const converted=convertExpense({...s.expense,currency:input.currency!,fxRate},amounts,t.homeCurrency);
-  return {amounts:amountsToRecord(amounts), homeAmounts:amountsToRecord(converted.shares), homeTotal:formatAmount(converted.total,t.homeCurrency)};
+  return {amounts:amountsToRecord(amounts), homeAmounts:amountsToRecord(converted.shares), homeTotal:displayAmount(converted.total,t.homeCurrency)};
 }
 export function defineTool<S extends z.ZodType>(name:string, description:string, schema:S, run:(c:ToolContext,args:z.infer<S>)=>ToolOutcome|Promise<ToolOutcome>) {
   return {name,description,schema, async execute(c:ToolContext,args:unknown):Promise<ToolOutcome>{
@@ -112,4 +112,6 @@ export function defineTool<S extends z.ZodType>(name:string, description:string,
   }};
 }
 export const read = (data:unknown):ToolOutcome=>({kind:'read',data});
-export const plan = (action:PlannedAction['action'],summary:string,confirmLabel:string):ToolOutcome=>({kind:'proposal',plans:[{action,summary,confirmLabel}]});
+export const plan = (action:PlannedAction['action'],summary:Summary,confirmLabel:string):ToolOutcome=>({kind:'proposal',plans:[{action,...summaryFields(summary),confirmLabel}]});
+
+export const memberName = (c:ToolContext, memberId:number, personal = false) => personal && c.scope.actor.kind === "member" && c.scope.actor.memberId === memberId ? "you" : dbOps.getMember(c.db,c.scope,memberId).displayName;

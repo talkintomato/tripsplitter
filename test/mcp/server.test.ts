@@ -55,7 +55,7 @@ describe('tools over MCP', () => {
     const { f, deps, connection, notifier } = setup();
     const result = await callTool(deps, connection, 'add_expense', { ...expenseArgs, group: f.g.group.id });
     expect(result.isError).toBeFalsy();
-    expect(textOf(result)).toMatch(/^Done\./);
+    expect(textOf(result)).toBe('Done.\n\n➕ Add Taxi\n\nTotal: 12.00 SGD\nPaid by you\nDate: Mon 28 Sep\nSplit equally between 2\n\nEach pays\n• Sam: 6.00 SGD\n• Alex: 6.00 SGD');
     const [saved] = d.listExpenses(f.db, f.scope, f.trip.id);
     expect(saved).toMatchObject({ status: 'confirmed', total: 1200, createdBy: f.member.id });
     // Nothing is kept waiting for a confirmation.

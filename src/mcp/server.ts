@@ -11,7 +11,7 @@ import {
   type Db, type Group, type McpConnection, type Member,
 } from '../db/index.js';
 import { isAllowedChat } from '../bot/support.js';
-import { applyPlans, proposalVersions, registry, runTool, type AgentNotice } from '../tools/index.js';
+import { applyPlans, proposalVersions, registry, runTool, type AgentNotice, toPlainText, proposalSummary } from '../tools/index.js';
 
 export interface McpDeps {
   db: Db;
@@ -107,7 +107,7 @@ export async function callTool(deps: McpDeps, connection: McpConnection, name: s
     const result = applyPlans(deps.db, scope, { plans: outcome.plans, versions });
     if (result.kind !== 'done') return text(result.kind === 'refused' ? result.reason : result.text, true);
     for (const notice of result.notices) await dispatch(deps.notifier, notice, connection.clientName);
-    return text(`Done.\n\n${outcome.plans.map((plan) => plan.summary).join('\n\n')}`);
+    return text(`Done.\n\n${toPlainText(proposalSummary(outcome.plans))}`);
   } catch (error) {
     if (error instanceof z.ZodError) return text(`The arguments are not valid: ${error.issues.map((i) => `${i.path.join('.') || 'input'}: ${i.message}`).join('; ')}`, true);
     if (error instanceof DomainError) return text(error.message, true);
