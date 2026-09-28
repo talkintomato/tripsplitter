@@ -26,6 +26,7 @@ export interface Button {
   text: string;
   callback_data?: string;
   url?: string;
+  web_app?: { url: string };
 }
 
 export function fakeNotifier(): Notifier {
@@ -83,6 +84,7 @@ export function harness(options: HarnessOptions) {
   const passedOn: Update[] = [];
   const errors: string[] = [];
   const sentIds: number[] = [];
+  const failing = new Set<string>();
   let nextMessageId = 5000;
   let nextUpdateId = 1;
   const allowed = options.allowed ?? [CHAT_A, CHAT_B];
@@ -91,6 +93,7 @@ export function harness(options: HarnessOptions) {
   bot.api.config.use(async (_prev, method, payload) => {
     const data = payload as Record<string, unknown>;
     calls.push({ method, payload: data });
+    if (failing.has(method)) return { ok: false, error_code: 403, description: 'Fake failure' };
     let result: unknown = true;
     if (method === 'sendMessage') {
       sentIds.push(nextMessageId);
@@ -117,7 +120,9 @@ export function harness(options: HarnessOptions) {
     passedOn.push(ctx.update);
   });
 
-  const chatOf = (chatId: number) => ({ id: chatId, type: 'supergroup' as const, title: 'Trip' });
+  const chatOf = (chatId: number) => chatId > 0
+    ? { id: chatId, type: 'private' as const, first_name: 'Ana' }
+    : { id: chatId, type: 'supergroup' as const, title: 'Trip' };
   const photo = [
     { file_id: 'photo-small', file_unique_id: 's', width: 90, height: 120 },
     { file_id: 'photo-large', file_unique_id: 'l', width: 960, height: 1280 },
@@ -138,6 +143,7 @@ export function harness(options: HarnessOptions) {
     passedOn,
     errors,
     sentIds,
+    failing,
     readReceipt,
     downloadPhoto,
     suggestRate,
@@ -145,6 +151,9 @@ export function harness(options: HarnessOptions) {
     /** A photo, with or without a caption. */
     sendPhoto: (caption: string | undefined, from: User = ANA, chatId = CHAT_A) =>
       send({ message: { ...base(from, chatId), photo, ...(caption !== undefined ? { caption } : {}) } as never }),
+    sendDocument: (mime: string, caption?: string, from: User = ANA, chatId = CHAT_A, extra = {}) =>
+      send({ message: { ...base(from, chatId), document: { file_id: 'document', file_unique_id: 'doc', mime_type: mime, ...extra }, ...(caption !== undefined ? { caption } : {}) } as never }),
+    command: (text: string, from: User = ANA) => send({ message: { ...base(from, from.id), text, entities: [{ type: 'bot_command', offset: 0, length: text.length }] } as never }),
     /** A text message that replies to a photo. */
     sendReplyToPhoto: (text: string, from: User = ANA, chatId = CHAT_A) =>
       send({ message: { ...base(from, chatId), text, reply_to_message: { ...base(SAM, chatId), photo } } as never }),

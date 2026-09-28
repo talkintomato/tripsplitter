@@ -205,8 +205,9 @@ it('does not model disallowed groups or expose their private choices', async () 
 });
 it.each([CHAT, ANA.id])('/help in chat %s shows three examples and an app button, without a model call', async chatId => {
   const h = make(); await h.send('/help', { entities: [{ type: 'bot_command', offset: 0, length: 5 }] }, ANA, chatId);
-  expect(h.sent().at(-1)?.text.split('\n')).toHaveLength(4);
+  expect(h.sent().at(-1)?.text.split('\n')).toHaveLength(6);
   expect(h.sent().at(-1)?.text).toContain('taxi 24 dollars'); expect(h.sent().at(-1)?.text).toContain('who owes what?'); expect(h.sent().at(-1)?.text).toContain('I paid Sam 20 SGD');
+  expect(h.sent().at(-1)?.text).toContain('Send me a photo of a receipt');
   expect(h.buttons()).toHaveLength(1); expect(h.model.requests).toEqual([]);
 });
 it('a changed expense record refuses confirmation without a notice', async () => {
@@ -264,4 +265,31 @@ it('/help stays available with chat disabled and uses a private web_app button',
   await h.send('/help', { entities: [{ type: 'bot_command', offset: 0, length: 5 }] }, ANA, ANA.id);
   expect(h.sent().at(-1)?.text).toContain('who owes what?');
   expect(h.buttons()[0]?.web_app).toEqual({ url: 'https://trip.example' }); expect(h.model.requests).toEqual([]);
+});
+
+it.each([false, true])('private photo gets one receipt reply and no agent reply (receiptAfter=%s)', async receiptAfter => {
+  const h = make([], { receiptAfter });
+  await h.send('', { text: undefined, photo: [{ file_id: 'p', file_unique_id: 'p', width: 10, height: 10 }] }, ANA, ANA.id);
+  expect(h.readReceipt).toHaveBeenCalledOnce(); expect(h.model.requests).toEqual([]);
+  expect(h.sent().filter(p => p.chat_id === ANA.id)).toEqual([expect.objectContaining({ text: 'Reading receipt...' })]);
+  expect(h.sent('editMessageText').filter(p => p.chat_id === ANA.id)).toHaveLength(1);
+});
+it('agent /group choice is used by receipts, and receipt choice is used by the agent', async () => {
+  const h = make([text()], { groups: 2 });
+  await h.send('', { text: undefined, photo: [{ file_id: 'p', file_unique_id: 'p', width: 10, height: 10 }] }, ANA, ANA.id);
+  await h.tap(h.data('Trip 0'), ANA, ANA.id);
+  await h.privateText('hello');
+  expect(h.model.requests[0]!.trip.data).toMatchObject({ trip: { id: h.groups[0]!.trip!.id } });
+  await h.send('/group', { entities: [{ type: 'bot_command', offset: 0, length: 6 }] }, ANA, ANA.id);
+  await h.tap(h.data('Trip 1'), ANA, ANA.id);
+  await h.send('', { text: undefined, document: { file_id: 'doc', file_unique_id: 'doc', mime_type: 'image/jpeg' } }, ANA, ANA.id);
+  expect(h.sent('editMessageText').at(-1)?.text).toContain('For Trip 1');
+  expect(h.model.requests).toHaveLength(1);
+});
+it('agent approval of a private receipt notifies its group once', async () => {
+  const h = make([calls(['approve_draft', { expenseId: 1 }]), text()]);
+  await h.send('', { text: undefined, photo: [{ file_id: 'p', file_unique_id: 'p', width: 10, height: 10 }] }, ANA, ANA.id);
+  await h.privateText('approve the receipt'); const data = h.data('Approve it');
+  await h.tap(data, ANA, ANA.id); await h.tap(data, ANA, ANA.id);
+  expect(h.notifier.expenseSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chatId: CHAT, expenseId: 1 }));
 });

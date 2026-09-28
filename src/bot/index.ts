@@ -46,11 +46,11 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   if (config.mcpEnabled) registerMcpBotHandlers(bot, config, db);
   bot.chatType('private').command('start', async (ctx) => {
     if (config.webhookUrl) {
-      await ctx.reply('Open Trip Split to see your groups.', {
+      await ctx.reply('Send me a photo of a receipt. Open Trip Split to see your groups.', {
         reply_markup: new InlineKeyboard().webApp('Open Trip Split', config.webhookUrl),
       });
     } else {
-      await ctx.reply("Open Trip Split from your group's pinned message.");
+      await ctx.reply("Send me a photo of a receipt. Open Trip Split from your group's pinned message.");
     }
   });
   return {

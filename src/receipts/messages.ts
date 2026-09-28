@@ -1,6 +1,10 @@
 import { formatAmount } from '../core/index.js';
 
 export const TEXT = {
+  noGroup: "Add me to your trip's Telegram group first, then send receipts here or there.",
+  chooseGroup: 'Which trip is this receipt for?',
+  pendingExpired: 'That receipt expired or was replaced. Send the photo again.',
+  heicPreviewMissing: 'Please resend this HEIC image as a photo or JPEG so I can read the receipt.',
   notSetUp: "Receipt reading isn't set up. Tap Add expense to enter it by hand.",
   limitReached: 'Daily receipt limit reached. Tap Add expense to enter it by hand.',
   reading: 'Reading receipt...',

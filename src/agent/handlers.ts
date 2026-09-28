@@ -2,12 +2,13 @@ import { InlineKeyboard, type Bot, type Context } from 'grammy';
 import type { Config } from '../config.js';
 import type { Notifier, RateSuggester } from '../core/index.js';
 import {
-  appendTurn, chosenGroup, findGroupByChatId, findMemberByTelegramId, finishProposal, forgetExpiredTurns,
-  getGroup, getMember, getProposal, listGroupsForTelegramUser, memberScope, now, rememberChosenGroup, systemScope,
-  type Db, type Group, type Member,
+  appendTurn, findGroupByChatId, findMemberByTelegramId, finishProposal, forgetExpiredTurns,
+  getGroup, getMember, getProposal, memberScope, now, rememberChosenGroup, systemScope,
+  type Db,
 } from '../db/index.js';
 import { cancelProposal, confirmProposal, proposalVersions, type AgentNotice, type PlannedAction } from '../tools/index.js';
 import { agentText, appKeyboard } from '../bot/chat.js';
+import { groupChoiceKeyboard, privateChatKey, privateGroupChoice, type Membership } from '../bot/group-choice.js';
 import { runAgentTurn } from './loop.js';
 import { createOpenAIAgentModel } from './openai.js';
 import type { AgentModel } from './model.js';
@@ -26,10 +27,10 @@ export const AGENT_TEXT = {
 };
 export const proposalCallback = (action: 'yes' | 'change' | 'cancel', id: string): string => `ag:${action}:${id}`;
 const proposalPattern = /^ag:(yes|change|cancel):([a-f0-9-]{36})$/;
-type Membership = { group: Group; member: Member };
 
 /** The disabled fallback has no model and never stores a conversation. Registered after receipts. */
 export function registerAgentUnavailableHandlers(bot: Bot, config: Config, db: Db, deps: Pick<AgentHandlerDeps, 'isAllowedChat'>): void {
+  privateGroupChoice(bot, db, deps.isAllowedChat);
   bot.on('message', async (ctx, next) => {
     if (agentText(ctx.message, config.botUsername, ctx.me.id) === null) return next();
     const privateChat = ctx.chat.type === 'private';
@@ -45,30 +46,16 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
   if (!model) { registerAgentUnavailableHandlers(bot, config, db, deps); return; }
   // Only unprocessed addressed messages waiting for a group choice. Purged opportunistically.
   const pending = new Map<string, { text: string; messageId: number; at: number }>();
-  const queues = new Map<string, Promise<void>>();
-  const keyOf = (ctx: Context) => `${ctx.chat!.id}:${ctx.from!.id}`;
-  async function serial(ctx: Context, task: () => Promise<void>): Promise<void> {
-    const key = keyOf(ctx);
-    const run = (queues.get(key) ?? Promise.resolve()).then(task, task);
-    queues.set(key, run);
-    try { await run; } finally { if (queues.get(key) === run) queues.delete(key); }
-  }
+  const selection = privateGroupChoice(bot, db, deps.isAllowedChat);
+  const { serial, memberships } = selection;
+  const keyOf = privateChatKey;
   function housekeeping(): void {
     const at = now();
     forgetExpiredTurns(db, at);
     for (const [key, value] of pending) if (value.at <= at.getTime() - 30 * 60_000) pending.delete(key);
   }
-  function memberships(ctx: Context): Membership[] {
-    return listGroupsForTelegramUser(db, ctx.from!.id).filter(m => deps.isAllowedChat(m.group.chatId));
-  }
   function identify(ctx: Context): Membership | undefined {
-    if (ctx.chat!.type === 'private') {
-      const groups = memberships(ctx);
-      const selected = chosenGroup(db, ctx.from!.id, ctx.chat!.id);
-      const who = groups.find(m => m.group.id === selected?.groupId) ?? (groups.length === 1 ? groups[0] : undefined);
-      if (who) rememberChosenGroup(db, memberScope(who.group.id, who.member.id), ctx.chat!.id, now());
-      return who;
-    }
+    if (ctx.chat!.type === 'private') return selection.identify(ctx);
     const group = findGroupByChatId(db, ctx.chat!.id);
     if (!group || !deps.isAllowedChat(group.chatId)) return;
     const member = findMemberByTelegramId(db, systemScope(group.id), ctx.from!.id);
@@ -77,8 +64,7 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
   async function choose(ctx: Context): Promise<void> {
     const groups = memberships(ctx);
     if (!groups.length) { pending.delete(keyOf(ctx)); await ctx.reply(AGENT_TEXT.noGroup); return; }
-    const keyboard = new InlineKeyboard();
-    for (const { group } of groups) keyboard.text(group.title, `ag:g:${group.id}`).row();
+    const keyboard = groupChoiceKeyboard(groups, group => `ag:g:${group.id}`);
     await ctx.reply('Which group do you mean?', { reply_markup: keyboard });
   }
   async function turn(ctx: Context, who: Membership, text: string, messageId: number): Promise<void> {
@@ -106,23 +92,12 @@ export function registerAgentHandlers(bot: Bot, config: Config, db: Db, deps: Ag
       }
     } finally { clearInterval(timer); }
   }
-  bot.chatType('private').command('group', async ctx => {
-    if (ctx.from?.is_bot) return;
-    await serial(ctx, async () => { housekeeping(); pending.delete(keyOf(ctx)); await choose(ctx); });
-  });
-  bot.callbackQuery(/^ag:g:(\d{1,16})$/, async ctx => {
-    if (ctx.from.is_bot || ctx.chat?.type !== 'private') return;
-    await serial(ctx, async () => {
-      housekeeping();
-      const who = memberships(ctx).find(m => m.group.id === Number(ctx.match[1]));
-      if (!who) { await ctx.answerCallbackQuery({ text: 'That group is not available.', show_alert: true }); return; }
-      rememberChosenGroup(db, memberScope(who.group.id, who.member.id), ctx.chat!.id, now());
-      const request = pending.get(keyOf(ctx));
-      pending.delete(keyOf(ctx));
-      await ctx.answerCallbackQuery();
-      await ctx.editMessageText(`Using ${who.group.title}. Use /group to switch.`, { reply_markup: { inline_keyboard: [] } });
-      if (request) await turn(ctx, who, request.text, request.messageId);
-    });
+  selection.onReset.push(ctx => { housekeeping(); pending.delete(keyOf(ctx)); });
+  selection.onChoose.push(async (ctx, who) => {
+    housekeeping();
+    const request = pending.get(keyOf(ctx));
+    pending.delete(keyOf(ctx));
+    if (request) await turn(ctx, who, request.text, request.messageId);
   });
   bot.on('message', async (ctx, next) => {
     const text = agentText(ctx.message, config.botUsername, ctx.me.id);

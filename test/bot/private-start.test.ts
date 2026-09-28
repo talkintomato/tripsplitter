@@ -13,6 +13,7 @@ it.each([undefined, 'https://trip.example'])('private start uses the public addr
     }));
     expect(h.sent()).toHaveLength(1);
     const reply = h.sent()[0]!.payload;
+    expect(reply.text).toContain('Send me a photo of a receipt');
     if (url) expect(reply.reply_markup).toEqual({ inline_keyboard: [[{ text: 'Open Trip Split', web_app: { url } }]] });
     else {
       expect(reply.reply_markup).toBeUndefined();
