@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, messageOf } from '../api/client';
-import { useSwipeBack } from '../swipeBack';
+import { markBackByReplace, usePageHistory, useSwipeBack } from '../swipeBack';
 import { inTelegram, showBackButton } from '../telegram';
 import { Alert, ChevronLeft, ChevronRight, Close, Info, type IconComponent } from './icons';
 
@@ -34,14 +34,17 @@ export function Screen(props: {
   const pageRef = useRef<HTMLElement>(null);
   const { back = true } = props;
   const goBack = (): void => {
-    if (typeof back === 'string') navigate(back, { replace: true });
-    else navigate(-1);
+    if (typeof back === 'string') {
+      markBackByReplace();
+      navigate(back, { replace: true });
+    } else navigate(-1);
   };
   useEffect(() => {
     if (!back) return undefined;
     return showBackButton(goBack);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [back]);
+  usePageHistory(pageRef);
   useSwipeBack(pageRef, back && props.swipeBack !== false ? goBack : null);
 
   const leading = props.leading ?? (back && !inTelegram() ? (
