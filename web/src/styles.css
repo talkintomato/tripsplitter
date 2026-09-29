@@ -2860,3 +2860,26 @@ div.person {
 .notification-switch[aria-checked='true'] .notification-track { background: var(--accent); }
 .notification-switch[aria-checked='true'] .notification-track > span { transform: translateX(16px); background: var(--on-accent); }
 .notification-switch:disabled { opacity: .6; cursor: wait; }
+
+/* Expense photos */
+.photo-row { display: flex; gap: 12px; overflow-x: auto; padding-block: 4px; }
+.photo-tile { position: relative; flex: 0 0 96px; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.photo-tile img { width: 100%; height: 100%; object-fit: cover; }
+.photo-open { position: absolute; inset: 0; width: 100%; background: transparent; border: 0; }
+.photo-open:focus-visible { outline-offset: -4px; }
+.photo-label { position: absolute; bottom: 4px; left: 4px; padding: 2px 6px; border-radius: 4px; background: #000b; color: #fff; font-size: 12px; pointer-events: none; }
+.photo-remove { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: grid; place-items: center; background: #000b; color: #fff; border: 0; border-radius: 0 0 0 12px; }
+.photo-add { border: 1px dashed var(--field-line); color: var(--accent-text); font-weight: 600; }
+.photo-skeleton { display: block; width: 100%; height: 100%; min-height: 96px; }
+.photo-failed { position: relative; z-index: 1; display: grid; place-content: center; height: 100%; text-align: center; font-size: 12px; color: var(--muted); }
+.photo-upload { position: absolute; inset: 0; display: grid; place-items: center; background: #0005; }
+.photo-spinner { width: 24px; height: 24px; border: 3px solid #fff6; border-top-color: #fff; border-radius: 50%; animation: photo-spin 0.8s linear infinite; }
+@keyframes photo-spin { to { transform: rotate(360deg); } }
+.photo-viewer { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column; padding: calc(var(--top-inset) + 12px) 12px max(12px, env(safe-area-inset-bottom)); touch-action: pan-y; overscroll-behavior: contain; }
+.photo-viewer button { width: 48px; height: 48px; display: grid; place-items: center; flex-shrink: 0; border: 0; border-radius: 50%; color: #fff; background: #222; }
+.photo-view-close { align-self: flex-end; }
+.photo-view-image { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.photo-view-image img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.photo-view-image .photo-failed { color: #fff; }
+.photo-view-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+@media (prefers-reduced-motion: reduce) { .photo-spinner { animation: none; } }

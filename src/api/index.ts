@@ -4,6 +4,7 @@ import type { Db } from '../db/index.js';
 import { accessMiddleware } from './access.js';
 import type { ApiDeps, ApiEnv, Services } from './context.js';
 import { handleError } from './errors.js';
+import { registerPhotoRoutes } from './routes/photos.js';
 import { registerExpenseRoutes } from './routes/expenses.js';
 import { registerMyGroupsRoute } from './routes/my-groups.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
@@ -30,7 +31,7 @@ export function createApi(config: Config, db: Db, deps: ApiDeps): Hono<ApiEnv> {
   app.use('/api/*', async (c, next) => {
     await next();
     // Answers depend on who asks and change all the time.
-    c.header('Cache-Control', 'no-store');
+    if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
   });
   // Only this terminal GET handler runs before the group launch check.
   registerMyGroupsRoute(app, services);
@@ -41,6 +42,7 @@ export function createApi(config: Config, db: Db, deps: ApiDeps): Hono<ApiEnv> {
   registerTripRoutes(app, services);
   registerRateRoutes(app, services);
   registerExpenseRoutes(app, services);
+  registerPhotoRoutes(app, services);
 
   app.all('/api/*', (c) => c.json({ error: { code: 'not_found', message: 'That does not exist.' } }, 404));
   return app;

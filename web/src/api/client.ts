@@ -89,6 +89,9 @@ export interface ApiClient {
   /** What each person would pay for an expense that is not saved yet. Changes nothing. */
   previewExpense(body: ExpensePreviewBody): Promise<ExpensePreviewResponse>;
   getExpense(id: number): Promise<ExpenseResponse>;
+  uploadPhoto(expenseId: number, photo: Blob): Promise<{ id: number; width: number; height: number }>;
+  removePhoto(id: number): Promise<void>;
+  photoBlob(path: string): Promise<Blob>;
   saveExpense(id: number, body: SaveExpenseBody): Promise<ExpenseWriteResponse>;
   confirmExpense(id: number, version: number): Promise<ExpenseResponse>;
   discardExpense(id: number, version: number): Promise<ExpenseResponse>;
@@ -114,7 +117,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   const send = options.fetch ?? ((input, init) => fetch(input, init));
   const base = options.baseUrl ?? '';
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown, blob = false): Promise<T> {
     let response: Response;
     try {
       response = await send(`${base}${path}`, {
@@ -122,13 +125,15 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         headers: {
           Authorization: `tma ${options.initData}`,
           ...(path === '/api/my-groups' ? {} : { 'X-Launch': launch }),
-          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(body !== undefined && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(body !== undefined ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
       });
     } catch {
       throw new ApiError(0, 'network', 'Could not reach TripSplitter. Check your connection and try again.');
     }
+    if (response.ok && blob) return await response.blob() as T;
+    if (response.status === 204) return undefined as T;
     let parsed: unknown = null;
     try {
       parsed = await response.json();
@@ -177,6 +182,13 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     createExpense: (tripId, body) => request('POST', `/api/trips/${tripId}/expenses`, body),
     previewExpense: (body) => request('POST', '/api/expenses/preview', body),
     getExpense: (id) => request('GET', `/api/expenses/${id}`),
+    uploadPhoto: (id, photo) => {
+      const form = new FormData();
+      form.append('photo', photo, 'photo.jpg');
+      return request('POST', `/api/expenses/${id}/photos`, form);
+    },
+    removePhoto: id => request('DELETE', `/api/photos/${id}`),
+    photoBlob: path => request('GET', path, undefined, true),
     saveExpense: (id, body) => request('PUT', `/api/expenses/${id}`, body),
     confirmExpense: (id, version) => request('POST', `/api/expenses/${id}/confirm`, { version }),
     discardExpense: (id, version) => request('POST', `/api/expenses/${id}/discard`, { version }),

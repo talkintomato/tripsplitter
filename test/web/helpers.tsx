@@ -47,6 +47,8 @@ export function expenseView(over: Partial<ExpenseView> = {}): ExpenseView {
     fxRate: '1',
     fxRateSource: 'home',
     splitType: 'even',
+    photos: [],
+    hasReceiptPhoto: false,
     receiptFileId: 'file-abc',
     emoji: null,
     status: 'confirmed',
@@ -78,7 +80,7 @@ export function written(expense: ExpenseView): ExpenseWriteResponse {
 /** A client whose every function is a mock that fails unless the test says what it returns. */
 export function fakeClient(): { [K in keyof ApiClient]: ReturnType<typeof vi.fn> } & ApiClient {
   const names: Array<keyof ApiClient> = [
-    'request', 'setLaunch', 'getMyGroups', 'getGroup', 'resetLink', 'addMember', 'claimMember', 'listActivity', 'listTrips', 'createTrip', 'getTrip',
+    'uploadPhoto', 'removePhoto', 'photoBlob', 'request', 'setLaunch', 'getMyGroups', 'getGroup', 'resetLink', 'addMember', 'claimMember', 'listActivity', 'listTrips', 'createTrip', 'getTrip',
     'patchTrip', 'endTrip', 'reopenTrip', 'listExpenses', 'createExpense', 'previewExpense', 'getExpense', 'saveExpense', 'confirmExpense',
     'discardExpense', 'deleteExpense', 'restoreExpense', 'getBalances', 'createSettlement', 'undoSettlement', 'restoreSettlement',
   ];

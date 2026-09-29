@@ -1,3 +1,4 @@
+import { PhotoField, usePhotoField } from '../photos/PhotoField';
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
 import { isValidRate } from '../../../src/core/rates';
@@ -36,7 +37,7 @@ export interface ExpenseFormProps {
   /** The expense to edit or the draft to finish. Left out for a new expense. */
   expense?: ExpenseView;
   /** Called with the saved expense. */
-  onSaved(result: ExpenseWriteResponse): void;
+  onSaved(result: ExpenseWriteResponse, failedPhotos?: Blob[]): void;
   onCancel?(): void;
   /** Opens the exchange rate sheet straight away, as "Change" on the expense's detail does. */
   openRateSheet?: boolean;
@@ -63,6 +64,7 @@ function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, lat
 export function ExpenseForm(props: ExpenseFormProps) {
   const { client, members } = props;
   const [expense, setExpense] = useState(props.expense);
+  const photoField = usePhotoField(client, props.expense);
   // The currency a new expense was refused in for want of a rate. The rate row then asks for one.
   const [refusedCurrency, setRefusedCurrency] = useState<string | null>(null);
   const [roundingNote, setRoundingNote] = useState('');
@@ -139,6 +141,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
    * edited, "Save changes, approve later". A person's own expense is never kept as a draft.
    */
   async function submit(kind: 'save' | 'draft', useVersion = version): Promise<void> {
+    if (photoField.working || busy !== null) return;
     setTouched(true);
     setError(undefined);
     if (kind === 'draft' && !isDraft) return;
@@ -163,7 +166,9 @@ export function ExpenseForm(props: ExpenseFormProps) {
         server.retry();
         return;
       }
-      props.onSaved(result);
+      const failedPhotos = expense === undefined ? await photoField.uploadAfterSave(result.expense.id) : [];
+      if (failedPhotos.length) props.onSaved(result, failedPhotos);
+      else props.onSaved(result);
     } catch (problem) {
       if (problem instanceof ApiError && problem.stale && problem.current) {
         setLatest(problem.current as ExpenseView);
@@ -515,13 +520,15 @@ export function ExpenseForm(props: ExpenseFormProps) {
         {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link-btn small" onClick={server.retry}>Try preview again</button> : null}
       </div>
 
+      <PhotoField client={client} field={photoField} expense={expense} disabled={busy !== null} />
+
       {/* By item: More options sits above what each person pays, since tax, tip and discount change it. */}
       {moreInsideSplit ? null : moreOptions}
 
       {server.status === 'loading' ? <p role="status" className="visually-hidden">Updating amounts…</p> : null}
       <div className="action-bar">
         {saveReason !== null ? <p className="save-reason" role="alert">{saveReason}</p> : null}
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy !== null || saveReason !== null || blocked || firstProblem !== null}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={photoField.working || busy !== null || saveReason !== null || blocked || firstProblem !== null}>
           {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Approve and save' : 'Save changes'}
         </button>
         {isDraft ? (

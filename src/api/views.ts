@@ -6,7 +6,7 @@ import {
   validateExpense,
   type ExpenseProblem,
 } from '../core/index.js';
-import { getTrip, listExpenses, type CurrencyCode, type Db, type ExpenseDetail, type Group, type Scope, type Trip } from '../db/index.js';
+import { getTrip, listExpensePhotos, listExpenses, type CurrencyCode, type Db, type ExpenseDetail, type Group, type Scope, type Trip } from '../db/index.js';
 import { RATE_MISSING_NOTICE, type ExpenseView, type GroupInfo, type MyStake, type TripSummary } from './types.js';
 
 /** Everything that stops the expense from being confirmed, in the order a member should fix it. */
@@ -43,6 +43,8 @@ export function toExpenseView(db: Db, scope: Scope, detail: ExpenseDetail, trip?
   const rateMissing = detail.fxRateSource === 'missing' && (detail.status === 'draft' || detail.status === 'discarded');
   return {
     ...detail,
+    photos: listExpensePhotos(db, scope, detail.id).map(({ id, width, height }) => ({ id, width, height })),
+    hasReceiptPhoto: Boolean(detail.receiptFileId),
     homeCurrency: ofTrip.homeCurrency,
     amounts,
     homeTotal,

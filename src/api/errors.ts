@@ -5,6 +5,7 @@ import { NotFoundError, PermissionError, StaleEditError, ValidationError, type D
 import { InitDataError } from './auth.js';
 import type { ApiEnv } from './context.js';
 import type { ApiErrorBody } from './types.js';
+import { PhotoError } from './photos.js';
 import { toExpenseView } from './views.js';
 
 export const LINK_INVALID_MESSAGE = 'This link is no longer valid. Use the latest one pinned in the group.';
@@ -29,6 +30,7 @@ function body(error: ApiErrorBody['error']): ApiErrorBody {
 
 /** Turns whatever a route threw into a response. Only messages written for members are passed on. */
 export function handleError(db: Db, error: unknown, c: Context<ApiEnv>): Response {
+  if (error instanceof PhotoError) return c.json(body({ code: 'invalid_input', message: error.message }), error.status);
   if (error instanceof AccessError) return c.json(body({ code: error.code, message: error.message }), error.status);
   if (error instanceof InitDataError) {
     // The reason and the field names only. The values are personal and are never logged.
@@ -56,7 +58,7 @@ export function handleError(db: Db, error: unknown, c: Context<ApiEnv>): Respons
         ...(error.problems.length > 0 ? { problems: error.problems } : {}),
         ...(error.expenses.length > 0 ? { expenses: error.expenses } : {}),
       }),
-      400,
+      error.code === 'photo_limit' ? 409 : 400,
     );
   }
   if (error instanceof InvalidExpenseError) {

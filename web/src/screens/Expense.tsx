@@ -1,3 +1,5 @@
+import { PhotoImage } from '../photos/PhotoImage';
+import { Photos } from '../photos/Photos';
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
@@ -59,9 +61,9 @@ export function AddExpense() {
         meId={group.me.id}
         tripId={tripId}
         homeCurrency={trip.data?.homeCurrency ?? group.newTripCurrency}
-        onSaved={(result) => {
+        onSaved={(result, failedPhotos) => {
           void refresh().catch(() => undefined);
-          navigate(`/expenses/${result.expense.id}`, { replace: true });
+          navigate(`/expenses/${result.expense.id}`, { replace: true, state: { failedPhotos } });
         }}
         onCancel={() => navigate(-1)}
       />
@@ -158,6 +160,10 @@ function RateRowText(props: { expense: ExpenseView }) {
 }
 
 export function ExpenseDetail() {
+  const location = useLocation();
+  const [failedPhotos, setFailedPhotos] = useState<Blob[]>(() => (location.state as { failedPhotos?: Blob[] } | null)?.failedPhotos ?? []);
+  const [retryingPhotos, setRetryingPhotos] = useState(false);
+  const [photoRevision, setPhotoRevision] = useState(0);
   const { client, group } = useApp();
   const navigate = useNavigate();
   const id = Number(useParams().id);
@@ -309,6 +315,31 @@ export function ExpenseDetail() {
         {expense.amounts === null && expense.problems.length > 0 ? <p className="problem">{expense.problems.find((p) => p.field !== 'fxRate' && p.field !== 'currency')?.message}</p> : null}
       </section>
 
+      <Photos client={client} expense={expense} />
+      {failedPhotos.length > 0 ? <Banner kind="error">
+        <p>A photo could not be uploaded</p>
+        <div className="photo-row">
+          {failedPhotos.map((photo, index) => <div className="photo-tile" key={index}>
+            <PhotoImage client={client} source={photo} alt="Photo awaiting upload" />
+            {retryingPhotos ? <span className="photo-upload" role="status" aria-label="Uploading photo"><span className="photo-spinner" /></span> : null}
+          </div>)}
+        </div>
+        {editable ? <button type="button" className="btn btn-secondary" disabled={retryingPhotos} onClick={() => {
+          setRetryingPhotos(true);
+          void (async () => {
+            const remaining: Blob[] = [];
+            for (const photo of failedPhotos) {
+              try { await client.uploadPhoto(expense.id, photo); } catch { remaining.push(photo); }
+            }
+            setFailedPhotos(remaining);
+            navigate(location.pathname, { replace: true, state: { failedPhotos: remaining } });
+            await loaded.reload();
+            setPhotoRevision(n => n + 1);
+            setRetryingPhotos(false);
+          })();
+        }}>{retryingPhotos ? 'Uploading…' : 'Try again'}</button> : null}
+      </Banner> : null}
+
       {expense.items.length > 0 ? (
         <Section title="Items on the receipt">
           <ul className="list-card">
@@ -353,7 +384,7 @@ export function ExpenseDetail() {
         ))}
       </dl>
 
-      <History type="expense" id={expense.id} version={expense.version} />
+      <History key={photoRevision} type="expense" id={expense.id} version={expense.version} />
 
       {open ? (
         expense.status === 'draft' ? (

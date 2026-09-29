@@ -17,6 +17,7 @@ Split trip expenses without leaving your Telegram group. Add the bot to the chat
 
 - **Lives in the group chat.** Add the bot to a Telegram group and it sets up the trip, learns who is in the group, and posts a short note whenever something changes.
 - **Reads receipts.** Post a photo with the bot's name in the caption, or send it to the bot privately. It reads the merchant, total, currency and line items into a draft for someone to approve. Booking and order confirmations work too.
+- **Keeps expense photos.** Add up to three photos, view them full screen, and see the original receipt from Telegram.
 - **Splits three ways.** Equally, by portions, or by item, with a counter per person for shared dishes ("Sam had 2 of the 3 beers").
 - **Handles currencies.** Twelve currencies, with the live mid-market rate looked up when a trip has none, one fixed rate per trip, and an optional rate per expense.
 - **Settles up with few payments.** Works out the net balances and a short list of payments that clears everything.
@@ -64,6 +65,8 @@ DATABASE_PATH=./data/dev.db pnpm tsx src/api/dev-server.ts
 It prints the address to open.
 
 ## Deploy
+
+Expense photos and cached receipts live beside the database in `photos` (`/data/photos` in production), on the same persistent volume and covered by its volume backups. Include that folder when making manual backups; copying just the database does not include photos.
 
 The steps below use [Railway](https://railway.com), but any host works that gives you an always-on process, a persistent disk and an HTTPS address. There is a `Dockerfile` for other hosts. Full detail is in [`docs/deploy-railway.md`](docs/deploy-railway.md) and [`docs/deploy.md`](docs/deploy.md).
 
@@ -143,6 +146,7 @@ All settings are environment variables; [`.env.example`](.env.example) lists eve
 | `LINK_SECRET` | Yes | Signs links into the Mini App, at least 32 characters |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | When deployed | Public address, and the secret for Telegram's calls |
 | `DATABASE_PATH` | No | SQLite file, default `./data/tripsplitter.db` |
+| `PHOTO_DIR` | No | Photo storage, default `photos` beside `DATABASE_PATH`; created on startup |
 | `OPENAI_API_KEY` | For AI features | Receipt reading and the chat agent are off without it |
 | `RECEIPT_MODEL`, `AGENT_MODEL` | No | Default `gpt-6-luna` |
 | `RECEIPT_DAILY_CAP`, `RECEIPT_GLOBAL_DAILY_CAP` | No | Receipt reads per group and overall per day, default 30 and 300 |
@@ -169,7 +173,7 @@ More on the agent in [`docs/agent.md`](docs/agent.md), and on connecting AI clie
 ## Privacy and cost
 
 - The bot reads every group message only to learn who is in the group, and never stores message text.
-- Only photos tagged with the bot's name, and messages written to the bot, are sent to OpenAI, with a request not to store them. Receipt images are kept in memory only; the app stores Telegram's reference to the photo.
+- Only photos tagged with the bot's name, and messages written to the bot, are sent to OpenAI, with a request not to store them. Receipt reading uses images in memory; the Mini App stores uploaded expense photos and caches receipt previews on disk, with location metadata removed.
 - With `gpt-6-luna`, AI costs are around a cent or two for a trip's worth of receipts and messages.
 
 ## Tests

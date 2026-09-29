@@ -5,6 +5,7 @@ import { NotFoundError, type Db, type Group, type Member, type Scope } from '../
 
 /** What the API needs from the other builds. Tests pass fakes. */
 export interface ApiDeps {
+  downloadPhoto?: (fileId: string) => Promise<Uint8Array>;
   notifier: Notifier;
   suggestRate: RateSuggester;
 }

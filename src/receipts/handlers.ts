@@ -1,6 +1,6 @@
 import { sendDraftWaiting } from '../bot/personal-notices.js';
 import { expenseNoticeContext, rateAffectedMembers } from '../tools/notice-context.js';
-import { InlineKeyboard, type Api, type Bot, type Context } from 'grammy';
+import { InlineKeyboard, type Bot, type Context } from 'grammy';
 import type { Message, PhotoSize, User } from 'grammy/types';
 import { groupChoiceKeyboard, GROUP_UNAVAILABLE, privateChatKey, privateGroupChoice, type Membership } from '../bot/group-choice.js';
 import { displayNameOf } from '../api/auth.js';
@@ -40,8 +40,8 @@ import { draftMessage, savedMessage, receiptHtml, TEXT } from './messages.js';
 import { createOpenAIReader, detectImageType, ReceiptReadError, type ReceiptReader } from './reader.js';
 import type { ReceiptReading } from './schema.js';
 
-/** Gets the bytes of a Telegram file. */
-export type PhotoDownloader = (fileId: string) => Promise<Uint8Array>;
+import { createTelegramDownloader, type PhotoDownloader } from './download.js';
+export { createTelegramDownloader, type PhotoDownloader } from './download.js';
 
 export interface ReceiptDeps {
   isAllowedChat: (chatId: number) => boolean;
@@ -131,28 +131,6 @@ export function findTrigger(message: Message, botUsername: string): ReceiptTrigg
   return null;
 }
 
-/**
- * Downloads a file from Telegram. The URL holds the bot token, so it stays inside this function:
- * it is not logged, not put in an error and not given to the model.
- */
-export function createTelegramDownloader(api: Pick<Api, 'getFile'>, botToken: string, fetchFn: typeof fetch = fetch): PhotoDownloader {
-  return async (fileId) => {
-    const file = await api.getFile(fileId);
-    if (!file.file_path) throw new Error('Telegram gave no path for the file.');
-    if (file.file_size !== undefined && file.file_size > MAX_PHOTO_BYTES) throw new Error('The photo is too large.');
-    let response: Response;
-    try {
-      response = await fetchFn(`https://api.telegram.org/file/bot${botToken}/${file.file_path}`);
-    } catch {
-      throw new Error('Could not download the photo from Telegram.');
-    }
-    if (!response.ok) throw new Error(`Could not download the photo from Telegram: status ${response.status}.`);
-    const data = new Uint8Array(await response.arrayBuffer());
-    if (data.byteLength === 0) throw new Error('The photo is empty.');
-    if (data.byteLength > MAX_PHOTO_BYTES) throw new Error('The photo is too large.');
-    return data;
-  };
-}
 
 interface Who {
   group: Group;

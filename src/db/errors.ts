@@ -3,6 +3,7 @@ import type { ExpenseProblem } from '../core/index.js';
 export type ValidationCode =
   /** A field has a value that cannot be accepted. */
   | 'invalid_input'
+  | 'photo_limit'
   /** `validateExpense` reported problems. They are in `problems`. */
   | 'invalid_expense'
   | 'unsupported_currency'

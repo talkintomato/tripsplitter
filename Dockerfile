@@ -11,6 +11,8 @@ COPY src ./src
 COPY web ./web
 RUN pnpm build
 RUN pnpm prune --prod
+# Fail the image build if the platform-specific sharp binary was not installed.
+RUN node -e "require('sharp')"
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production PORT=3000 DATABASE_PATH=/data/tripsplitter.db

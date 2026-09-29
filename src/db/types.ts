@@ -181,6 +181,8 @@ export type ActivityAction =
   | 'trip_rate.change'
   | 'trip_rate.remove'
   | 'trip_rate.member_merged'
+  | 'expense.photo_added'
+  | 'expense.photo_removed'
   | 'expense.create'
   | 'expense.save'
   | 'expense.rate_change'
@@ -288,4 +290,16 @@ export interface CreateExpenseInput extends ExpenseInput {
   tripId: number;
   /** Defaults to `confirmed`. A draft may be incomplete. A confirmed expense must pass every check of `confirmExpense`. */
   status?: 'draft' | 'confirmed';
+}
+
+export interface ExpensePhoto {
+  id: number;
+  groupId: number;
+  expenseId: number;
+  fileKey: string;
+  width: number;
+  height: number;
+  bytes: number;
+  addedByMemberId: number;
+  createdAt: string;
 }

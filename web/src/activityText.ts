@@ -30,6 +30,10 @@ const isReceiptDraft = (after: Loose): boolean => text(after, 'status') === 'dra
 export function historyText(entry: ActivityEntry): string {
   const after = record(entry.after);
   switch (entry.action) {
+    case 'expense.photo_added':
+      return 'Added a photo';
+    case 'expense.photo_removed':
+      return 'Removed a photo';
     case 'expense.create':
       return isReceiptDraft(after) ? 'Read from a receipt' : text(after, 'status') === 'draft' ? 'Started as a draft' : 'Added';
     case 'expense.save':
@@ -65,6 +69,10 @@ export function activityText(entry: ActivityEntry, members: ReadonlyArray<Member
   const after = record(entry.after);
   const latest = after ?? before;
   switch (entry.action) {
+    case 'expense.photo_added':
+      return 'added a photo';
+    case 'expense.photo_removed':
+      return 'removed a photo';
     case 'expense.create':
       return isReceiptDraft(after) ? `read a receipt: ${expenseText(after)}` : text(after, 'status') === 'draft' ? `started a draft: ${expenseText(after)}` : `added ${expenseText(after)}`;
     case 'expense.save':

@@ -17,6 +17,8 @@ import type {
 
 /** An expense as the API returns it: the record, plus what each person owes. */
 export interface ExpenseView extends ExpenseDetail {
+  photos: Array<{ id: number; width: number; height: number }>;
+  hasReceiptPhoto: boolean;
   /** Home currency of the expense's trip. */
   homeCurrency: CurrencyCode;
   /** Each included member's amount in the expense currency. Null while the expense has a problem. */
