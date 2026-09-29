@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, messageOf } from '../api/client';
+import { useSwipeBack } from '../swipeBack';
 import { inTelegram, showBackButton } from '../telegram';
 import { Alert, ChevronLeft, ChevronRight, Close, Info, type IconComponent } from './icons';
 
@@ -11,6 +12,8 @@ import { Alert, ChevronLeft, ChevronRight, Close, Info, type IconComponent } fro
  * Inside Telegram the way back is Telegram's own button, so the bar leaves its place empty.
  * `leading` replaces the way back, for a page that has something else to go to, such as All my groups.
  * `largeTitle`: the title is shown big, under the bar, instead of in it.
+ * A page with a way back can also be left by swiping from the left edge, unless `swipeBack` is false,
+ * as on a form where a stray swipe would lose what was typed.
  */
 export function Screen(props: {
   title: string;
@@ -23,10 +26,12 @@ export function Screen(props: {
   titleExtra?: ReactNode;
   /** With `largeTitle`: shown in place of the plain heading, such as a title that can be renamed by tapping it. */
   titleSlot?: ReactNode;
+  swipeBack?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const pageRef = useRef<HTMLElement>(null);
   const { back = true } = props;
   const goBack = (): void => {
     if (typeof back === 'string') navigate(back, { replace: true });
@@ -37,6 +42,7 @@ export function Screen(props: {
     return showBackButton(goBack);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [back]);
+  useSwipeBack(pageRef, back && props.swipeBack !== false ? goBack : null);
 
   const leading = props.leading ?? (back && !inTelegram() ? (
     <button type="button" className="icon-btn" onClick={goBack} aria-label="Back">
@@ -45,7 +51,7 @@ export function Screen(props: {
   ) : null);
 
   return (
-    <main className={`screen ${props.className ?? ''}`}>
+    <main ref={pageRef} className={`screen ${props.className ?? ''}`}>
       <header className={`bar ${props.largeTitle ? 'bar-plain' : ''}`}>
         <div className="bar-side">{leading}</div>
         {props.largeTitle ? <span /> : (

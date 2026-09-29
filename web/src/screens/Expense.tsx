@@ -52,7 +52,7 @@ export function AddExpense() {
     );
   }
   return (
-    <Screen title="Add expense" subtitle={trip.data?.name ?? 'This starts a new trip.'}>
+    <Screen title="Add expense" subtitle={trip.data?.name ?? 'This starts a new trip.'} swipeBack={false}>
       <ExpenseForm
         client={client}
         members={group.members}
@@ -115,7 +115,7 @@ export function EditExpense() {
     }
   }
   return (
-    <Screen title={expense.status === 'draft' ? 'Approve draft' : 'Edit expense'} subtitle={trip.name} actions={discardButton}>
+    <Screen title={expense.status === 'draft' ? 'Approve draft' : 'Edit expense'} subtitle={trip.name} actions={discardButton} swipeBack={!editable}>
       <ActionError error={error} onClose={() => setError(undefined)} />
       {discarding ? (
         <Confirm title="Discard this draft?" confirmLabel="Discard" danger busy={busy} onCancel={() => setDiscarding(false)} onConfirm={() => void discard()}>
