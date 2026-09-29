@@ -1,3 +1,4 @@
+import { expenseNoticeContext, rateAffectedMembers } from './notice-context.js';
 import { combineSummaries, summaryFields, toPlainText, lineText } from './summary.js';
 import * as ops from '../db/index.js';
 import { computeShares, toSafeNumber, type ExpenseNotice } from '../core/index.js';
@@ -72,12 +73,12 @@ function expenseNotice(db:ops.Db,scope:ops.Scope,e:ops.ExpenseDetail):ExpenseNot
   const actor=scope.actor;
   if(actor.kind!=='member')throw new ops.PermissionError();
   return {chatId:ops.getGroup(db,scope).chatId,groupId:scope.groupId,actorName:ops.getMember(db,scope,actor.memberId).displayName,
-    expenseId:e.id,description:e.description||e.merchant||'Expense',total:e.total,currency:e.currency,splitType:e.splitType,
+    personal:expenseNoticeContext(db,scope,e),expenseId:e.id,description:e.description||e.merchant||'Expense',total:e.total,currency:e.currency,splitType:e.splitType,
     shares:[...computeShares(e,e.items,e.shares)].map(([id,amount])=>({name:ops.getMember(db,scope,id).displayName,amount:toSafeNumber(amount)}))};
 }
 function execute(db:ops.Db,scope:ops.Scope,a:Action,notices:AgentNotice[]):void {
   if(scope.actor.kind!=='member')throw new ops.PermissionError();
-  const common={chatId:ops.getGroup(db,scope).chatId,actorName:ops.getMember(db,scope,scope.actor.memberId).displayName};
+  const common={groupId:scope.groupId,actorMemberId:scope.actor.memberId,chatId:ops.getGroup(db,scope).chatId,actorName:ops.getMember(db,scope,scope.actor.memberId).displayName};
   switch(a.kind) {
     case 'add_expense': {
       const e=ops.createExpense(db,scope,{...a.input,tripId:a.tripId,status:'confirmed'});
@@ -89,7 +90,7 @@ function execute(db:ops.Db,scope:ops.Scope,a:Action,notices:AgentNotice[]):void 
       let e=ops.saveExpense(db,scope,before.id,before.version,a.input);
       if(a.kind==='approve_draft')e=ops.confirmExpense(db,scope,e.id,e.version);
       if (e.status==='confirmed') notices.push(a.kind==='approve_draft'?{method:'expenseSaved',payload:expenseNotice(db,scope,e)}:
-        {method:'expenseEdited',payload:{...expenseNotice(db,scope,e),changes:expenseChanges({db,scope,now:new Date(),suggestRate:async()=>null},before,inputOf(e),e.fxRate,e.fxRateSource,false).map(lineText)}});break;
+        {method:'expenseEdited',payload:{...expenseNotice(db,scope,e),beforePersonal:expenseNoticeContext(db,scope,before),changes:expenseChanges({db,scope,now:new Date(),suggestRate:async()=>null},before,inputOf(e),e.fxRate,e.fxRateSource,false).map(lineText)}});break;
     }
     case 'discard_draft': case 'delete_expense': case 'restore_expense': {
       const before=ops.getExpense(db,scope,a.expenseId);
@@ -102,14 +103,15 @@ function execute(db:ops.Db,scope:ops.Scope,a:Action,notices:AgentNotice[]):void 
     case 'record_payment': case 'undo_payment': {
       const old=a.kind==='undo_payment'?ops.getSettlement(db,scope,a.settlementId):undefined;
       const s=a.kind==='record_payment'?ops.createSettlement(db,scope,a):ops.undoSettlement(db,scope,old!.id,old!.version);
-      const payload={...common,fromName:ops.getMember(db,scope,s.fromMemberId).displayName,toName:ops.getMember(db,scope,s.toMemberId).displayName,
+      const payload={...common,tripId:s.tripId,tripName:ops.getTrip(db,scope,s.tripId).name,fromMemberId:s.fromMemberId,toMemberId:s.toMemberId,fromName:ops.getMember(db,scope,s.fromMemberId).displayName,toName:ops.getMember(db,scope,s.toMemberId).displayName,
         amount:s.amount,currency:ops.getTrip(db,scope,s.tripId).homeCurrency};
       notices.push({method:a.kind==='record_payment'?'settlementRecorded':'settlementUndone',payload});break;
     }
     case 'add_member': ops.addManualMember(db,scope,a.name);break;
     case 'set_trip_rate': {
+      const before=ops.getTripBalances(db,scope,a.tripId).balances;
       const result=ops.setTripRate(db,scope,a.tripId,a.currency,a.rate,a.origin,a.snapshot);
-      if(result.changed)notices.push({method:'tripRateChanged',payload:{...common,homeCurrency:ops.getTrip(db,scope,a.tripId).homeCurrency,
+      if(result.changed)notices.push({method:'tripRateChanged',payload:{...common,tripId:a.tripId,tripName:ops.getTrip(db,scope,a.tripId).name,affectedMemberIds:rateAffectedMembers(db,scope,a.tripId,before),homeCurrency:ops.getTrip(db,scope,a.tripId).homeCurrency,
         currency:a.currency,rate:a.rate,origin:a.origin,expensesChanged:result.changedExpenses.length}});break;
     }
     case 'rename_trip':ops.renameTrip(db,scope,a.tripId,a.name);break;

@@ -6,6 +6,7 @@ import type { ApiDeps, ApiEnv, Services } from './context.js';
 import { handleError } from './errors.js';
 import { registerExpenseRoutes } from './routes/expenses.js';
 import { registerMyGroupsRoute } from './routes/my-groups.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerGroupRoutes } from './routes/group.js';
 import { registerTripRoutes } from './routes/trips.js';
 import { registerRateRoutes } from './routes/rates.js';
@@ -36,6 +37,7 @@ export function createApi(config: Config, db: Db, deps: ApiDeps): Hono<ApiEnv> {
   app.use('/api/*', accessMiddleware(services));
 
   registerGroupRoutes(app, services);
+  registerNotificationRoutes(app, services);
   registerTripRoutes(app, services);
   registerRateRoutes(app, services);
   registerExpenseRoutes(app, services);

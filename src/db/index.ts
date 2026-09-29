@@ -26,3 +26,4 @@ export * from './activity.js';
 export * from './receiptReads.js';
 export * from './agent.js';
 export * from './mcp.js';
+export * from './notifications.js';

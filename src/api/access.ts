@@ -28,7 +28,7 @@ export function accessMiddleware({ config, db, deps }: Services): MiddlewareHand
     c.set('caller', { scope: memberScope(group.id, member.id), member, group, launch });
 
     if (access.joined) {
-      await notify('memberJoinedByLink', () => deps.notifier.memberJoinedByLink({ chatId: group.chatId, memberName: member.displayName }));
+      await notify('memberJoinedByLink', () => deps.notifier.memberJoinedByLink({ chatId: group.chatId, groupId: group.id, memberName: member.displayName }));
     }
     await next();
   };

@@ -12,7 +12,21 @@ export interface NoticeShare {
   amount: Amount;
 }
 
+/** Optional for older callers; all mutation paths supply this context. */
+export interface ExpenseNoticeContext {
+  actorMemberId: number;
+  tripId: number;
+  tripName: string;
+  payerId: number;
+  memberIds: number[];
+  homeCurrency: string;
+  /** Foundation balances for this expense alone, in home minor units. */
+  balances: Record<number, number>;
+}
+
 export interface ExpenseNotice {
+  personal?: ExpenseNoticeContext;
+  beforePersonal?: ExpenseNoticeContext;
   /** Telegram chat to post in. */
   chatId: number;
   /** Display name of the member who made the change. */
@@ -30,6 +44,12 @@ export interface ExpenseNotice {
 }
 
 export interface SettlementNotice {
+  groupId?: number;
+  actorMemberId?: number;
+  tripId?: number;
+  tripName?: string;
+  fromMemberId?: number;
+  toMemberId?: number;
   chatId: number;
   /** Display name of the member who recorded, undid or restored it. */
   actorName: string;
@@ -44,6 +64,12 @@ export interface SettlementNotice {
 }
 
 export interface RateNotice {
+  groupId?: number;
+  actorMemberId?: number;
+  tripId?: number;
+  tripName?: string;
+  /** Only members whose foundation balance changed because of this rate. */
+  affectedMemberIds?: number[];
   chatId: number;
   actorName: string;
   homeCurrency: string;
@@ -57,6 +83,7 @@ export interface RateNotice {
 }
 
 export interface TripNotice {
+  groupId?: number;
   chatId: number;
   actorName: string;
   tripName: string;
@@ -70,6 +97,7 @@ export interface LinkResetNotice {
 }
 
 export interface MemberJoinedNotice {
+  groupId?: number;
   chatId: number;
   /** Display name of the person who joined through the link. */
   memberName: string;

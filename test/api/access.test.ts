@@ -198,7 +198,7 @@ describe('signing in', () => {
     expect(first.status).toBe(200);
     expect(first.body.me).toMatchObject({ displayName: 'Priya', joinedVia: 'link', active: true, telegramUserId: 555 });
     expect(first.body.members.map((m: { displayName: string }) => m.displayName)).toContain('Priya');
-    expect(h.notices).toEqual([{ name: 'memberJoinedByLink', notice: { chatId: h.a.group.chatId, memberName: 'Priya' } }]);
+    expect(h.notices).toEqual([{ name: 'memberJoinedByLink', notice: { chatId: h.a.group.chatId, groupId: h.a.group.id, memberName: 'Priya' } }]);
 
     await priya.get('/api/group');
     await priya.get('/api/trips');

@@ -162,6 +162,8 @@ All settings are environment variables; [`.env.example`](.env.example) lists eve
 | `/wrap` | The trip recap, with awards and who owes whom |
 | `/help` | The commands, with examples |
 
+In the app, open the trip’s gear menu → **Notifications** to choose group notices and opt into private notices (start a chat with the bot first).
+
 More on the agent in [`docs/agent.md`](docs/agent.md), and on connecting AI clients in [`docs/mcp.md`](docs/mcp.md).
 
 ## Privacy and cost

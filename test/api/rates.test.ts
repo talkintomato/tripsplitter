@@ -37,6 +37,7 @@ describe('trip rates', () => {
     expect(getExpense(h.db, h.a.asAna, expense.id).fxRate).toBe('120');
     expect(getExpense(h.db, h.a.asAna, own.id)).toEqual(own);
     expect(h.notices).toEqual([{ name: 'tripRateChanged', notice: {
+      groupId: h.a.group.id, actorMemberId: h.a.ana.id, tripId: h.a.trip.id, tripName: h.a.trip.name, affectedMemberIds: [h.a.ana.id, h.a.sam.id, h.a.leo.id],
       chatId: h.a.group.chatId, actorName: 'Ana', homeCurrency: 'SGD', currency: 'JPY', rate: '120', origin: 'member', expensesChanged: 2,
     } }]);
   });
@@ -74,4 +75,13 @@ describe('trip rates', () => {
     expect(results.map((r) => r.status)).toEqual([403, 403, 403, 403]);
     expect(listTripRates(h.db, h.a.asAna, h.a.trip.id)).toEqual([]);
   });
+});
+
+it('rate notice recipients exclude unchanged balances, including self-paid expenses and fixed overrides', async () => {
+  setTripRate(h.db, h.a.asAna, h.a.trip.id, 'JPY', '100', 'member');
+  createExpense(h.db, h.a.asAna, ramen(h.a, { payerId: h.a.ana.id, shares: [{ memberId: h.a.ana.id }], total: 1000 }));
+  createExpense(h.db, h.a.asAna, ramen(h.a, { shares: [{ memberId: h.a.sam.id }, { memberId: h.a.leo.id }], total: 1000, rateOverride: '100' }));
+  const preview = await h.ana.post(`${base()}/JPY/preview`, { rate: '200' });
+  expect((await h.ana.put(`${base()}/JPY`, { rate: '200', snapshot: preview.body.snapshot })).status).toBe(200);
+  expect(h.notices.at(-1)!.notice.affectedMemberIds).toEqual([]);
 });

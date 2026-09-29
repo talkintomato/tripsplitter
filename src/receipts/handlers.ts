@@ -1,3 +1,5 @@
+import { sendDraftWaiting } from '../bot/personal-notices.js';
+import { expenseNoticeContext, rateAffectedMembers } from '../tools/notice-context.js';
 import { InlineKeyboard, type Api, type Bot, type Context } from 'grammy';
 import type { Message, PhotoSize, User } from 'grammy/types';
 import { groupChoiceKeyboard, GROUP_UNAVAILABLE, privateChatKey, privateGroupChoice, type Membership } from '../bot/group-choice.js';
@@ -14,6 +16,7 @@ import {
   getExpense,
   getOrCreateActiveTrip,
   getTrip,
+  getTripBalances,
   inTransaction,
   listMembers,
   memberScope,
@@ -299,14 +302,19 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
         receiptFileId: trigger.fileId,
       });
 
+      await sendDraftWaiting(bot.api, config, db, { error: (message, details) => logError(`${message}: ${JSON.stringify(details)}`) }, { groupId: who.group.id, actorMemberId: who.member.id, actorName: who.member.displayName, tripName: trip.name, expenseId: created.id });
+
       if (created.fxRateSource === 'missing') {
         const rate = await lookUpRate(trip.homeCurrency, created.currency);
         if (rate !== null) {
           try {
+            const before = getTripBalances(db, who.scope, trip.id).balances;
             const result = setTripRate(db, who.scope, trip.id, created.currency, rate, 'suggested');
             if (result.changed) {
               await deps.notifier.tripRateChanged({
                 chatId: who.group.chatId,
+                groupId: who.group.id, actorMemberId: who.member.id, tripId: trip.id, tripName: trip.name,
+                affectedMemberIds: rateAffectedMembers(db, who.scope, trip.id, before),
                 actorName: who.member.displayName,
                 homeCurrency: trip.homeCurrency,
                 currency: created.currency,
@@ -395,7 +403,7 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
 
   interface Confirmed {
     detail: ExpenseDetail;
-    rate: { homeCurrency: string; currency: string; rate: string; expensesChanged: number } | null;
+    rate: { tripId: number; tripName: string; affectedMemberIds: number[]; homeCurrency: string; currency: string; rate: string; expensesChanged: number } | null;
   }
 
   /** Confirms the draft. With the rate missing, looks it up once more and stores it together with the confirmation. */
@@ -411,6 +419,7 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
       // One transaction: when the confirmation is refused after all, the rate is not stored either.
       return inTransaction(db, () => {
         if (getExpense(db, scope, expenseId).version !== version) confirmExpense(db, scope, expenseId, version);
+        const before = getTripBalances(db, scope, trip.id).balances;
         let result;
         try {
           result = setTripRate(db, scope, trip.id, draft.currency, rate, 'suggested');
@@ -419,12 +428,13 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
           logError(`receipts: could not store the rate: ${errorName(rateError)}`);
           throw error;
         }
+        const affectedMemberIds = rateAffectedMembers(db, scope, trip.id, before);
         const current = getExpense(db, scope, expenseId);
         const detail = confirmExpense(db, scope, expenseId, current.version);
         return {
           detail,
           rate: result.changed
-            ? { homeCurrency: trip.homeCurrency, currency: draft.currency, rate: result.tripRate.rate, expensesChanged: result.changedExpenses.length }
+            ? { tripId: trip.id, tripName: trip.name, affectedMemberIds, homeCurrency: trip.homeCurrency, currency: draft.currency, rate: result.tripRate.rate, expensesChanged: result.changedExpenses.length }
             : null,
         };
       });
@@ -463,12 +473,13 @@ export function registerReceiptHandlers(bot: Bot, config: Config, db: Db, deps: 
       logError(`receipts: could not replace the draft message: ${errorName(error)}`);
     }
     if (rate) {
-      await deps.notifier.tripRateChanged({ chatId: who.group.chatId, actorName: who.member.displayName, origin: 'suggested', ...rate });
+      await deps.notifier.tripRateChanged({ groupId: who.group.id, actorMemberId: who.member.id, chatId: who.group.chatId, actorName: who.member.displayName, origin: 'suggested', ...rate });
     }
     await deps.notifier.expenseSaved({
       chatId: who.group.chatId,
       actorName: who.member.displayName,
       expenseId: detail.id,
+      personal: expenseNoticeContext(db, who.scope, detail),
       groupId: who.group.id,
       description: detail.description || detail.merchant || 'Receipt',
       total: detail.total,

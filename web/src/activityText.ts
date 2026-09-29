@@ -127,6 +127,8 @@ export function activityText(entry: ActivityEntry, members: ReadonlyArray<Member
       const absorbed = record(after?.absorbed ?? before?.absorbed);
       return `said "that's me" for ${text(absorbed, 'displayName')}`;
     }
+    case 'group.notification':
+      return `turned ${after?.enabled ? 'on' : 'off'} group notices for ${text(after, 'type').replaceAll('_', ' ')}`;
     case 'group.create':
       return 'set up the group';
     case 'group.rename':

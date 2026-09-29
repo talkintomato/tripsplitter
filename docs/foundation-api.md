@@ -568,3 +568,45 @@ Phase A does not change package scripts, wire Telegram handlers, implement a rea
 
 `AgentModelInput.today` also supplies the Singapore calendar date (`YYYY-MM-DD`) from the caller's
 `now`, so a provider can interpret relative dates without guessing the server timezone.
+
+## Notification settings
+
+Migration `005_notifications.sql` adds `notification_setting`. Only departures from defaults are stored:
+all group notices default to on, all personal notices to off. Partial unique indexes give one row per group
+or member, kind and type. Restoring a default removes its row.
+
+`getGroupNotificationSettings(db, scope)` and `getMyNotificationSettings(db, scope)` return every effective
+boolean. `setGroupNotification(db, scope, type, enabled)` accepts any unmerged member of that group;
+`setMyNotification(db, scope, type, enabled)` changes only the scope actor's settings. Both refuse unknown
+types and non-boolean values. Group changes append `group.notification` activity with `{ type, enabled }`
+before and after, atomically; no-ops and personal settings append nothing. This new activity action is
+written within the new operation and exposed by the API without changing the foundation's existing action union.
+
+Group types: `expense_added`, `expense_changed`, `expense_removed`, `payment`, `exchange_rate`, `trip`,
+`member_joined`. Personal types: `added_me`, `changed_mine`, `payments_me`, `exchange_rate`, `draft_waiting`.
+Link resets always post. Group settings apply across all trips in the group.
+
+`isGroupNoticeEnabled(db, groupId, type)` reads the group decision. `personalRecipients(db, groupId, type,
+memberIds)` returns only opted-in members among those IDs, in that group, with a Telegram ID, active and
+unmerged. Delivery additionally removes the actor. New expense notices concern included members; changed
+expenses concern the old and new participants and payers; payments concern their two parties. Rate notices
+compare foundation balances immediately before and after the rate update, before applying a new expense or
+approving a draft. Draft notices concern all eligible group members other than their creator.
+
+Existing notice fields remain. Expense payloads carry `personal` and, for edits, `beforePersonal` snapshots
+with actor, payer, included member IDs, trip context and foundation balances. Payment and rate payloads carry
+actor and trip IDs plus parties or affected member IDs. These additions are optional for older callers;
+all production mutation paths populate them. Drafts use the separate personal delivery helper so there is
+no new group notice or change to the Notifier method contract. Private Open buttons use signed launch URLs,
+or a web_app URL carrying the same start parameter when a public app address is configured. Delivery is best
+effort, without retries; failure logs contain fixed categories and numeric codes, never names or message text.
+
+`GET /api/notifications` returns `{ group, personal, canMessageMe, botUsername }` for the authenticated launch
+group. `canMessageMe` is null because private reachability history is not tracked reliably. PUT
+`/api/notifications/group/:type` and `/api/notifications/personal/:type` take only `{ enabled: boolean }` and
+return `{ enabled }`; unknown types return 400. A body cannot select a group or a different person.
+
+The Mini App's Notifications screen saves each switch immediately, disables it while saving and rolls it
+back on failure. `/start notify` in private chat explains where to enable personal notices and supplies an
+Open button. Private rate notices use “and your balance changed” rather than introducing balance-delta
+arithmetic outside the foundation.

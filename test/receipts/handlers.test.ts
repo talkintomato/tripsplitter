@@ -495,6 +495,7 @@ describe('rate', () => {
     const draft = onlyExpense();
     expect(draft).toMatchObject({ status: 'draft', fxRateSource: 'trip', fxRate: '112.4' });
     expect(h.notifier.tripRateChanged).toHaveBeenCalledExactlyOnceWith({
+      groupId: s.group.id, actorMemberId: s.ana.id, tripId: s.trip.id, tripName: s.trip.name, affectedMemberIds: [],
       chatId: CHAT_A,
       actorName: 'Ana',
       homeCurrency: 'SGD',
@@ -636,6 +637,7 @@ describe('Split evenly', () => {
     expect(getExpense(db, s.asAna, draft.id)).toMatchObject({ status: 'confirmed', fxRateSource: 'trip', fxRate: '112.4' });
     expect(listTripRates(db, s.asAna, s.trip.id)).toMatchObject([{ currency: 'JPY', rate: '112.4', origin: 'suggested' }]);
     expect(h.notifier.tripRateChanged).toHaveBeenCalledExactlyOnceWith({
+      groupId: s.group.id, actorMemberId: s.sam.id, tripId: s.trip.id, tripName: s.trip.name, affectedMemberIds: [],
       chatId: CHAT_A,
       actorName: 'Sam',
       homeCurrency: 'SGD',

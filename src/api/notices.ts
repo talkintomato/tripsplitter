@@ -1,3 +1,4 @@
+import { expenseNoticeContext } from '../tools/notice-context.js';
 import { computeShares, formatAmount, fromMinorUnits, type ExpenseNotice, type NoticeShare, type SettlementNotice } from '../core/index.js';
 import { listMembers, type Db, type ExpenseDetail, type Scope, type Settlement, type Trip } from '../db/index.js';
 import type { Caller } from './context.js';
@@ -10,7 +11,7 @@ export async function notify(name: string, send: () => Promise<void>): Promise<v
   try {
     await send();
   } catch (error) {
-    console.error(`Could not send the notice ${name}:`, error instanceof Error ? error.message : error);
+    console.error(`Could not send the notice ${name}:`, error instanceof Error ? error.name : 'UnknownError');
   }
 }
 
@@ -40,6 +41,7 @@ export function expenseNotice(db: Db, caller: Caller, expense: ExpenseDetail): E
     chatId: caller.group.chatId,
     actorName: caller.member.displayName,
     expenseId: expense.id,
+    personal: expenseNoticeContext(db, caller.scope, expense),
     groupId: caller.group.id,
     description: expenseLabel(expense),
     total: expense.total,
@@ -54,6 +56,8 @@ export function settlementNotice(db: Db, caller: Caller, settlement: Settlement,
   return {
     chatId: caller.group.chatId,
     actorName: caller.member.displayName,
+    groupId: caller.group.id, actorMemberId: caller.member.id, tripId: trip.id, tripName: trip.name,
+    fromMemberId: settlement.fromMemberId, toMemberId: settlement.toMemberId,
     fromName: nameOf(names, settlement.fromMemberId),
     toName: nameOf(names, settlement.toMemberId),
     amount: settlement.amount,

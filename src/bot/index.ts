@@ -51,6 +51,12 @@ export function createBot(config: Config, db: Db, options: CreateBotOptions = {}
   // Connecting an AI client uses /start mcp_<code>, so it must come before the plain /start.
   if (config.mcpEnabled) registerMcpBotHandlers(bot, config, db);
   bot.chatType('private').command('start', async (ctx) => {
+    if (ctx.match.trim() === 'notify') {
+      await ctx.reply("You're set. Turn on personal notifications in the app: gear, then Notifications.", {
+        reply_markup: appKeyboard(config, undefined, true, 'Open'),
+      });
+      return;
+    }
     if (config.webhookUrl) {
       await ctx.reply('Send me a photo of a receipt. Open Trip Split to see your groups.', {
         reply_markup: new InlineKeyboard().webApp('Open Trip Split', config.webhookUrl),

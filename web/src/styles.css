@@ -2848,3 +2848,15 @@ div.person {
 
 /* The Expenses tab card holds only the two totals. */
 .summary .stats:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+
+/* Notification controls use the same touch targets and palette in both themes. */
+.notification-item { list-style: none; }
+.notification-item + .notification-item { border-top: 1px solid var(--line); }
+.notification-item .item { border: 0; }
+.notification-item > .banner { margin: 0 var(--s4) var(--s3); }
+.notification-switch { min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; background: transparent; flex: 0 0 48px; display: grid; place-items: center; cursor: pointer; }
+.notification-track { display: flex; align-items: center; width: 44px; height: 28px; padding: 3px; border-radius: var(--r-pill); background: var(--field-line); }
+.notification-track > span { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); transition: transform var(--fast) var(--ease); }
+.notification-switch[aria-checked='true'] .notification-track { background: var(--accent); }
+.notification-switch[aria-checked='true'] .notification-track > span { transform: translateX(16px); background: var(--on-accent); }
+.notification-switch:disabled { opacity: .6; cursor: wait; }

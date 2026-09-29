@@ -1,7 +1,8 @@
+import { rateAffectedMembers } from '../../tools/notice-context.js';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import { isSupportedCurrency, isValidRate } from '../../core/index.js';
-import { getTrip, listTripRates, previewTripRate, setTripRate, ValidationError } from '../../db/index.js';
+import { getTrip, getTripBalances, listTripRates, previewTripRate, setTripRate, ValidationError } from '../../db/index.js';
 import { idParam, type ApiEnv, type Services } from '../context.js';
 import { notify } from '../notices.js';
 import { readBody } from '../schemas.js';
@@ -44,10 +45,13 @@ export function registerRateRoutes(app: Hono<ApiEnv>, { db, deps }: Services): v
     const tripId = idParam(c, 'tripId', 'trip');
     const trip = getTrip(db, caller.scope, tripId);
     const { rate, snapshot } = await readBody(c, applyBody);
+    const before = getTripBalances(db, caller.scope, tripId).balances;
     const result = setTripRate(db, caller.scope, tripId, c.req.param('currency'), rate, 'member', snapshot);
     if (result.changed) {
       await notify('tripRateChanged', () => deps.notifier.tripRateChanged({
         chatId: caller.group.chatId,
+        groupId: caller.group.id, actorMemberId: caller.member.id, tripId, tripName: trip.name,
+        affectedMemberIds: rateAffectedMembers(db, caller.scope, tripId, before),
         actorName: caller.member.displayName,
         homeCurrency: trip.homeCurrency,
         currency: result.tripRate.currency,

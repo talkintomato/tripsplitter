@@ -27,6 +27,7 @@ import { tripSummary } from '../views.js';
 export function registerTripRoutes(app: Hono<ApiEnv>, { db, deps }: Services): void {
   const tripNotice = (caller: Caller, trip: Trip) => ({
     chatId: caller.group.chatId,
+    groupId: caller.group.id,
     actorName: caller.member.displayName,
     tripName: trip.name,
   });

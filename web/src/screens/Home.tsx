@@ -279,6 +279,7 @@ function TripHome(props: { tripId: number; root: boolean; tab?: Tab }) {
         <Sheet label="Trip menu" onClose={() => setMenu(false)}>
           <h2 className="sheet-title">{trip.name}</h2>
           <ul className="menu">
+            <MenuItem icon={Gear} label="Notifications" onClick={go('/notifications')} />
             <MenuItem icon={People} label="Members" onClick={go('/members')} />
             <MenuItem icon={Clock} label="Activity" hint="Changes, and restoring removed items" onClick={go('/activity')} />
             <MenuItem icon={Coins} label="Currencies and rates" onClick={go(`/trips/${trip.id}/currencies`)} />

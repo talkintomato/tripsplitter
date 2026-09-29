@@ -65,7 +65,7 @@ describe('trips', () => {
     const ended = await h.ana.post(`${path}/end`);
     expect(ended.status).toBe(200);
     expect(ended.body.trip.status).toBe('ended');
-    expect(h.notices).toEqual([{ name: 'tripEnded', notice: { chatId: h.a.group.chatId, actorName: 'Ana', tripName: h.a.trip.name } }]);
+    expect(h.notices).toEqual([{ name: 'tripEnded', notice: { chatId: h.a.group.chatId, groupId: h.a.group.id, actorName: 'Ana', tripName: h.a.trip.name } }]);
     expect((await h.ana.get('/api/group')).body.activeTrip).toBeNull();
     // Ending does not start a new trip.
     expect(listTrips(h.db, h.a.asAna)).toHaveLength(1);
@@ -75,7 +75,7 @@ describe('trips', () => {
     expect(paid.status).toBe(201);
     expect(paid.body.settlement).toMatchObject({ tripId: h.a.trip.id, amount: 333, status: 'active' });
     expect(h.notices).toEqual([
-      { name: 'settlementRecorded', notice: { chatId: h.a.group.chatId, actorName: 'Sam', fromName: 'Sam', toName: 'Ana', amount: 333, currency: 'SGD' } },
+      { name: 'settlementRecorded', notice: { actorMemberId: h.a.sam.id, fromMemberId: h.a.sam.id, toMemberId: h.a.ana.id, tripId: h.a.trip.id, tripName: h.a.trip.name, chatId: h.a.group.chatId, groupId: h.a.group.id, actorName: 'Sam', fromName: 'Sam', toName: 'Ana', amount: 333, currency: 'SGD' } },
     ]);
     const balances = await h.ana.get(`${path}/balances`);
     expect(balances.body.balances[h.a.sam.id]).toBe(0);

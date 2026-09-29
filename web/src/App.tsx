@@ -9,6 +9,7 @@ import { Home, PastTrips, TripScreen } from './screens/Home';
 import { Currencies } from './screens/Currencies';
 import { ChangeRate } from './screens/ChangeRate';
 import { TripSetup } from './screens/TripSetup';
+import { Notifications } from './screens/Notifications';
 import { Members } from './screens/Members';
 import { AppProvider, type AppState } from './state';
 import { getInitData, getStartParam, prepare } from './telegram';
@@ -138,6 +139,7 @@ export function App(props: AppProps) {
           <Route path="/trips/:tripId/balances" element={<TripScreen tab="balances" />} />
           <Route path="/expenses/:id" element={<ExpenseDetail />} />
           <Route path="/expenses/:id/edit" element={<EditExpense />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/members" element={<Members />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Home />} />

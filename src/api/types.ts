@@ -216,7 +216,8 @@ export interface RestoreTarget {
   version: number;
 }
 
-export interface ActivityEntry extends Activity {
+export interface ActivityEntry extends Omit<Activity, 'action'> {
+  action: Activity['action'] | 'group.notification';
   /** Display name of the member who did it, or "TripSplitter" for the system. */
   actorName: string;
   /** Set when the record can be restored from this entry. */
@@ -265,4 +266,12 @@ export interface MyGroupsResponse {
     draftsCount: number;
     launch: string;
   }>;
+}
+
+export interface NotificationsResponse {
+  group: import('../db/notifications.js').GroupNotificationSettings;
+  personal: import('../db/notifications.js').PersonalNotificationSettings;
+  /** Null: private delivery history is not tracked reliably. */
+  canMessageMe: boolean | null;
+  botUsername: string;
 }

@@ -233,7 +233,7 @@ describe('foreign currency', () => {
     expect(listTripRates(h.db, h.a.asAna, h.a.trip.id)).toMatchObject([{ currency: 'JPY', rate: '112.4', origin: 'suggested' }]);
     expect(h.notices.map((n) => n.name)).toEqual(['tripRateChanged', 'expenseSaved']);
     expect(h.notices[0]).toEqual(
-      { name: 'tripRateChanged', notice: { chatId: h.a.group.chatId, actorName: 'Sam', homeCurrency: 'SGD', currency: 'JPY', rate: '112.4', origin: 'suggested', expensesChanged: 0 } },
+      { name: 'tripRateChanged', notice: { groupId: h.a.group.id, actorMemberId: h.a.sam.id, tripId: h.a.trip.id, tripName: h.a.trip.name, affectedMemberIds: [], chatId: h.a.group.chatId, actorName: 'Sam', homeCurrency: 'SGD', currency: 'JPY', rate: '112.4', origin: 'suggested', expensesChanged: 0 } },
     );
 
     // The next expense in that currency uses the trip's rate without a lookup.

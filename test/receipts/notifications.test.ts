@@ -1,0 +1,21 @@
+import { afterEach, expect, it } from 'vitest';
+import { listExpenses, setMyNotification, setClockForTests, type Db } from '../../src/db/index.js';
+import { seed } from '../db/helpers.js';
+import { ANA, CHAT_A, harness, NOW } from './harness.js';
+const databases: Db[] = [];
+afterEach(() => { databases.splice(0).forEach(db => db.close()); setClockForTests(null); });
+it.each([CHAT_A, ANA.id])('receipt created from chat %s sends draft_waiting only to other opted-in members', async chatId => {
+  setClockForTests(() => NOW);
+  const s = seed(); databases.push(s.db);
+  setMyNotification(s.db, s.asAna, 'draft_waiting', true);
+  setMyNotification(s.db, s.asSam, 'draft_waiting', true);
+  const h = harness({ db: s.db });
+  await h.sendPhoto('@tripsplitter_test_bot', ANA, chatId);
+  const notices = h.sent().filter(c => String(c.payload.text).includes('is waiting for approval'));
+  expect(notices).toHaveLength(1);
+  expect(notices[0]!.payload.chat_id).toBe(102);
+  expect(notices[0]!.payload.text).toBe('🧾 A receipt from Ana is waiting for approval in Japan 2026');
+  expect(h.notifier.expenseSaved).not.toHaveBeenCalled();
+  expect(listExpenses(s.db, s.asAna, s.trip.id, { status: ['draft'] })).toHaveLength(1);
+  if (chatId > 0) expect(h.sent().filter(c => Number(c.payload.chat_id) < 0)).toHaveLength(0);
+});

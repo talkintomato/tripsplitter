@@ -1,3 +1,4 @@
+import { expenseNoticeContext, rateAffectedMembers } from '../../tools/notice-context.js';
 import type { Hono } from 'hono';
 import { amountsToRecord, computeShares, DEFAULT_HOME_CURRENCY, isValidRate, validateExpense } from '../../core/index.js';
 import {
@@ -9,6 +10,7 @@ import {
   getExpense,
   getOrCreateActiveTrip,
   getTrip,
+  getTripBalances,
   inTransaction,
   listExpenses,
   listTripRates,
@@ -66,6 +68,7 @@ interface WriteResult {
   expense: ExpenseDetail;
   rate: SetTripRateResult | null;
   keptAsDraft: boolean;
+  affectedMemberIds: number[];
 }
 
 export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services): void {
@@ -89,9 +92,11 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     const attempt = (options: { rate?: { currency: string; value: string }; asDraft?: boolean } = {}) =>
       inTransaction(db, () => {
         const trip = write.trip();
+        const balancesBefore = options.rate ? getTripBalances(db, scope, trip.id).balances : null;
         const rate = options.rate ? setTripRate(db, scope, trip.id, options.rate.currency, options.rate.value, 'suggested') : null;
+        const affectedMemberIds = balancesBefore ? rateAffectedMembers(db, scope, trip.id, balancesBefore) : [];
         const expense = options.asDraft && write.runAsDraft ? write.runAsDraft(trip) : write.run(trip);
-        return { trip, expense, rate };
+        return { trip, expense, rate, affectedMemberIds };
       });
 
     let first: ReturnType<typeof attempt>;
@@ -114,8 +119,9 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     const value = await lookUpRate(first.trip.homeCurrency, first.expense.currency);
     if (value === null) return { ...first, keptAsDraft: false };
     try {
+      const before = getTripBalances(db, scope, first.trip.id).balances;
       const rate = setTripRate(db, scope, first.trip.id, first.expense.currency, value, 'suggested');
-      return { trip: first.trip, expense: getExpense(db, scope, first.expense.id), rate, keptAsDraft: false };
+      return { trip: first.trip, expense: getExpense(db, scope, first.expense.id), rate, affectedMemberIds: rateAffectedMembers(db, scope, first.trip.id, before), keptAsDraft: false };
     } catch (error) {
       if (error instanceof ValidationError) return { ...first, keptAsDraft: false };
       throw error;
@@ -128,6 +134,8 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     await notify('tripRateChanged', () =>
       deps.notifier.tripRateChanged({
         chatId: caller.group.chatId,
+        groupId: caller.group.id, actorMemberId: caller.member.id, tripId: result.trip.id, tripName: result.trip.name,
+        affectedMemberIds: result.affectedMemberIds,
         actorName: caller.member.displayName,
         homeCurrency: result.trip.homeCurrency,
         currency: rate.tripRate.currency,
@@ -292,7 +300,7 @@ export function registerExpenseRoutes(app: Hono<ApiEnv>, { db, deps }: Services)
     } else if (before.status === 'confirmed' && after.status === 'confirmed') {
       const changes = describeChanges(db, scope, before, after);
       if (changes.length > 0) {
-        await notify('expenseEdited', () => deps.notifier.expenseEdited({ ...expenseNotice(db, caller, after), changes }));
+        await notify('expenseEdited', () => deps.notifier.expenseEdited({ ...expenseNotice(db, caller, after), beforePersonal: expenseNoticeContext(db, scope, before), changes }));
       }
     }
     return c.json(writeResponse(caller, result));

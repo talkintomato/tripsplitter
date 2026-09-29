@@ -35,3 +35,16 @@ it('does not send a private web_app button for group start', async () => {
     expect(JSON.stringify(h.sent())).not.toContain('web_app');
   } finally { h.db.close(); }
 });
+
+it.each([undefined, 'https://trip.example'])('/start notify replies with setup instructions and Open (%s)', async url => {
+  const h = harness();
+  try {
+    h.config.webhookUrl = url;
+    await h.bot.handleUpdate(messageUpdate(ANA.id, ANA, {
+      chat: { id: ANA.id, type: 'private', first_name: 'Ana' },
+      text: '/start notify', entities: [{ type: 'bot_command', offset: 0, length: 6 }],
+    }));
+    expect(h.texts()).toEqual(["You're set. Turn on personal notifications in the app: gear, then Notifications."]);
+    expect(h.sent()[0]!.payload.reply_markup).toEqual({ inline_keyboard: [[url ? { text: 'Open', web_app: { url } } : { text: 'Open', url: `https://t.me/${h.config.botUsername}/${h.config.miniAppName}` }]] });
+  } finally { h.db.close(); }
+});

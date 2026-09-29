@@ -1,3 +1,4 @@
+import { createPersonalDelivery, noticeFailure } from './personal-notices.js';
 import { displayAmount as formatAmount, displayDate, escapeHtml } from '../tools/summary.js';
 import { InlineKeyboard, type Api } from 'grammy';
 import type { Config } from '../config.js';
@@ -9,9 +10,9 @@ import {
   type SettlementNotice,
   type SplitType,
 } from '../core/index.js';
-import { getGroup, systemScope, type Db } from '../db/index.js';
+import { getGroup, findGroupByChatId, isGroupNoticeEnabled, systemScope, type Db, type GroupNoticeType } from '../db/index.js';
 import { postIntro } from './intro.js';
-import { describeError, type BotLogger } from './support.js';
+import type { BotLogger } from './support.js';
 
 const SPLIT_LABEL: Record<SplitType, string> = {
   even: 'split evenly',
@@ -68,7 +69,7 @@ export function createNotifier(api: Api, config: Config, db: Db, logger: BotLogg
     try {
       await run();
     } catch (error) {
-      logger.error(`Could not post the notice ${name}`, { chatId, error: describeError(error) });
+      logger.error(`Could not post the notice ${name}`, { chatId, ...noticeFailure(error) });
     }
   }
 
@@ -94,18 +95,75 @@ export function createNotifier(api: Api, config: Config, db: Db, logger: BotLogg
     return new InlineKeyboard().url('View', url);
   }
 
+  const personal = createPersonalDelivery(api, config, db, logger);
+  async function groupPost(type: GroupNoticeType, name: string, n: { chatId: number; groupId?: number }, text: () => string, keyboard?: () => InlineKeyboard): Promise<void> {
+    await safely(name, n.chatId, async () => {
+      const groupId = n.groupId ?? findGroupByChatId(db, n.chatId)?.id;
+      if (groupId === undefined || !isGroupNoticeEnabled(db, groupId, type)) return;
+      await post(name, n.chatId, text, keyboard);
+    });
+  }
+  async function expensePersonal(n: ExpenseNotice, verb: 'added' | 'changed' | 'deleted' | 'restored'): Promise<void> {
+    const p = n.personal;
+    if (!p) return;
+    const ids = verb === 'added' ? p.memberIds : [...p.memberIds, p.payerId, ...(n.beforePersonal?.memberIds ?? []), ...(n.beforePersonal ? [n.beforePersonal.payerId] : [])];
+    const stake = (amount: number, currency: string, now: boolean) => amount > 0
+      ? `you are ${now ? 'now ' : ''}owed ${formatAmount(amount, currency)}`
+      : `you ${now ? 'now ' : ''}owe ${formatAmount(Math.abs(amount), currency)}`;
+    await personal(verb === 'added' ? 'added_me' : 'changed_mine', n.groupId, p.actorMemberId, ids, id => {
+      let suffix = '';
+      if (verb === 'added' || verb === 'changed') {
+        suffix = ` · ${stake(p.balances[id] ?? 0, p.homeCurrency, verb === 'changed')}`;
+        if (verb === 'changed' && n.beforePersonal) suffix += ` (was: ${stake(n.beforePersonal.balances[id] ?? 0, n.beforePersonal.homeCurrency, false)})`;
+      }
+      const icon = { added: '➕', changed: '✏️', deleted: '🗑️', restored: '♻️' }[verb];
+      return `${icon} ${n.actorName} ${verb} ${n.description} in ${p.tripName}${suffix}`;
+    }, n.expenseId);
+  }
+  async function paymentPersonal(n: SettlementNotice, kind: 'recorded' | 'undid' | 'restored'): Promise<void> {
+    if (!n.groupId || !n.actorMemberId || !n.fromMemberId || !n.toMemberId) return;
+    await personal('payments_me', n.groupId, n.actorMemberId, [n.fromMemberId, n.toMemberId], id => {
+      const payment = `${id === n.fromMemberId ? 'you' : n.fromName} paid ${id === n.toMemberId ? 'you' : n.toName} ${formatAmount(n.amount, n.currency)}`;
+      return `💸 ${n.actorName} ${kind === 'recorded' ? 'recorded that' : `${kind} the payment where`} ${payment} in ${n.tripName}`;
+    });
+  }
   return {
-    expenseSaved: (n) => post('expenseSaved', n.chatId, () => expenseSavedText(n), () => viewButton(n)),
-    expenseEdited: (n) => post('expenseEdited', n.chatId, () => expenseEditedText(n), () => viewButton(n)),
-    expenseDeleted: (n) => post('expenseDeleted', n.chatId, () => expenseRemovedText(n, 'deleted')),
-    expenseRestored: (n) => post('expenseRestored', n.chatId, () => expenseRemovedText(n, 'restored')),
-    settlementRecorded: (n) => post('settlementRecorded', n.chatId, () => settlementText(n, 'recorded')),
-    settlementUndone: (n) => post('settlementUndone', n.chatId, () => settlementText(n, 'undone')),
-    settlementRestored: (n) => post('settlementRestored', n.chatId, () => settlementText(n, 'restored')),
-    tripRateChanged: (n) => post('tripRateChanged', n.chatId, () => tripRateText(n)),
-    tripEnded: (n) => post('tripEnded', n.chatId, () => `🏁 ${n.actorName} ended ${n.tripName}\nBalances can still be settled.`),
-    tripReopened: (n) => post('tripReopened', n.chatId, () => `🔓 ${n.actorName} reopened ${n.tripName}`),
-    memberJoinedByLink: (n) => post('memberJoinedByLink', n.chatId, () => `${n.memberName} joined the trip through the link.`),
+    async expenseSaved(n) {
+      await groupPost('expense_added', 'expenseSaved', n, () => expenseSavedText(n), () => viewButton(n));
+      await expensePersonal(n, 'added');
+    },
+    async expenseEdited(n) {
+      await groupPost('expense_changed', 'expenseEdited', n, () => expenseEditedText(n), () => viewButton(n));
+      await expensePersonal(n, 'changed');
+    },
+    async expenseDeleted(n) {
+      await groupPost('expense_removed', 'expenseDeleted', n, () => expenseRemovedText(n, 'deleted'));
+      await expensePersonal(n, 'deleted');
+    },
+    async expenseRestored(n) {
+      await groupPost('expense_removed', 'expenseRestored', n, () => expenseRemovedText(n, 'restored'));
+      await expensePersonal(n, 'restored');
+    },
+    async settlementRecorded(n) {
+      await groupPost('payment', 'settlementRecorded', n, () => settlementText(n, 'recorded'));
+      await paymentPersonal(n, 'recorded');
+    },
+    async settlementUndone(n) {
+      await groupPost('payment', 'settlementUndone', n, () => settlementText(n, 'undone'));
+      await paymentPersonal(n, 'undid');
+    },
+    async settlementRestored(n) {
+      await groupPost('payment', 'settlementRestored', n, () => settlementText(n, 'restored'));
+      await paymentPersonal(n, 'restored');
+    },
+    async tripRateChanged(n) {
+      await groupPost('exchange_rate', 'tripRateChanged', n, () => tripRateText(n));
+      if (n.groupId && n.actorMemberId) await personal('exchange_rate', n.groupId, n.actorMemberId, n.affectedMemberIds ?? [],
+        () => `💱 ${n.actorName} changed the ${n.currency} rate in ${n.tripName} and your balance changed`);
+    },
+    tripEnded: (n) => groupPost('trip', 'tripEnded', n, () => `🏁 ${n.actorName} ended ${n.tripName}\nBalances can still be settled.`),
+    tripReopened: (n) => groupPost('trip', 'tripReopened', n, () => `🔓 ${n.actorName} reopened ${n.tripName}`),
+    memberJoinedByLink: (n) => groupPost('member_joined', 'memberJoinedByLink', n, () => `${n.memberName} joined the trip through the link.`),
     async linkReset(n) {
       await post('linkReset', n.chatId, () => `${n.actorName} reset the group's link. Old links no longer work.`);
       await safely('linkReset', n.chatId, async () => {

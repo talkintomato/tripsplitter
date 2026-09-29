@@ -32,8 +32,8 @@ const DEV_DEFAULTS: Record<string, string> = {
 
 /** Prints each notice instead of posting it to a chat. */
 export function createConsoleNotifier(log: (line: string) => void = console.log): Notifier {
-  const print = (name: string) => async (notice: object) => {
-    log(`[notice] ${name} ${JSON.stringify(notice, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value))}`);
+  const print = (name: string) => async (_notice: object) => {
+    log(`[notice] ${name}`);
   };
   return {
     expenseSaved: print('expenseSaved'),
