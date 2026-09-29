@@ -79,7 +79,7 @@ export function person(c: ToolContext, value: string): number {
   return found.length === 1 ? found[0]!.memberId : refuse('Choose one person.');
 }
 export function inputOf(e: dbOps.ExpenseDetail): dbOps.ExpenseInput {
-  return { payerId:e.payerId, description:e.description, merchant:e.merchant, expenseDate:e.expenseDate, total:e.total, currency:e.currency,
+  return { locationLat:e.locationLat, locationLng:e.locationLng, placeName:e.placeName, locationSource:e.locationSource, payerId:e.payerId, description:e.description, merchant:e.merchant, expenseDate:e.expenseDate, total:e.total, currency:e.currency,
     tax:e.tax, taxIncluded:e.taxIncluded, tip:e.tip, serviceCharge:e.serviceCharge, discount:e.discount, splitType:e.splitType,
     currencyNeedsReview:e.currencyNeedsReview, receiptFileId:e.receiptFileId, rateOverride:e.fxRateSource === 'expense' ? e.fxRate : null,
     shares:e.shares.filter(s=>s.itemId===null).map(s=>({memberId:s.memberId,weight:s.weight})),

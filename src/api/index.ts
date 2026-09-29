@@ -4,6 +4,7 @@ import type { Db } from '../db/index.js';
 import { accessMiddleware } from './access.js';
 import type { ApiDeps, ApiEnv, Services } from './context.js';
 import { handleError } from './errors.js';
+import { registerPlaceRoutes } from './routes/places.js';
 import { registerPhotoRoutes } from './routes/photos.js';
 import { registerExpenseRoutes } from './routes/expenses.js';
 import { registerMyGroupsRoute } from './routes/my-groups.js';
@@ -43,6 +44,7 @@ export function createApi(config: Config, db: Db, deps: ApiDeps): Hono<ApiEnv> {
   registerRateRoutes(app, services);
   registerExpenseRoutes(app, services);
   registerPhotoRoutes(app, services);
+  registerPlaceRoutes(app, services);
 
   app.all('/api/*', (c) => c.json({ error: { code: 'not_found', message: 'That does not exist.' } }, 404));
   return app;

@@ -2301,6 +2301,7 @@ div.person {
 }
 
 .facts dt {
+  flex-shrink: 0;
   color: var(--text-2);
 }
 
@@ -2883,3 +2884,9 @@ div.person {
 .photo-view-image .photo-failed { color: #fff; }
 .photo-view-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 @media (prefers-reduced-motion: reduce) { .photo-spinner { animation: none; } }
+
+.location-row, .location-suggestion { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.location-row > span, .location-suggestion > span { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
+.location-suggestion { margin-top: var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r-md); background: var(--surface-2); color: var(--text); }
+.location-field button, .location-suggestion button, .location-link { min-height: var(--tap); min-width: var(--tap); }
+.location-link { display: inline-flex; align-items: center; color: var(--accent-text); overflow-wrap: anywhere; }

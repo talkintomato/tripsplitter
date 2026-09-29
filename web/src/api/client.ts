@@ -89,6 +89,7 @@ export interface ApiClient {
   /** What each person would pay for an expense that is not saved yet. Changes nothing. */
   previewExpense(body: ExpensePreviewBody): Promise<ExpensePreviewResponse>;
   getExpense(id: number): Promise<ExpenseResponse>;
+  lookupPlace(lat: number, lng: number): Promise<{ name: string | null }>;
   uploadPhoto(expenseId: number, photo: Blob): Promise<{ id: number; width: number; height: number }>;
   removePhoto(id: number): Promise<void>;
   photoBlob(path: string): Promise<Blob>;
@@ -182,6 +183,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     createExpense: (tripId, body) => request('POST', `/api/trips/${tripId}/expenses`, body),
     previewExpense: (body) => request('POST', '/api/expenses/preview', body),
     getExpense: (id) => request('GET', `/api/expenses/${id}`),
+    lookupPlace: (lat, lng) => request('POST', '/api/places/lookup', { lat, lng }),
     uploadPhoto: (id, photo) => {
       const form = new FormData();
       form.append('photo', photo, 'photo.jpg');

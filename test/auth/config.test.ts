@@ -27,6 +27,7 @@ describe('loadConfig', () => {
       linkSecret: 'a-secret-of-at-least-thirty-two-characters',
       databasePath: './data/tripsplitter.db',
       photoDir: 'data/photos',
+      placeLookup: true,
       openaiApiKey: undefined,
       receiptModel: 'gpt-6-luna',
       receiptDailyCap: 30,
@@ -151,7 +152,7 @@ describe('.env.example', () => {
     expect(names.sort()).toEqual(
       [
         'NODE_ENV', 'BOT_TOKEN', 'BOT_USERNAME', 'MINI_APP_NAME', 'ALLOWED_CHAT_IDS', 'LINK_SECRET', 'DATABASE_PATH',
-        'AGENT_ENABLED', 'AGENT_MODEL', 'AGENT_DAILY_CAP', 'AGENT_GLOBAL_DAILY_CAP', 'OPENAI_API_KEY', 'PHOTO_DIR', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
+        'AGENT_ENABLED', 'AGENT_MODEL', 'AGENT_DAILY_CAP', 'AGENT_GLOBAL_DAILY_CAP', 'OPENAI_API_KEY', 'PLACE_LOOKUP', 'PHOTO_DIR', 'RECEIPT_MODEL', 'RECEIPT_DAILY_CAP', 'RECEIPT_GLOBAL_DAILY_CAP', 'PORT', 'WEBHOOK_URL', 'WEBHOOK_SECRET', 'DEV_FAKE_USER',
         'MCP_ENABLED', 'MCP_DAILY_CAP_PER_CONNECTION',
       ].sort(),
     );
@@ -181,4 +182,8 @@ describe('agent settings', () => {
 it('defaults photos beside the database and accepts an explicit PHOTO_DIR', () => {
   expect(loadConfig({ ...required, DATABASE_PATH: '/data/trips.db' }).photoDir).toBe('/data/photos');
   expect(loadConfig({ ...required, PHOTO_DIR: './uploads' }).photoDir).toBe('./uploads');
+});
+
+it('can turn place lookup off', () => {
+  expect(loadConfig({ ...required, PLACE_LOOKUP: 'false' }).placeLookup).toBe(false);
 });

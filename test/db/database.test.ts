@@ -56,6 +56,7 @@ describe('openDatabase', () => {
       'member',
       'migration',
       'notification_setting',
+      'place_cache',
       'receipt_read',
       'settlement',
       'share',
@@ -76,8 +77,9 @@ describe('openDatabase', () => {
     expect(columns('expense')).toEqual([
       'id', 'trip_id', 'created_by', 'payer_id', 'description', 'merchant', 'expense_date', 'total', 'tax', 'tax_included', 'tip',
       'service_charge', 'discount', 'currency', 'currency_needs_review', 'fx_rate', 'fx_rate_source', 'split_type', 'receipt_file_id',
-      'status', 'status_before_removal', 'version', 'created_at', 'updated_at', 'emoji',
+      'status', 'status_before_removal', 'version', 'created_at', 'updated_at', 'emoji', 'location_lat', 'location_lng', 'place_name', 'location_source',
     ]);
+    expect(columns('place_cache')).toEqual(['lat', 'lng', 'name', 'looked_up_at']);
     expect(columns('expense_photo')).toEqual(['id', 'group_id', 'expense_id', 'file_key', 'width', 'height', 'bytes', 'added_by_member_id', 'created_at']);
     expect(columns('expense_item')).toEqual(['id', 'expense_id', 'label', 'quantity', 'amount', 'position']);
     expect(columns('share')).toEqual(['id', 'member_id', 'weight', 'expense_id', 'item_id']);
@@ -96,12 +98,13 @@ describe('openDatabase', () => {
       { id: 4, name: '004_mcp.sql' },
       { id: 5, name: '005_notifications.sql' },
       { id: 6, name: '006_expense_photos.sql' },
+      { id: 7, name: '007_expense_location.sql' },
     ]);
     expect(migrate(first)).toEqual([]);
     first.close();
     const second = openDatabase(path);
     open.push(second);
-    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 6 });
+    expect(second.prepare('SELECT COUNT(*) AS n FROM migration').get()).toEqual({ n: 7 });
   });
 
   it('applies numbered files in order, and rolls back one that fails', () => {

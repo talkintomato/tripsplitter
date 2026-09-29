@@ -1,8 +1,9 @@
+import { noLocation, type ExpenseLocation } from '../location';
 import { currencyDecimals, toMinorUnits } from '../../../src/core/currencies';
 import type { ExpenseInput, ExpenseItemInput, ExpenseView, Member, ShareInput, SplitType } from '../api/types';
 
 /** What a saved expense holds that the form reads: an expense from the API, or one kept in an activity entry. */
-export type SavedExpense = Pick<ExpenseView, 'description' | 'merchant' | 'total' | 'currency' | 'expenseDate' | 'payerId' | 'splitType' | 'shares' | 'items' | 'tax' | 'taxIncluded' | 'tip' | 'serviceCharge' | 'discount' | 'currencyNeedsReview' | 'fxRate' | 'fxRateSource'> & { emoji?: string | null };
+export type SavedExpense = Pick<ExpenseView, 'description' | 'merchant' | 'total' | 'currency' | 'expenseDate' | 'payerId' | 'splitType' | 'shares' | 'items' | 'tax' | 'taxIncluded' | 'tip' | 'serviceCharge' | 'discount' | 'currencyNeedsReview' | 'fxRate' | 'fxRateSource'> & Partial<ExpenseLocation> & { emoji?: string | null };
 import { amountText, today } from '../format';
 
 /**
@@ -10,6 +11,7 @@ import { amountText, today } from '../format';
  * no screen of this build edits, because a save replaces the whole expense.
  */
 export interface ExpenseFormState {
+  location?: ExpenseLocation | null;
   description: string;
   merchant: string | null;
   /** The amount as typed, such as "84.50". */
@@ -74,6 +76,7 @@ export function newExpenseState(options: { members: ReadonlyArray<Member>; meId:
 export function stateFromExpense(expense: SavedExpense): ExpenseFormState {
   const included = expense.shares.filter((s) => s.itemId === null);
   return {
+    location: expense.locationLat != null && expense.locationLng != null ? { locationLat: expense.locationLat, locationLng: expense.locationLng, placeName: expense.placeName ?? null, locationSource: expense.locationSource ?? null } : null,
     description: expense.description,
     merchant: expense.merchant,
     amountText: expense.total === 0 ? '' : amountText(expense.total, expense.currency),
@@ -128,6 +131,7 @@ export function toExpenseInput(state: ExpenseFormState, total: number): ExpenseI
   const shares = includedShares(state);
   const includedIds = new Set(shares.map((s) => s.memberId));
   return {
+    ...(state.location !== undefined ? state.location ?? noLocation : {}),
     payerId: state.payerId,
     description: state.description.trim(),
     merchant: state.merchant,

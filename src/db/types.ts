@@ -76,7 +76,14 @@ export interface TripFxRate {
   updatedAt: string;
 }
 
-export interface Expense {
+export interface ExpenseLocation {
+  locationLat: number | null;
+  locationLng: number | null;
+  placeName: string | null;
+  locationSource: 'photo' | 'device' | null;
+}
+
+export interface Expense extends ExpenseLocation {
   id: number;
   tripId: number;
   createdBy: number;
@@ -239,9 +246,10 @@ export interface ExpenseItemInput {
 /**
  * A whole expense: fields, items and shares. Used by `createExpense` and `saveExpense`.
  * A field marked "default" takes that value when left out, also on a save, because a save replaces the
- * whole expense. The four marked "keeps" are the exceptions on a save.
+ * whole expense. Those marked "keeps" are the exceptions on a save.
+ * Location omitted on save: keep it. Set both coordinates to null to remove it.
  */
-export interface ExpenseInput {
+export interface ExpenseInput extends Partial<ExpenseLocation> {
   payerId: number;
   /** Default: empty. */
   description?: string;

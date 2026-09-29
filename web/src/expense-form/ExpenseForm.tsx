@@ -1,3 +1,4 @@
+import { LocationField } from './LocationField';
 import { PhotoField, usePhotoField } from '../photos/PhotoField';
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { CURRENCIES, currencyDecimals } from '../../../src/core/currencies';
@@ -64,7 +65,7 @@ function differences(members: ReadonlyArray<Member>, mine: ExpenseFormState, lat
 export function ExpenseForm(props: ExpenseFormProps) {
   const { client, members } = props;
   const [expense, setExpense] = useState(props.expense);
-  const photoField = usePhotoField(client, props.expense);
+
   // The currency a new expense was refused in for want of a rate. The rate row then asks for one.
   const [refusedCurrency, setRefusedCurrency] = useState<string | null>(null);
   const [roundingNote, setRoundingNote] = useState('');
@@ -74,6 +75,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
   // The version the member is looking at. It moves on only when they choose to after a conflict.
   const [version, setVersion] = useState(expense?.version ?? 0);
   const [latest, setLatest] = useState<ExpenseView | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [busy, setBusy] = useState<'save' | 'draft' | null>(null);
   const [error, setError] = useState<unknown>(undefined);
   const [touched, setTouched] = useState(false);
@@ -84,6 +86,8 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const [moreOpen, setMoreOpen] = useState(() => expense?.status === 'draft' || expense?.splitType === 'items' || expense?.fxRateSource === 'expense');
 
   const update = (patch: FormPatch): void => setState((current) => ({ ...current, ...patch }));
+
+  const photoField = usePhotoField(client, props.expense, state.location != null, location => { update({ location }); setMoreOpen(true); });
 
   const isNew = expense === undefined;
   const isDraft = expense?.status === 'draft';
@@ -141,7 +145,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
    * edited, "Save changes, approve later". A person's own expense is never kept as a draft.
    */
   async function submit(kind: 'save' | 'draft', useVersion = version): Promise<void> {
-    if (photoField.working || busy !== null) return;
+    if (photoField.working || photoField.tagging || locationBusy || busy !== null) return;
     setTouched(true);
     setError(undefined);
     if (kind === 'draft' && !isDraft) return;
@@ -205,13 +209,12 @@ export function ExpenseForm(props: ExpenseFormProps) {
   const rows = latest ? differences(members, state, latest) : [];
   const gone = latest !== null && latest.status !== 'draft' && latest.status !== 'confirmed';
 
-  // More options: what is needed less often. Shown only when there is something in it.
+  // More options always includes location, plus any extras for this split type.
   const Extras = entry.Extras ?? null;
   const ownRate = (state.rateOverride !== undefined && state.rateOverride !== null) || (state.rateOverride === undefined && fx?.fxRateSource === 'expense');
-  const hasMore = Extras !== null;
-  const moreSummary = 'Tax, tip, service charge, discount';
+  const moreSummary = Extras ? 'Tax, tip, service charge, discount, location' : 'Location';
 
-  const showMore = hasMore && moreOpen;
+  const showMore = moreOpen;
   const rateTripId = typeof props.tripId === 'number' ? props.tripId : (expense?.tripId ?? null);
   const rateSource = fx?.fxRateSource === 'expense'
     ? "This expense's own rate"
@@ -240,7 +243,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
     amountRef.current?.focus();
   };
 
-  const moreOptions = hasMore ? (
+  const moreOptions = (
         <div className="disclosure">
           <button type="button" className="disclosure-btn" aria-expanded={showMore} aria-controls="more-options" onClick={() => setMoreOpen((open) => !open)}>
             <span className="row-main">
@@ -251,6 +254,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
           </button>
           {showMore ? (
             <div className="disclosure-panel" id="more-options">
+              <LocationField onBusy={setLocationBusy} client={client} location={state.location ?? null} onChange={location => update({ location })} disabled={busy !== null || photoField.tagging || locationBusy} />
               {Extras !== null && Body !== null ? (
                 <Extras
                   state={state}
@@ -267,7 +271,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
             </div>
           ) : null}
         </div>
-      ) : null;
+      );
   const moreInsideSplit = state.splitType === 'items' && Body !== null;
 
   return (
@@ -520,7 +524,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
         {server.status === 'failed' && state.splitType !== 'items' ? <button type="button" className="link-btn small" onClick={server.retry}>Try preview again</button> : null}
       </div>
 
-      <PhotoField client={client} field={photoField} expense={expense} disabled={busy !== null} />
+      <PhotoField client={client} field={photoField} expense={expense} disabled={busy !== null || locationBusy} />
 
       {/* By item: More options sits above what each person pays, since tax, tip and discount change it. */}
       {moreInsideSplit ? null : moreOptions}
@@ -528,7 +532,7 @@ export function ExpenseForm(props: ExpenseFormProps) {
       {server.status === 'loading' ? <p role="status" className="visually-hidden">Updating amounts…</p> : null}
       <div className="action-bar">
         {saveReason !== null ? <p className="save-reason" role="alert">{saveReason}</p> : null}
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={photoField.working || busy !== null || saveReason !== null || blocked || firstProblem !== null}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={photoField.working || photoField.tagging || locationBusy || busy !== null || saveReason !== null || blocked || firstProblem !== null}>
           {busy === 'save' ? 'Saving…' : isNew ? 'Save' : isDraft ? 'Approve and save' : 'Save changes'}
         </button>
         {isDraft ? (

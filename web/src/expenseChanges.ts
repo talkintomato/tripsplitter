@@ -1,3 +1,4 @@
+import { locationText } from './location';
 import type { Member } from './api/types';
 import { stateFromExpense, includedShares, parseAmount, type ExpenseFormState } from './expense-form/formState';
 import { dayText, money, nameOf } from './format';
@@ -35,6 +36,11 @@ export function expenseChanges(
     if (x !== y) rows.push({ label, before: x || '(empty)', after: y || '(empty)' });
   };
   add('Description', a.description.trim(), b.description.trim());
+  const sameName = locationText(a.location) === locationText(b.location);
+  const moved = a.location?.locationLat !== b.location?.locationLat || a.location?.locationLng !== b.location?.locationLng;
+  const where = (state: ExpenseFormState) => sameName && moved && state.location?.placeName
+    ? `${state.location.placeName} (${locationText({ ...state.location, placeName: null })})` : locationText(state.location);
+  add('Location', where(a), where(b));
   add('Emoji', a.emoji ?? '', b.emoji ?? '');
   const aTotal = parseAmount(a.amountText, a.currency);
   const bTotal = parseAmount(b.amountText, b.currency);

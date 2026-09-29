@@ -154,3 +154,58 @@ export function buzz(kind: 'success' | 'error'): void {
     // Older Telegram apps have no haptics.
   }
 }
+
+interface LocationManager {
+  isLocationAvailable?: boolean;
+  init?(callback: () => void): void;
+  getLocation?(callback: (location: { latitude: number; longitude: number } | null) => void): void;
+  openSettings?(): void;
+}
+function locationManager(): LocationManager | undefined {
+  try { return (WebApp as unknown as { LocationManager?: LocationManager }).LocationManager; }
+  catch { return undefined; }
+}
+
+export function canOpenLocationSettings(): boolean {
+  try { return inTelegram() && typeof locationManager()?.openSettings === 'function'; }
+  catch { return false; }
+}
+export function openLocationSettings(): void {
+  try { if (inTelegram()) locationManager()?.openSettings?.(); }
+  catch { /* Older clients may expose unsupported methods. */ }
+}
+
+/** Requested only from an explicit button tap. Missing Telegram support never falls back to browser GPS. */
+export function currentLocation(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => finish(null), 15000);
+    let done = false;
+    function finish(value: { lat: number; lng: number } | null) {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      resolve(value && Number.isFinite(value.lat) && Math.abs(value.lat) <= 90 && Number.isFinite(value.lng) && Math.abs(value.lng) <= 180 ? value : null);
+    }
+    try {
+      if (inTelegram()) {
+        const manager = locationManager();
+        if (!manager?.init || !manager.getLocation) { finish(null); return; }
+        manager.init(() => {
+          try {
+            if (manager.isLocationAvailable === false || !manager.getLocation) { finish(null); return; }
+            manager.getLocation(value => finish(value ? { lat: value.latitude, lng: value.longitude } : null));
+          } catch { finish(null); }
+        });
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(value => finish({ lat: value.coords.latitude, lng: value.coords.longitude }), () => finish(null), { timeout: 10000, maximumAge: 0 });
+      } else finish(null);
+    } catch { finish(null); }
+  });
+}
+
+/** Returns true if Telegram opened it; otherwise the anchor follows its normal href. */
+export function openExternalLink(url: string): boolean {
+  try {
+    if (inTelegram() && typeof WebApp.openLink === 'function') { WebApp.openLink(url); return true; }
+  } catch { /* Let the browser follow the link. */ }
+  return false;
+}

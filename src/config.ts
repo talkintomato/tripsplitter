@@ -100,6 +100,7 @@ const envSchema = z.object({
   ),
   DATABASE_PATH: z.preprocess(blankToUndefined, z.string().default('./data/tripsplitter.db')),
   PHOTO_DIR: optionalString,
+  PLACE_LOOKUP: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('true')),
   OPENAI_API_KEY: optionalString,
   RECEIPT_MODEL: z.preprocess(blankToUndefined, z.string().default('gpt-6-luna')),
   RECEIPT_DAILY_CAP: positiveInt(30),
@@ -146,6 +147,8 @@ export interface Config {
   databasePath: string;
   /** PHOTO_DIR, default: photos beside DATABASE_PATH. */
   photoDir: string;
+  /** PLACE_LOOKUP: optional reverse geocoding. */
+  placeLookup: boolean;
   /** OPENAI_API_KEY. Undefined unless set. Receipt reading is off without it. */
   openaiApiKey: string | undefined;
   /** RECEIPT_MODEL */
@@ -213,6 +216,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     linkSecret: e.LINK_SECRET,
     databasePath: e.DATABASE_PATH,
     photoDir: e.PHOTO_DIR ?? join(dirname(e.DATABASE_PATH), 'photos'),
+    placeLookup: e.PLACE_LOOKUP === 'true',
     openaiApiKey: e.OPENAI_API_KEY,
     receiptModel: e.RECEIPT_MODEL,
     receiptDailyCap: e.RECEIPT_DAILY_CAP,
@@ -256,6 +260,7 @@ function buildUnchecked(overrides: Partial<Config>): Config {
     linkSecret: 'test-link-secret-0123456789-abcdefghij',
     databasePath: ':memory:',
     photoDir: join(dirname(overrides.databasePath ?? './data/test.db'), 'photos'),
+    placeLookup: true,
     openaiApiKey: undefined,
     receiptModel: 'gpt-6-luna',
     receiptDailyCap: 30,

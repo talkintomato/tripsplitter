@@ -1,3 +1,4 @@
+import { taggedLocation, type ExpenseLocation } from '../location';
 import { useRef, useState } from 'react';
 import { messageOf, type ApiClient } from '../api/client';
 import type { ExpenseView } from '../api/types';
@@ -10,7 +11,27 @@ import { shrinkPhoto } from './shrink';
 type Photo = { key: number; id?: number; blob?: Blob; busy?: boolean };
 
 /** Held in the form until create succeeds; edits upload and remove immediately. */
-export function usePhotoField(client: ApiClient, expense?: ExpenseView) {
+export function usePhotoField(client: ApiClient, expense?: ExpenseView, hasLocation = false, onLocation?: (location: ExpenseLocation) => void) {
+  const [suggestion, setSuggestion] = useState<{ key: number; location: ExpenseLocation } | null>(null);
+  const [tagging, setTagging] = useState(false);
+  const current = useRef({ hasLocation, onLocation });
+  current.current = { hasLocation, onLocation };
+  const suggestionRef = useRef(suggestion);
+  suggestionRef.current = suggestion;
+  function dismissSuggestion() { suggestionRef.current = null; setSuggestion(null); }
+  async function tagLocation() {
+    const pending = suggestionRef.current;
+    if (!pending || current.current.hasLocation || tagging) return;
+    setTagging(true);
+    let location = pending.location;
+    try {
+      const { name } = await client.lookupPlace(location.locationLat!, location.locationLng!);
+      location = { ...location, placeName: name };
+    } catch { /* Tagging works without a name. */ }
+    if (suggestionRef.current === pending && !current.current.hasLocation) current.current.onLocation?.(location);
+    if (suggestionRef.current === pending) dismissSuggestion();
+    setTagging(false);
+  }
   const [photos, setPhotos] = useState<Photo[]>(() => expense?.photos.map(photo => ({ key: photo.id, id: photo.id })) ?? []);
   const [working, setWorking] = useState(false);
   const lock = useRef(false);
@@ -22,6 +43,15 @@ export function usePhotoField(client: ApiClient, expense?: ExpenseView) {
     const key = sequence.current--;
     setPhotos(current => [...current, { key, blob: file, busy: true }]);
     try {
+      // Read locally before the re-encode strips all EXIF; a lookup waits for Tag location.
+      try {
+        const { gps } = await import('exifr/dist/lite.esm.mjs');
+        const coords = await gps(file);
+        if (coords && Number.isFinite(coords.latitude) && Math.abs(coords.latitude) <= 90 && Number.isFinite(coords.longitude) && Math.abs(coords.longitude) <= 180 && !current.current.hasLocation && !suggestionRef.current) {
+          const next = { key, location: taggedLocation(coords.latitude, coords.longitude, 'photo') };
+          suggestionRef.current = next; setSuggestion(next);
+        }
+      } catch { /* Missing or malformed GPS does not block a photo. */ }
       const blob = await shrinkPhoto(file);
       setPhotos(current => current.map(p => p.key === key ? { key, blob, busy: Boolean(expense) } : p));
       if (expense) {
@@ -30,6 +60,7 @@ export function usePhotoField(client: ApiClient, expense?: ExpenseView) {
       }
     } catch (problem) {
       setPhotos(current => current.filter(p => p.key !== key));
+      if (suggestionRef.current?.key === key) dismissSuggestion();
       setError(messageOf(problem));
     } finally { lock.current = false; setWorking(false); }
   }
@@ -39,6 +70,7 @@ export function usePhotoField(client: ApiClient, expense?: ExpenseView) {
     try {
       if (photo.id !== undefined) await client.removePhoto(photo.id);
       setPhotos(current => current.filter(p => p.key !== photo.key));
+      if (suggestionRef.current?.key === photo.key) dismissSuggestion();
     } catch (problem) { setError(messageOf(problem)); }
     finally { lock.current = false; setWorking(false); }
   }
@@ -57,7 +89,7 @@ export function usePhotoField(client: ApiClient, expense?: ExpenseView) {
     }
     return failed;
   }
-  return { photos, working, error, add, remove, uploadAfterSave };
+  return { photos, working, error, add, remove, uploadAfterSave, suggestion: hasLocation ? null : suggestion, tagging, tagLocation, dismissSuggestion };
 }
 
 export function PhotoField({ client, field, expense, disabled }: { client: ApiClient; field: ReturnType<typeof usePhotoField>; expense?: ExpenseView; disabled: boolean }) {
@@ -80,6 +112,11 @@ export function PhotoField({ client, field, expense, disabled }: { client: ApiCl
       </div>)}
       {field.photos.length < 3 ? <button type="button" className="photo-tile photo-add" disabled={disabled || field.working} onClick={() => input.current?.click()}>Add photo</button> : null}
     </div>
+    {field.suggestion ? <div className="location-suggestion">
+      <span>📍 This photo has a location</span>
+      <button type="button" className="link-btn" disabled={disabled || field.working || field.tagging} onClick={() => void field.tagLocation()}>{field.tagging ? 'Tagging…' : 'Tag location'}</button>
+      <button type="button" className="link-btn" aria-label="Dismiss location suggestion" onClick={field.dismissSuggestion}><Close size={18} /></button>
+    </div> : null}
     <input ref={input} className="visually-hidden" type="file" accept="image/*" aria-label="Choose photo" disabled={disabled || field.working || field.photos.length >= 3} onChange={event => {
       const file = event.target.files?.[0]; event.target.value = ''; if (file) void field.add(file);
     }} />

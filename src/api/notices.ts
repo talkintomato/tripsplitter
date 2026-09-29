@@ -95,6 +95,9 @@ export function describeChanges(db: Db, scope: Scope, before: ExpenseDetail, aft
     const from = sameCurrency ? fromMinorUnits(a, before.currency) : formatAmount(a, before.currency);
     changes.push(`${label} ${from} to ${formatAmount(b, after.currency)}`);
   };
+  if (before.locationLat !== after.locationLat || before.locationLng !== after.locationLng || before.placeName !== after.placeName) {
+    changes.push(after.locationLat === null || after.locationLng === null ? 'location removed' : `location set to ${after.placeName ?? `Near ${after.locationLat.toFixed(5)}, ${after.locationLng.toFixed(5)}`}`);
+  }
   money('total', before.total, after.total);
   if (before.description !== after.description) changes.push(`name "${before.description}" to "${after.description}"`);
   if ((before.merchant ?? '') !== (after.merchant ?? '')) changes.push(`place "${before.merchant ?? ''}" to "${after.merchant ?? ''}"`);

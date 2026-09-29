@@ -1,3 +1,5 @@
+import { locationText } from '../location';
+import { openExternalLink } from '../telegram';
 import { PhotoImage } from '../photos/PhotoImage';
 import { Photos } from '../photos/Photos';
 import { useState } from 'react';
@@ -367,6 +369,12 @@ export function ExpenseDetail() {
           <dt>Date</dt>
           <dd>{longDayText(expense.expenseDate)}</dd>
         </div>
+        {expense.locationLat != null && expense.locationLng != null ? (
+          <div>
+            <dt>Where</dt>
+            <dd><a className="location-link" href={`https://www.google.com/maps/search/?api=1&query=${expense.locationLat},${expense.locationLng}`} target="_blank" rel="noreferrer" onClick={event => { if (openExternalLink(event.currentTarget.href)) event.preventDefault(); }}>{locationText(expense)}</a></dd>
+          </div>
+        ) : null}
         {expense.merchant ? (
           <div>
             <dt>Place</dt>

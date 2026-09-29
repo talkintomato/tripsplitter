@@ -1,3 +1,5 @@
+import { locationText } from './location';
+import type { ExpenseLocation } from './location';
 import type { ActivityEntry, ExpenseView, Member, Settlement, Trip } from './api/types';
 import { expenseTitle, money, nameOf } from './format';
 
@@ -23,6 +25,14 @@ const text = (value: Loose, key: string): string => (value && typeof value[key] 
 
 const isReceiptDraft = (after: Loose): boolean => text(after, 'status') === 'draft' && typeof after?.receiptFileId === 'string' && after.receiptFileId !== '';
 
+function locationChange(before: Loose, after: Loose): string {
+  if (!before || !after) return '';
+  if (before.locationLat === after.locationLat && before.locationLng === after.locationLng && before.placeName === after.placeName) return '';
+  // Old snapshots predate the location fields.
+  if (before.locationLat == null && after.locationLat == null) return '';
+  return after.locationLat == null ? 'location removed' : `location set to ${locationText(after as Partial<ExpenseLocation>)}`;
+}
+
 /**
  * What happened to one expense or payment, in a few words, for the history on its own detail, where its name
  * would only repeat the title. The Activity screen says the same with the name: see `activityText`.
@@ -37,7 +47,7 @@ export function historyText(entry: ActivityEntry): string {
     case 'expense.create':
       return isReceiptDraft(after) ? 'Read from a receipt' : text(after, 'status') === 'draft' ? 'Started as a draft' : 'Added';
     case 'expense.save':
-      return 'Edited';
+      return ['Edited', locationChange(record(entry.before), after)].filter(Boolean).join(' · ');
     case 'expense.confirm':
       return 'Approved';
     case 'expense.discard':
@@ -76,7 +86,7 @@ export function activityText(entry: ActivityEntry, members: ReadonlyArray<Member
     case 'expense.create':
       return isReceiptDraft(after) ? `read a receipt: ${expenseText(after)}` : text(after, 'status') === 'draft' ? `started a draft: ${expenseText(after)}` : `added ${expenseText(after)}`;
     case 'expense.save':
-      return `edited ${expenseText(after)}`;
+      return [`edited ${expenseText(after)}`, locationChange(before, after)].filter(Boolean).join(' · ');
     case 'expense.confirm':
       return `approved the draft ${expenseText(after)}`;
     case 'expense.discard':

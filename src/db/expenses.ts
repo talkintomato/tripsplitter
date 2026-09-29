@@ -37,6 +37,22 @@ import type {
   Trip,
 } from './types.js';
 
+/** Location is a single optional unit; unrelated edits preserve it. */
+function cleanLocation(input: ExpenseInput, before?: Expense): [number | null, number | null, string | null, string | null] {
+  const keys = ['locationLat', 'locationLng', 'placeName', 'locationSource'] as const;
+  if (keys.every(key => input[key] === undefined)) {
+    return [before?.locationLat ?? null, before?.locationLng ?? null, before?.placeName ?? null, before?.locationSource ?? null];
+  }
+  const { locationLat: lat, locationLng: lng } = input;
+  if ((lat === null && lng === null) || (lat == null && lng == null && input.placeName == null && input.locationSource == null)) return [null, null, null, null];
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180 ||
+      (input.locationSource != null && input.locationSource !== 'photo' && input.locationSource !== 'device')) {
+    throw new ValidationError('invalid_input', 'Choose a valid location with both coordinates.');
+  }
+  return [Number(lat.toFixed(5)), Number(lng.toFixed(5)), cleanOptionalText(input.placeName, 'place', 200), input.locationSource ?? null];
+}
+
 interface CleanShare {
   memberId: number;
   weight: number;
@@ -155,8 +171,8 @@ export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): 
         .prepare(
           `INSERT INTO expense (trip_id, created_by, payer_id, description, merchant, expense_date, total, tax, tax_included,
              tip, service_charge, discount, currency, currency_needs_review, fx_rate, fx_rate_source, split_type,
-             receipt_file_id, emoji, status, version, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)`,
+             receipt_file_id, emoji, location_lat, location_lng, place_name, location_source, status, version, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?, ?)`,
         )
         .run(
           trip.id,
@@ -179,6 +195,7 @@ export function createExpense(db: Db, scope: Scope, input: CreateExpenseInput): 
           assertSplitType(input.splitType),
           cleanOptionalText(input.receiptFileId, 'receipt reference', 500),
           cleanEmoji(input.emoji),
+          ...cleanLocation(input),
           stamp,
           stamp,
         ).lastInsertRowid,
@@ -277,7 +294,7 @@ export function saveExpense(db: Db, scope: Scope, expenseId: number, expectedVer
     db.prepare(
       `UPDATE expense SET payer_id = ?, description = ?, merchant = ?, expense_date = ?, total = ?, tax = ?, tax_included = ?,
          tip = ?, service_charge = ?, discount = ?, currency = ?, currency_needs_review = ?, fx_rate = ?, fx_rate_source = ?,
-         split_type = ?, receipt_file_id = ?, emoji = ?, version = version + 1, updated_at = ?
+         split_type = ?, receipt_file_id = ?, emoji = ?, location_lat = ?, location_lng = ?, place_name = ?, location_source = ?, version = version + 1, updated_at = ?
        WHERE id = ?`,
     ).run(
       payer.id,
@@ -297,6 +314,7 @@ export function saveExpense(db: Db, scope: Scope, expenseId: number, expectedVer
       assertSplitType(input.splitType),
       input.receiptFileId === undefined ? before.receiptFileId : cleanOptionalText(input.receiptFileId, 'receipt reference', 500),
       input.emoji === undefined ? before.emoji : cleanEmoji(input.emoji),
+      ...cleanLocation(input, before),
       nowIso(),
       expenseId,
     );

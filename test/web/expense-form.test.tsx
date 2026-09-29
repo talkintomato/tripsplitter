@@ -98,7 +98,9 @@ describe('a new expense split evenly', () => {
 
     // A person's own expense is saved or not saved: there is no way to put it aside as a draft.
     expect(screen.queryByRole('button', { name: /draft|approve later/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^More options/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^More options/ })).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByRole('button', { name: /^More options/ }));
+    expect(screen.getByRole('button', { name: 'Use my current location' })).toBeInTheDocument();
     expect(client.createExpense).not.toHaveBeenCalled();
   });
 
@@ -175,6 +177,7 @@ describe('a split by portions', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(client.saveExpense).toHaveBeenCalledWith(7, {
       version: 3,
+      locationLat: null, locationLng: null, placeName: null, locationSource: null,
       payerId: KAI.id,
       description: 'Dinner',
       merchant: 'Casa Pepe',

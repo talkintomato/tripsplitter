@@ -15,6 +15,7 @@ import { ExpenseDetail } from '../../web/src/screens/Expense';
 import { AppProvider } from '../../web/src/state';
 import { MEMBERS, expenseView, fakeClient, previewAnswer, written } from './helpers';
 
+vi.mock('exifr/dist/lite.esm.mjs', () => ({ gps: vi.fn(async () => undefined) }));
 vi.mock('../../web/src/photos/shrink', () => ({ shrinkPhoto: vi.fn() }));
 const jpeg = new Blob(['shrunk'], { type: 'image/jpeg' });
 let sequence = 0;
@@ -44,7 +45,7 @@ function form(edit = false) {
 it('holds photos on add, uploads only after saving, and shows a thumbnail with an upload indicator', async () => {
   const { client, user, onSaved } = form();
   await user.upload(screen.getByLabelText('Choose photo'), new File(['original'], 'image.png', { type: 'image/png' }));
-  expect(await screen.findByAltText('Expense photo')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByAltText('Expense photo')).toBeInTheDocument());
   expect(client.uploadPhoto).not.toHaveBeenCalled();
   let finish!: (value: { id: number; width: number; height: number }) => void;
   client.uploadPhoto.mockImplementation(() => new Promise(resolve => { finish = resolve; }));

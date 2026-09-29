@@ -146,6 +146,7 @@ All settings are environment variables; [`.env.example`](.env.example) lists eve
 | `LINK_SECRET` | Yes | Signs links into the Mini App, at least 32 characters |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET` | When deployed | Public address, and the secret for Telegram's calls |
 | `DATABASE_PATH` | No | SQLite file, default `./data/tripsplitter.db` |
+| `PLACE_LOOKUP` | No | `true` by default; `false` disables place-name lookups |
 | `PHOTO_DIR` | No | Photo storage, default `photos` beside `DATABASE_PATH`; created on startup |
 | `OPENAI_API_KEY` | For AI features | Receipt reading and the chat agent are off without it |
 | `RECEIPT_MODEL`, `AGENT_MODEL` | No | Default `gpt-6-luna` |
@@ -171,6 +172,8 @@ In the app, open the trip’s gear menu → **Notifications** to choose group no
 More on the agent in [`docs/agent.md`](docs/agent.md), and on connecting AI clients in [`docs/mcp.md`](docs/mcp.md).
 
 ## Privacy and cost
+
+- Expense locations are optional and are never tagged automatically. Photo GPS is read locally before metadata is stripped. Only coordinates are sent to OpenStreetMap Nominatim, and only after a person chooses to tag a photo location or use their current location; no photos, names, or group data are sent. Disable this with `PLACE_LOOKUP=false`. Place names are cached for 90 days, missing names for one day, using coordinates rounded to three decimals. Tagged expenses keep coordinates rounded to five decimals and show them to the group, including in edit history. Opening the map link sends those coordinates to Google Maps.
 
 - The bot reads every group message only to learn who is in the group, and never stores message text.
 - Only photos tagged with the bot's name, and messages written to the bot, are sent to OpenAI, with a request not to store them. Receipt reading uses images in memory; the Mini App stores uploaded expense photos and caches receipt previews on disk, with location metadata removed.
