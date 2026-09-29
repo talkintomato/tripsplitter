@@ -118,6 +118,22 @@ describe('name resolution and validation',()=>{
  });
 });
 
+it('a new expense assumes the asker paid today in the home currency, split equally between everyone',async()=>{
+ const f=make();
+ const {p}=await prepare(f,'add_expense',{description:'Breakfast',amount:'12'});
+ expect(p.summary).toBe(`➕ Add Breakfast\n\n${details}`.replace('Mon 28 Sep',p.summary.match(/Date: (.*)/)![1]!));
+ expect(confirmProposal(f.db,{}, {proposalId:p.id,memberId:f.member.id,now}).kind).toBe('done');
+ const saved=d.getExpense(f.db,f.scope,1);
+ expect(saved).toMatchObject({payerId:f.member.id,currency:f.trip.homeCurrency,splitType:'even',total:1200,expenseDate:d.singaporeDate(f.context.now)});
+ expect(saved.shares.map(s=>s.memberId).sort()).toEqual([f.member.id,f.alex.id].sort());
+});
+it('a new itemised expense adds up its items and splits by item, sharing items nobody is named on',async()=>{
+ const f=make();
+ const r=await runTool(f.context,'preview_expense',{description:'Breakfast',items:[{label:'Eggs',amount:'4',people:[{name:'Alex'}]},{label:'Coffee',amount:'8'}]});
+ expect(r).toMatchObject({kind:'read',data:{preview:{amounts:{[f.member.id]:400,[f.alex.id]:800}}}});
+ await expect(runTool(f.context,'add_expense',{description:'Breakfast'})).rejects.toThrow('total');
+ await expect(runTool(f.context,'add_expense',{description:'Breakfast',tip:'2',items:[{label:'Coffee',amount:'8'}]})).rejects.toThrow('total');
+});
 it('validates item assignment membership even when items are kept on an even split',async()=>{
  const f=make();
  await expect(runTool(f.context,'add_expense',{...expenseArgs,people:[{name:'Sam'}],items:[{label:'Unassigned',amount:'12',people:[{name:'Alex'}]}]})).rejects.toThrow('included');

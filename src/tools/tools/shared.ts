@@ -20,7 +20,32 @@ export const expenseFields = z.strictObject({
   items: z.array(z.strictObject({ label: z.string().trim().max(200), amount, quantity: z.number().positive().optional(), people: z.array(portion).optional() })).max(500).optional(),
 });
 export type ExpenseArgs = z.infer<typeof expenseFields>;
+/** A new expense may leave out who paid, when, how it is split, who shares it and its currency; see withNewExpenseDefaults. */
+export const newExpenseFields = expenseFields.partial({ amount: true, payer: true, date: true, splitType: true, people: true, currency: true });
+/**
+ * What a new expense assumes when the message does not say: the total of its items, the person asking paid, today, the trip's home
+ * currency, and an equal split between everyone (by item when items are given; items nobody is named on are
+ * shared by everyone). The proposal shows each of these, so a wrong guess is one Change away.
+ */
+export function withNewExpenseDefaults(c: ToolContext, t: dbOps.Trip, a: z.infer<typeof newExpenseFields>): ExpensePatch {
+  const code = a.currency ?? t.homeCurrency;
+  return {
+    ...a,
+    amount: a.amount ?? itemsTotal(a, code),
+    currency: code,
+    payer: a.payer ?? (c.scope.actor.kind === 'member' ? 'me' : undefined),
+    date: a.date ?? dbOps.singaporeDate(c.now),
+    splitType: a.splitType ?? (a.items?.length ? 'items' : 'even'),
+    people: a.people ?? [{ name: 'everyone' }],
+  };
+}
 export type ExpensePatch = Partial<ExpenseArgs>;
+/** Without a total, a list of items adds up to it, as long as there are no charges or discounts on top. */
+function itemsTotal(a: ExpensePatch, code: string): string {
+  const extras = [a.tax, a.tip, a.serviceCharge, a.discount].some(v => v !== undefined && Number(v) !== 0);
+  if (!a.items?.length || extras) refuse('What was the total amount?');
+  return fromMinorUnits(a.items.reduce((sum, item) => sum + toMinorUnits(item.amount, code), 0), code);
+}
 export function refuse(message: string): never { throw new dbOps.ValidationError('invalid_input', message); }
 export function trip(c: ToolContext, tripId?: number): dbOps.Trip {
   const t = tripId === undefined ? dbOps.getActiveTrip(c.db,c.scope) ?? dbOps.listTrips(c.db,c.scope)[0] : dbOps.getTrip(c.db,c.scope,tripId);

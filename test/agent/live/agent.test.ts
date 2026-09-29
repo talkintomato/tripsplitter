@@ -11,6 +11,9 @@ const cases = [
   ['Alex paid me 12 SGD. Record the payment.', 'record_payment'],
   ['Show the recent expenses.', 'list_expenses'],
   ['Rename this trip to Japan holiday.', 'rename_trip'],
+  // Nothing about who paid, when or who shares it: the defaults apply instead of a question.
+  ['Breakfast 18', 'add_expense'],
+  ['Lunch: noodles 9, iced tea 3 for Alex, dumplings 8', 'add_expense'],
 ] as const;
 for (const [index, [sentence, expected]] of cases.entries()) {
   it.skipIf(!key)(`live sentence ${index + 1}: calls ${expected}`, async () => {
@@ -30,6 +33,7 @@ for (const [index, [sentence, expected]] of cases.entries()) {
       console.log(`Agent live case ${index + 1}: ${tools.length} calls: ${tools.join(', ') || '(none)'}`);
       expect(result.kind).not.toBe('unavailable');
       expect(tools).toContain(expected);
+      if (expected === 'add_expense') expect(result.kind).toBe('proposal');
       expect(tools.length).toBeLessThanOrEqual(6);
     } finally { f.db.close(); }
   });
